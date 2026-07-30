@@ -1,0 +1,263 @@
+{
+  "info": {
+    "name": "Social Graph API",
+    "description": "Collection Postman préremplie pour tous les endpoints exposés par l'API FastAPI.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "post_id",
+      "value": "1234567890123456_9876543210987654"
+    },
+    {
+      "key": "comment_id",
+      "value": "9876543210987654_1122334455667788"
+    },
+    {
+      "key": "post_message",
+      "value": "Bonjour depuis l'API Graph"
+    },
+    {
+      "key": "reply_message",
+      "value": "Merci pour votre commentaire !"
+    },
+    {
+      "key": "single_file_path",
+      "value": "/tmp/image.jpg"
+    },
+    {
+      "key": "multi_file_path_1",
+      "value": "/tmp/image1.jpg"
+    },
+    {
+      "key": "multi_file_path_2",
+      "value": "/tmp/image2.png"
+    },
+    {
+      "key": "video_file_path",
+      "value": "/tmp/video.mp4"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/health",
+            "description": "Vérifie que l'API est disponible."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Facebook Posts",
+      "item": [
+        {
+          "name": "Lister les publications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/facebook/posts?since=2024-01-01&until=2024-12-31",
+              "host": ["{{base_url}}"],
+              "path": ["facebook", "posts"],
+              "query": [
+                {
+                  "key": "since",
+                  "value": "2024-01-01",
+                  "description": "Date de début (format ISO)",
+                  "disabled": false
+                },
+                {
+                  "key": "until",
+                  "value": "2024-12-31",
+                  "description": "Date de fin (format ISO)",
+                  "disabled": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Créer un post texte",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{base_url}}/facebook/posts",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "message",
+                  "value": "{{post_message}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "description": "Créer un post sans fichier (champ form-data `message`)."
+          }
+        },
+        {
+          "name": "Créer un post avec 1 image",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{base_url}}/facebook/posts",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "message",
+                  "value": "{{post_message}}",
+                  "type": "text"
+                },
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": "{{single_file_path}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Créer un post avec plusieurs images",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{base_url}}/facebook/posts",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "message",
+                  "value": "{{post_message}}",
+                  "type": "text"
+                },
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": "{{multi_file_path_1}}"
+                },
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": "{{multi_file_path_2}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Créer un post avec vidéo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{base_url}}/facebook/posts",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "message",
+                  "value": "{{post_message}}",
+                  "type": "text"
+                },
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": "{{video_file_path}}"
+                }
+              ]
+            },
+            "description": "Le backend envoie `description` à Facebook pour les vidéos à partir de ce message."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Facebook Comments",
+      "item": [
+        {
+          "name": "Lister les commentaires d'un post",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/facebook/posts/{{post_id}}/comments"
+          },
+          "description": "Retourne les commentaires avec l'auteur enrichi: from.id, from.name et from.picture.data.url (si disponible selon permissions Meta)."
+        },
+        {
+          "name": "Lister les réponses d'un commentaire",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/facebook/comments/{{comment_id}}/replies"
+          },
+          "description": "Retourne les réponses avec l'auteur enrichi: from.id, from.name et from.picture.data.url (si disponible selon permissions Meta)."
+        },
+        {
+          "name": "Répondre à un commentaire",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/facebook/comments/{{comment_id}}/reply",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"{{reply_message}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Facebook Stats & Analytics",
+      "item": [
+        {
+          "name": "Obtenir les statistiques d'un post",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/facebook/posts/{{post_id}}/stats",
+            "description": "Récupère les statistiques d'une publication Facebook : réactions par type (like, love, wow, haha, sad, angry), commentaires et partages."
+          }
+        },
+        {
+          "name": "Obtenir les insights d'un post (endpoint unifié)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/facebook/posts/{{post_id}}/insights",
+            "description": "Récupère en une seule réponse les statistiques (réactions détaillées, commentaires, partages) et les analytiques complètes (impressions, reach, clics, médias)."
+          }
+        },
+        {
+          "name": "Obtenir les analytiques complètes d'un post",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/facebook/posts/{{post_id}}/analytics",
+            "description": "Récupère une vue analytique complète : date, heure, réactions totales, commentaires, partages, impressions, reach, clics, et médias attachés."
+          }
+        }
+      ]
+    }
+  ]
+}
