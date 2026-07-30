@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Hootly",
+    "slug": "hootly",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "hootly",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#FFFFFF",
+    "ios": {
+      "bundleIdentifier": "app.hootly.communitymanager",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "app.hootly.communitymanager",
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

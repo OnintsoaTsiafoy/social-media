@@ -1,0 +1,17 @@
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native builds (managed by Expo prebuild)
+/android
+/ios
+
+# Misc
+.DS_Store
+*.log
+npm-debug.*
+.idea/
+.vscode/
+Appli community manager-handoff/

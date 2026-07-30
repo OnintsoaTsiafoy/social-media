@@ -1,0 +1,307 @@
+/** Domain model for the Community Manager assistant app. */
+
+import type { Href } from 'expo-router';
+
+export type SocialNetwork = 'facebook' | 'instagram';
+
+export type Language = 'fr' | 'en' | 'ar';
+
+export type PublicationStatus =
+  | 'draft'
+  | 'scheduled'
+  | 'publishing'
+  | 'published'
+  | 'partially_published'
+  | 'failed'
+  | 'cancelled';
+
+export type TargetStatus = 'pending' | 'sent' | 'failed';
+
+export type Sentiment = 'positive' | 'neutral' | 'negative';
+
+export type Intent = 'question' | 'complaint' | 'info_request' | 'claim' | 'other';
+
+export type Priority = 'low' | 'medium' | 'high';
+
+export type CommentStatus = 'new' | 'untreated' | 'treated' | 'ignored' | 'escalated';
+
+export type ResponseStatus = 'proposed' | 'edited' | 'approved' | 'rejected' | 'sent' | 'failed';
+
+export type AccountStatus =
+  | 'connected'
+  | 'expiring_soon'
+  | 'expired'
+  | 'reconnect_required'
+  | 'revoked'
+  | 'disconnected';
+
+export type BrandTone = 'professional' | 'friendly' | 'empathetic' | 'formal' | 'custom';
+
+export type NotificationType =
+  | 'priority_comment'
+  | 'negative_comment'
+  | 'urgent_comment'
+  | 'ai_response_ready'
+  | 'publication_published'
+  | 'publication_failed'
+  | 'publication_partial'
+  | 'token_expiring'
+  | 'token_expired'
+  | 'sync_failed'
+  | 'account_disconnected';
+
+export type User = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  displayName: string;
+  email: string;
+  language: Language;
+  timezone: string;
+  createdAt: string;
+  avatarInitials: string;
+};
+
+export type Brand = {
+  id: string;
+  name: string;
+  description: string;
+  sector: string;
+  primaryLanguage: Language;
+  secondaryLanguages: Language[];
+  tone: BrandTone;
+  /** Free-text description used when `tone` is `custom`. */
+  customTone?: string;
+  useInformalAddress: boolean;
+  emojisAllowed: boolean;
+  targetLength: string;
+  greeting: string;
+  closing: string;
+  bannedTerms: string[];
+  recommendedTerms: string[];
+  escalationRule: string;
+  connectedAccountIds: string[];
+};
+
+export type SocialAccount = {
+  id: string;
+  network: SocialNetwork;
+  name: string;
+  username: string;
+  externalId: string;
+  kind: string;
+  brandId: string;
+  brandName: string;
+  status: AccountStatus;
+  permissions: { label: string; granted: boolean }[];
+  connectedAt: string;
+  tokenExpiresAt: string | null;
+  lastSyncAt: string | null;
+};
+
+export type MediaAsset = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  /** Bytes. */
+  size: number;
+  width: number;
+  height: number;
+  uri?: string;
+  /** 0 → 1. */
+  uploadProgress: number;
+};
+
+export type PublicationTarget = {
+  network: SocialNetwork;
+  accountId: string;
+  accountUsername: string;
+  status: TargetStatus;
+  sentAt: string | null;
+  attempts: number;
+  externalId: string | null;
+  error: string | null;
+};
+
+export type PublicationMetrics = {
+  /** `null` means the platform did not provide the metric - render "Non disponible", never 0. */
+  reactions: number | null;
+  comments: number | null;
+  shares: number | null;
+  reach: number | null;
+  impressions: number | null;
+  engagementRate: number | null;
+  lastSyncAt: string | null;
+};
+
+export type Publication = {
+  id: string;
+  brandId: string;
+  brandName: string;
+  text: string;
+  language: Language;
+  hashtags: string[];
+  media: MediaAsset | null;
+  targets: PublicationTarget[];
+  status: PublicationStatus;
+  authorName: string;
+  createdAt: string;
+  updatedAt: string;
+  scheduledAt: string | null;
+  publishedAt: string | null;
+  timezone: string;
+  metrics: PublicationMetrics;
+  commentCount: number;
+  negativeCommentCount: number;
+  urgentCommentCount: number;
+  /** Per-network overrides, when the CM wants different copy per platform. */
+  perNetwork?: Partial<Record<SocialNetwork, { text: string; hashtags: string[] }>>;
+};
+
+export type AiAnalysis = {
+  sentiment: Sentiment;
+  intent: Intent;
+  priority: Priority;
+  /** 0 → 1. */
+  confidence: number;
+  urgent: boolean;
+  sensitive: boolean;
+  recommendedAction: string;
+  explanation: string;
+  analysedAt: string;
+  modelVersion: string;
+};
+
+export type AiResponse = {
+  id: string;
+  text: string;
+  language: Language;
+  tone: BrandTone;
+  status: ResponseStatus;
+  createdAt: string;
+  generatedByAi: boolean;
+  /** Kept so the original proposal is never lost after a human edit. */
+  originalText: string;
+  version: number;
+};
+
+export type Comment = {
+  id: string;
+  network: SocialNetwork;
+  authorName: string;
+  authorInitials: string;
+  text: string;
+  publishedAt: string;
+  publicationId: string;
+  publicationTitle: string;
+  status: CommentStatus;
+  isNew: boolean;
+  deletedOnPlatform: boolean;
+  /** `null` while the AI analysis is still pending. */
+  analysis: AiAnalysis | null;
+  response: AiResponse | null;
+};
+
+export type HistoryEventKind =
+  | 'comment_received'
+  | 'ai_analysis'
+  | 'response_proposed'
+  | 'response_edited'
+  | 'send_failed'
+  | 'response_sent'
+  | 'status_changed'
+  | 'escalated';
+
+export type HistoryEvent = {
+  id: string;
+  kind: HistoryEventKind;
+  at: string;
+  title: string;
+  detail?: string;
+  /** Quoted response body, when the event carries one. */
+  body?: string;
+  actor?: string;
+  modelVersion?: string;
+  version?: number;
+};
+
+export type AppNotification = {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  priority: Priority;
+  createdAt: string;
+  read: boolean;
+  network: SocialNetwork | null;
+  /** In-app route this notification opens - validated against the route tree. */
+  href: Href;
+};
+
+export type DashboardSummary = {
+  scheduledCount: number;
+  newCommentCount: number;
+  highPriorityCount: number;
+  pendingAiResponseCount: number;
+};
+
+export type AnalyticsTotals = {
+  reactions: number | null;
+  comments: number | null;
+  shares: number | null;
+  reach: number | null;
+  impressions: number | null;
+  engagementRate: number | null;
+  negativeComments: number | null;
+  urgentComments: number | null;
+  responsesGenerated: number | null;
+  responsesSent: number | null;
+  /** Percent change vs. the previous period; `null` when not comparable. */
+  deltas: Partial<Record<'reactions' | 'comments' | 'engagementRate', number>>;
+};
+
+export type AnalyticsBucket = {
+  label: string;
+  facebook: number;
+  instagram: number;
+};
+
+export type SentimentBreakdown = {
+  positive: number;
+  neutral: number;
+  negative: number;
+};
+
+export type AnalyticsOverview = {
+  totals: AnalyticsTotals;
+  interactions: AnalyticsBucket[];
+  sentiment: SentimentBreakdown;
+  topPublications: Publication[];
+  lastSyncAt: string;
+  /** Metrics a platform refused, surfaced to the user as an explanation. */
+  unavailable: string[];
+};
+
+export type NotificationPreferences = {
+  negativeComment: boolean;
+  urgentComment: boolean;
+  highPriorityComment: boolean;
+  aiResponseGenerated: boolean;
+  publicationPublished: boolean;
+  publicationFailed: boolean;
+  tokenExpiring: boolean;
+  syncFailed: boolean;
+  sound: boolean;
+  vibration: boolean;
+  quietHoursStart: string;
+  quietHoursEnd: string;
+  minimumPriority: Priority;
+};
+
+export type Session = {
+  id: string;
+  device: string;
+  location: string;
+  lastActiveAt: string;
+  current: boolean;
+};
