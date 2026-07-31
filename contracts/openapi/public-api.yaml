@@ -1,0 +1,171 @@
+openapi: 3.1.0
+info:
+  title: Hootly Public API
+  version: 0.1.0
+  description: Contrat initial gelé au Sprint 01. Les opérations d'authentification sont implémentées au Sprint 02.
+servers:
+  - url: http://localhost:3000
+paths:
+  /health:
+    get:
+      summary: Liveness probe
+      responses:
+        '200':
+          description: Processus actif
+  /ready:
+    get:
+      summary: Readiness probe
+      responses:
+        '200': { description: Dépendances configurées }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/v1/auth/register:
+    post:
+      summary: Créer un compte utilisateur
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/Session' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/auth/login:
+    post:
+      summary: Ouvrir une session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Session' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /api/v1/auth/refresh:
+    post:
+      summary: Faire tourner le refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Session' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+  /api/v1/auth/logout:
+    post:
+      summary: Révoquer la session courante
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Session révoquée }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+  /api/v1/auth/me:
+    get:
+      summary: Retourner l'utilisateur et sa marque active
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/CurrentUser' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password, firstName, lastName]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password, minLength: 12 }
+        firstName: { type: string, minLength: 1, maxLength: 100 }
+        lastName: { type: string, minLength: 1, maxLength: 100 }
+        language: { type: string, enum: [fr, en, ar], default: fr }
+        timezone: { type: string, example: Europe/Paris }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string, minLength: 1 }
+    SessionData:
+      type: object
+      required: [accessToken, refreshToken, tokenType, expiresIn, user]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        tokenType: { type: string, enum: [Bearer] }
+        expiresIn: { type: integer, minimum: 1 }
+        user: { $ref: '#/components/schemas/User' }
+    User:
+      type: object
+      required: [id, email, firstName, lastName, language, timezone]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        firstName: { type: string }
+        lastName: { type: string }
+        language: { type: string, enum: [fr, en, ar] }
+        timezone: { type: string }
+    SuccessEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data: {}
+        meta:
+          type: object
+          required: [requestId]
+          properties:
+            requestId: { type: string }
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            requestId: { type: string }
+            details: { type: array, items: { type: object } }
+  responses:
+    Session:
+      description: Tokens rotatifs et utilisateur authentifié
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - type: object
+                properties:
+                  data: { $ref: '#/components/schemas/SessionData' }
+    CurrentUser:
+      description: Utilisateur authentifié
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessEnvelope' }
+    ValidationFailed:
+      description: Entrée invalide
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    AuthenticationRequired:
+      description: Authentification invalide ou absente
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    Conflict:
+      description: Ressource déjà existante ou état incompatible
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    RateLimited:
+      description: Limite de requêtes atteinte
+      headers:
+        Retry-After: { schema: { type: integer } }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    ServiceUnavailable:
+      description: Service non prêt
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }

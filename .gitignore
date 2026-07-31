@@ -1,2 +1,7 @@
 /social-media/node_modules
 sprint_listing/
+.env
+**/.env
+**/__pycache__/
+**/.pytest_cache/
+/services/api/node_modules/

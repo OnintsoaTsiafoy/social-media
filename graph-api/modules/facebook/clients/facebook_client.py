@@ -18,6 +18,15 @@ class FacebookClient:
         self.access_token = settings.facebook_page_access_token
 
     @staticmethod
+    def _require_configuration() -> None:
+        """Prevent accidental Meta requests before a local account is configured."""
+        if not settings.meta_configured:
+            raise GraphAPIError(
+                status_code=503,
+                detail="Configuration Meta absente. Consultez /ready avant d'appeler les routes Facebook.",
+            )
+
+    @staticmethod
     def _extract_error_payload(response: httpx.Response) -> dict:
         try:
             return response.json()
@@ -40,6 +49,7 @@ class FacebookClient:
             ) from exc
 
     async def get(self, endpoint: str, params: dict | None = None) -> dict:
+        self._require_configuration()
         params = params or {}
         params["access_token"] = self.access_token
 
@@ -52,6 +62,7 @@ class FacebookClient:
         return await self.post_form(endpoint=endpoint, data=data)
 
     async def post_form(self, endpoint: str, data: dict | None = None) -> dict:
+        self._require_configuration()
         params = {"access_token": self.access_token}
         payload = data or {}
 
@@ -63,6 +74,7 @@ class FacebookClient:
         return self._handle_response(response)
 
     async def post_json(self, endpoint: str, data: dict | None = None) -> dict:
+        self._require_configuration()
         params = {"access_token": self.access_token}
 
         async with httpx.AsyncClient(timeout=_DEFAULT_TIMEOUT) as client:
@@ -73,6 +85,7 @@ class FacebookClient:
         return self._handle_response(response)
 
     async def put_form(self, endpoint: str, data: dict | None = None) -> dict:
+        self._require_configuration()
         params = {"access_token": self.access_token}
         payload = data or {}
 
@@ -84,6 +97,7 @@ class FacebookClient:
         return self._handle_response(response)
 
     async def delete(self, endpoint: str) -> dict:
+        self._require_configuration()
         params = {"access_token": self.access_token}
 
         async with httpx.AsyncClient(timeout=_DEFAULT_TIMEOUT) as client:
@@ -97,6 +111,7 @@ class FacebookClient:
         data: dict | None = None,
         files: dict | None = None,
     ) -> dict:
+        self._require_configuration()
         params = {"access_token": self.access_token}
         form_data = data or {}
         upload_files = files or {}

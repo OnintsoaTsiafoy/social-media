@@ -1,0 +1,24 @@
+version: 1
+transport: socket.io
+authentication:
+  handshake: Authorization Bearer access-token
+rooms:
+  - user:{userId}
+  - brand:{brandId}
+envelope:
+  type: object
+  required: [eventId, type, occurredAt, userId, payload]
+  properties:
+    eventId: { type: string }
+    type: { type: string }
+    occurredAt: { type: string, format: date-time }
+    userId: { type: string, format: uuid }
+    brandId: { type: [string, 'null'], format: uuid }
+    payload: { type: object }
+events:
+  notification.created: Notification persistée avant émission
+  comment.received: Commentaire synchronisé et dédupliqué
+  comment.analyzed: Analyse IA terminée
+  response.suggestion.created: Proposition disponible, jamais envoyée automatiquement
+  publication.updated: Statut de publication mis à jour
+  social-account.updated: Expiration ou révocation de compte

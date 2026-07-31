@@ -1,0 +1,53 @@
+openapi: 3.1.0
+info:
+  title: Hootly Social Internal API
+  version: 0.1.0
+  description: Contrat interne, protégé par un JWT de service à partir du Sprint 05.
+paths:
+  /health:
+    get:
+      responses: { '200': { description: Processus actif } }
+  /ready:
+    get:
+      responses:
+        '200': { description: Configuration Meta complète }
+        '503': { description: Configuration Meta absente ou invalide }
+  /internal/v1/publications/publish:
+    post:
+      summary: Commander une publication vers un compte social déjà lié
+      security: [{ serviceJwt: [] }]
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        '202': { description: Commande acceptée }
+        '401': { description: JWT de service absent ou invalide }
+        '409': { description: Idempotency-Key réutilisée avec un autre corps }
+  /internal/v1/comments/sync:
+    post:
+      summary: Synchroniser les commentaires d'un compte social
+      security: [{ serviceJwt: [] }]
+      responses: { '202': { description: Synchronisation acceptée } }
+  /internal/v1/comments/reply:
+    post:
+      summary: Envoyer une réponse explicitement approuvée
+      security: [{ serviceJwt: [] }]
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string }
+      responses: { '202': { description: Réponse acceptée } }
+  /internal/v1/metrics/sync:
+    post:
+      summary: Synchroniser les métriques disponibles
+      security: [{ serviceJwt: [] }]
+      responses: { '202': { description: Synchronisation acceptée } }
+components:
+  securitySchemes:
+    serviceJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

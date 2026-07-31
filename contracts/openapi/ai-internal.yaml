@@ -1,0 +1,32 @@
+openapi: 3.1.0
+info:
+  title: Hootly AI Internal API
+  version: 0.1.0
+  description: Contrat du service FastAPI IA, implémenté fonctionnellement au Sprint 09/10.
+paths:
+  /health:
+    get:
+      responses: { '200': { description: Processus actif } }
+  /ready:
+    get:
+      responses:
+        '200': { description: Modèle ou mode local configuré }
+        '503': { description: Modèle non configuré }
+  /internal/v1/comments/analyze:
+    post:
+      summary: Analyser un commentaire
+      security: [{ serviceJwt: [] }]
+      responses:
+        '200': { description: Analyse versionnée }
+        '503': { description: Modèle indisponible }
+  /internal/v1/responses/generate:
+    post:
+      summary: Générer une proposition de réponse non envoyée
+      security: [{ serviceJwt: [] }]
+      responses: { '200': { description: Proposition et warnings } }
+components:
+  securitySchemes:
+    serviceJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
