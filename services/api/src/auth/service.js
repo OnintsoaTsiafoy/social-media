@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import bcrypt from 'bcrypt';
 
 import { prisma } from '../db/prisma.js';
+import { activeBrandForUser } from '../brands/service.js';
 import { HttpError } from '../lib/http.js';
 import { accessTokenTtlSeconds, createAccessToken, refreshTokenTtlSeconds } from './tokens.js';
 
@@ -17,6 +18,7 @@ export function toPublicUser(user) {
     displayName: user.displayName,
     language: user.language,
     timezone: user.timezone,
+    phone: user.phone,
     createdAt: user.createdAt,
     avatarInitials: `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase(),
   };
@@ -199,7 +201,7 @@ export async function logout(auth, request) {
 }
 
 export async function currentUser(auth) {
-  return { user: toPublicUser(auth.user), brand: null, unreadCount: 0 };
+  return { user: toPublicUser(auth.user), brand: await activeBrandForUser(auth.user.id), unreadCount: 0 };
 }
 
 export async function requestPasswordReset(email, request) {

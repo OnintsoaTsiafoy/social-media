@@ -102,6 +102,122 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Session' }
         '401': { $ref: '#/components/responses/AuthenticationRequired' }
+  /api/v1/profile:
+    get:
+      summary: Lire le profil de l’utilisateur connectÃ©
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+    patch:
+      summary: Modifier le profil de l’utilisateur connectÃ©
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ProfilePatch' } } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+  /api/v1/profile/preferences:
+    get:
+      summary: Lire les prÃ©fÃ©rences du profil
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { $ref: '#/components/responses/Success' } }
+    patch:
+      summary: Modifier les prÃ©fÃ©rences du profil
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/PreferencesPatch' } } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+  /api/v1/profile/avatar:
+    post:
+      summary: Associer un avatar prÃ©alablement dÃ©posÃ© au profil
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/AvatarMetadata' } } }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+    delete:
+      summary: Retirer l’avatar du profil
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Avatar retirÃ© } }
+  /api/v1/brands:
+    get:
+      summary: Lister les marques auxquelles l’utilisateur appartient
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: active, in: query, schema: { type: boolean } }
+      responses: { '200': { $ref: '#/components/responses/Success' } }
+    post:
+      summary: CrÃ©er une marque et l’activer pour son propriÃ©taire
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/BrandCreate' } } }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+  /api/v1/brands/{brandId}:
+    parameters:
+      - { name: brandId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Lire une marque autorisÃ©e
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Modifier une marque (OWNER ou ADMIN)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/BrandPatch' } } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: Archiver une marque (OWNER uniquement)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Marque archivÃ©e }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/brands/{brandId}/activate:
+    post:
+      summary: DÃ©finir la marque active de l’utilisateur connectÃ©
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: brandId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/brands/{brandId}/ai-settings:
+    parameters:
+      - { name: brandId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Lire les paramÃ¨tres IA de la marque
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { $ref: '#/components/responses/Success' } }
+    patch:
+      summary: CrÃ©er une nouvelle version des paramÃ¨tres IA (OWNER ou ADMIN)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/AiSettingsPatch' } } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
 components:
   securitySchemes:
     bearerAuth:
@@ -109,6 +225,69 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    ProfilePatch:
+      type: object
+      minProperties: 1
+      properties:
+        firstName: { type: string, minLength: 2, maxLength: 80 }
+        lastName: { type: string, minLength: 2, maxLength: 80 }
+        displayName: { type: string, minLength: 2, maxLength: 100 }
+        phone: { type: [string, 'null'], maxLength: 30 }
+        language: { type: string, enum: [fr, en, ar] }
+        timezone: { type: string, example: Indian/Antananarivo }
+    PreferencesPatch:
+      type: object
+      minProperties: 1
+      properties:
+        weeklyDigest: { type: boolean }
+        pushNotifications: { type: boolean }
+        weekStartsOn: { type: string, enum: [monday, sunday] }
+    AvatarMetadata:
+      type: object
+      required: [objectKey, mimeType, sizeBytes]
+      properties:
+        bucket: { type: string, default: hootly }
+        objectKey: { type: string, example: 'avatars/{userId}/avatar.webp' }
+        mimeType: { type: string, enum: [image/jpeg, image/png, image/webp] }
+        sizeBytes: { type: integer, minimum: 1, maximum: 5242880 }
+        width: { type: integer, minimum: 1 }
+        height: { type: integer, minimum: 1 }
+        checksum: { type: string, description: SHA-256 hex digest }
+    BrandCreate:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 120 }
+        description: { type: [string, 'null'], maxLength: 5000 }
+        industry: { type: [string, 'null'], maxLength: 100 }
+        primaryLanguage: { type: string, enum: [fr, en, ar], default: fr }
+    BrandPatch:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 2, maxLength: 120 }
+        description: { type: [string, 'null'], maxLength: 5000 }
+        industry: { type: [string, 'null'], maxLength: 100 }
+        primaryLanguage: { type: string, enum: [fr, en, ar] }
+    AiSettingsPatch:
+      type: object
+      required: [expectedVersion]
+      properties:
+        expectedVersion: { type: integer, minimum: 1, description: Version lue avant la modification }
+        tone: { type: string, enum: [professional, friendly, empathetic, formal, custom] }
+        customTone: { type: [string, 'null'], maxLength: 5000 }
+        formality: { type: string, enum: [informal, formal, adaptive] }
+        language: { type: string, enum: [fr, en, ar] }
+        emojisAllowed: { type: boolean }
+        targetLength: { type: string, enum: ['1 phrase', '2 phrases', '3 phrases', Libre] }
+        greeting: { type: [string, 'null'], maxLength: 300 }
+        closing: { type: [string, 'null'], maxLength: 300 }
+        forbiddenTerms: { type: array, maxItems: 100, items: { type: string, maxLength: 120 } }
+        recommendedTerms: { type: array, maxItems: 100, items: { type: string, maxLength: 120 } }
+        instructions: { type: [string, 'null'], maxLength: 10000 }
+        complaintInstructions: { type: [string, 'null'], maxLength: 10000 }
+        urgencyInstructions: { type: [string, 'null'], maxLength: 10000 }
+        supportInstructions: { type: [string, 'null'], maxLength: 10000 }
     RegisterRequest:
       type: object
       required: [email, password, firstName, lastName]
@@ -189,6 +368,9 @@ components:
             requestId: { type: string }
             details: { type: array, items: { type: object } }
   responses:
+    Success:
+      description: RÃ©ponse rÃ©ussie sous enveloppe Hootly
+      content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }
     Session:
       description: Tokens rotatifs et utilisateur authentifié
       content:
@@ -212,6 +394,12 @@ components:
       content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
     Conflict:
       description: Ressource déjà existante ou état incompatible
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    Forbidden:
+      description: RÃ´le insuffisant pour l’opÃ©ration demandÃ©e
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    NotFound:
+      description: Ressource introuvable ou non accessible
       content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
     RateLimited:
       description: Limite de requêtes atteinte

@@ -58,6 +58,7 @@ export type User = {
   email: string;
   language: Language;
   timezone: string;
+  phone?: string | null;
   createdAt: string;
   avatarInitials: string;
 };
@@ -81,6 +82,16 @@ export type Brand = {
   recommendedTerms: string[];
   escalationRule: string;
   connectedAccountIds: string[];
+  isActive?: boolean;
+  role?: 'OWNER' | 'ADMIN' | 'COMMUNITY_MANAGER' | 'VIEWER';
+  status?: 'active' | 'archived';
+  /** Incremented by the API whenever AI settings change; protects against stale saves. */
+  version?: number;
+  formality?: 'informal' | 'formal' | 'adaptive';
+  instructions?: string;
+  complaintInstructions?: string;
+  urgencyInstructions?: string;
+  supportInstructions?: string;
 };
 
 export type SocialAccount = {

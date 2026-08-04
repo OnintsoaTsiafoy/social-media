@@ -12,6 +12,32 @@ enum UserStatus {
   DISABLED
 }
 
+enum BrandMemberRole {
+  OWNER
+  ADMIN
+  COMMUNITY_MANAGER
+  VIEWER
+}
+
+enum BrandStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum AiTone {
+  PROFESSIONAL
+  FRIENDLY
+  EMPATHETIC
+  FORMAL
+  CUSTOM
+}
+
+enum AiFormality {
+  INFORMAL
+  FORMAL
+  ADAPTIVE
+}
+
 model User {
   id                  String               @id @default(uuid()) @db.Uuid
   email               String               @unique @db.VarChar(320)
@@ -21,15 +47,111 @@ model User {
   displayName         String               @map("display_name") @db.VarChar(100)
   language            String               @default("fr") @db.VarChar(8)
   timezone            String               @default("Europe/Paris") @db.VarChar(64)
+  phone               String?              @db.VarChar(30)
+  preferences         Json                 @default("{}")
+  avatarMediaId       String?              @unique @map("avatar_media_id") @db.Uuid
   status              UserStatus           @default(ACTIVE)
   createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
   sessions            UserSession[]
   passwordResetTokens PasswordResetToken[]
   auditLogs           AuditLog[]
+  memberships         BrandMember[]
+  ownedBrands         Brand[]              @relation("BrandOwner")
+  aiSettingsCreated   BrandAiSetting[]     @relation("AiSettingsAuthor")
+  uploadedMedia       Media[]              @relation("MediaOwner")
+  avatarMedia         Media?               @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@map("users")
+}
+
+model Brand {
+  id              String         @id @default(uuid()) @db.Uuid
+  ownerUserId     String         @map("owner_user_id") @db.Uuid
+  name            String         @db.VarChar(120)
+  description     String?        @db.Text
+  industry        String?        @db.VarChar(100)
+  primaryLanguage String         @default("fr") @map("primary_language") @db.VarChar(8)
+  status          BrandStatus    @default(ACTIVE)
+  deletedAt       DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  owner           User           @relation("BrandOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  members         BrandMember[]
+  aiSettings      BrandAiSetting[]
+  media           Media[]
+
+  @@index([ownerUserId])
+  @@index([deletedAt])
+  @@map("brands")
+}
+
+model BrandMember {
+  id        String          @id @default(uuid()) @db.Uuid
+  brandId   String          @map("brand_id") @db.Uuid
+  userId    String          @map("user_id") @db.Uuid
+  role      BrandMemberRole @default(VIEWER)
+  isActive  Boolean         @default(false) @map("is_active")
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  brand     Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([brandId, userId])
+  @@index([userId, isActive])
+  @@index([brandId, role])
+  @@map("brand_members")
+}
+
+model BrandAiSetting {
+  id                  String      @id @default(uuid()) @db.Uuid
+  brandId             String      @map("brand_id") @db.Uuid
+  version             Int
+  tone                AiTone      @default(PROFESSIONAL)
+  customTone          String?     @map("custom_tone") @db.Text
+  formality           AiFormality @default(ADAPTIVE)
+  language            String      @default("fr") @db.VarChar(8)
+  emojisAllowed       Boolean     @default(true) @map("emojis_allowed")
+  targetLength        String      @default("2 phrases") @map("target_length") @db.VarChar(32)
+  greeting            String?     @db.VarChar(300)
+  closing             String?     @db.VarChar(300)
+  forbiddenTerms      Json        @default("[]") @map("forbidden_terms")
+  recommendedTerms    Json        @default("[]") @map("recommended_terms")
+  instructions        String?     @db.Text
+  complaintInstructions String?   @map("complaint_instructions") @db.Text
+  urgencyInstructions String?     @map("urgency_instructions") @db.Text
+  supportInstructions String?     @map("support_instructions") @db.Text
+  createdByUserId     String      @map("created_by_user_id") @db.Uuid
+  createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  brand               Brand       @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  createdByUser       User        @relation("AiSettingsAuthor", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([brandId, version])
+  @@index([brandId, createdAt])
+  @@map("brand_ai_settings")
+}
+
+model Media {
+  id          String    @id @default(uuid()) @db.Uuid
+  ownerUserId String?   @map("owner_user_id") @db.Uuid
+  brandId     String?   @map("brand_id") @db.Uuid
+  bucket      String    @default("hootly") @db.VarChar(100)
+  objectKey   String    @unique @map("object_key") @db.VarChar(1024)
+  mimeType    String    @map("mime_type") @db.VarChar(127)
+  sizeBytes   Int       @map("size_bytes")
+  width       Int?
+  height      Int?
+  status      String    @default("READY") @db.VarChar(32)
+  checksum    String?   @db.VarChar(128)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  owner       User?     @relation("MediaOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  brand       Brand?    @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  avatarFor   User?     @relation("UserAvatar")
+
+  @@index([ownerUserId, createdAt])
+  @@index([brandId, createdAt])
+  @@map("media")
 }
 
 model UserSession {

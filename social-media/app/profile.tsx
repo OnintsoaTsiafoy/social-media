@@ -44,16 +44,18 @@ export default function ProfileScreen() {
     firstName: user?.firstName ?? '',
     lastName: user?.lastName ?? '',
     displayName: user?.displayName ?? '',
+    phone: user?.phone ?? '',
     language: user?.language ?? ('fr' as Language),
     timezone: user?.timezone ?? 'Europe/Paris',
   });
-  const [errors, setErrors] = useState<{ firstName?: string; lastName?: string; displayName?: string }>({});
+  const [errors, setErrors] = useState<{ firstName?: string; lastName?: string; displayName?: string; phone?: string }>({});
 
   const dirty =
     editing &&
     (draft.firstName !== user?.firstName ||
       draft.lastName !== user?.lastName ||
       draft.displayName !== user?.displayName ||
+      draft.phone !== (user?.phone ?? '') ||
       draft.language !== user?.language ||
       draft.timezone !== user?.timezone);
 
@@ -62,6 +64,7 @@ export default function ProfileScreen() {
       firstName: user?.firstName ?? '',
       lastName: user?.lastName ?? '',
       displayName: user?.displayName ?? '',
+      phone: user?.phone ?? '',
       language: user?.language ?? 'fr',
       timezone: user?.timezone ?? 'Europe/Paris',
     });
@@ -87,6 +90,10 @@ export default function ProfileScreen() {
       firstName: validateName(draft.firstName),
       lastName: validateName(draft.lastName),
       displayName: validateDisplayName(draft.displayName),
+      phone:
+        draft.phone.trim() && !/^\+?[1-9][0-9 .()\-]{5,28}$/.test(draft.phone.trim())
+          ? 'NumÃ©ro de tÃ©lÃ©phone invalide.'
+          : undefined,
     };
     setErrors(next);
     if (next.firstName || next.lastName || next.displayName) return;
@@ -96,6 +103,7 @@ export default function ProfileScreen() {
         firstName: draft.firstName.trim(),
         lastName: draft.lastName.trim(),
         displayName: draft.displayName.trim() || `${draft.firstName.trim()} ${draft.lastName.trim()}`,
+        phone: draft.phone.trim() || null,
         language: draft.language,
         timezone: draft.timezone,
       })
@@ -209,6 +217,17 @@ export default function ProfileScreen() {
             error={errors.displayName}
           />
 
+          <TextField
+            label="TÃ©lÃ©phone"
+            value={draft.phone}
+            onChangeText={(value) => {
+              setDraft((current) => ({ ...current, phone: value }));
+              setErrors((current) => ({ ...current, phone: undefined }));
+            }}
+            error={errors.phone}
+            keyboardType="phone-pad"
+          />
+
           <SelectField
             label="Langue"
             value={draft.language}
@@ -237,6 +256,8 @@ export default function ProfileScreen() {
             <DetailRow label="Nom" value={user?.lastName ?? '-'} />
             <Divider />
             <DetailRow label="Nom affiché" value={user?.displayName ?? '-'} />
+            <Divider />
+            <DetailRow label="TÃ©lÃ©phone" value={user?.phone ?? '-'} />
             <Divider />
             <DetailRow
               label="Langue"

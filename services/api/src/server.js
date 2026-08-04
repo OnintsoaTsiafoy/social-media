@@ -2,6 +2,8 @@ import express from 'express';
 import { fileURLToPath } from 'node:url';
 
 import { authRouter } from './auth/routes.js';
+import { brandRouter } from './brands/routes.js';
+import { profileRouter } from './profile/routes.js';
 import { addRequestContext, errorHandler, notFoundHandler } from './lib/http.js';
 
 export const app = express();
@@ -25,6 +27,20 @@ const openApiDocument = {
     '/api/v1/auth/forgot-password': { post: { summary: 'Demander une réinitialisation' } },
     '/api/v1/auth/reset-password': { post: { summary: 'Réinitialiser un mot de passe' } },
     '/api/v1/auth/change-password': { post: { summary: 'Modifier un mot de passe' } },
+    '/api/v1/profile': { get: { summary: 'Lire le profil' }, patch: { summary: 'Modifier le profil' } },
+    '/api/v1/profile/preferences': { get: { summary: 'Lire les prÃ©fÃ©rences' }, patch: { summary: 'Modifier les prÃ©fÃ©rences' } },
+    '/api/v1/profile/avatar': { post: { summary: 'Associer un avatar' }, delete: { summary: 'Retirer l’avatar' } },
+    '/api/v1/brands': { get: { summary: 'Lister les marques autorisÃ©es' }, post: { summary: 'CrÃ©er une marque' } },
+    '/api/v1/brands/{brandId}': {
+      get: { summary: 'Lire une marque' },
+      patch: { summary: 'Modifier une marque' },
+      delete: { summary: 'Archiver une marque' },
+    },
+    '/api/v1/brands/{brandId}/activate': { post: { summary: 'Activer une marque' } },
+    '/api/v1/brands/{brandId}/ai-settings': {
+      get: { summary: 'Lire les paramÃ¨tres IA' },
+      patch: { summary: 'Versionner les paramÃ¨tres IA' },
+    },
   },
 };
 
@@ -58,6 +74,8 @@ app.get('/openapi.json', (_request, response) => {
 });
 
 app.use('/api/v1/auth', authRouter);
+app.use('/api/v1/profile', profileRouter);
+app.use('/api/v1/brands', brandRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 

@@ -1,6 +1,6 @@
 # Matrice écran → endpoint
 
-Cette matrice décrit la cible. L’authentification est connectée depuis le Sprint 02 ; les autres écrans conservent `src/data/api.ts` jusqu'au sprint indiqué. Aucun écran n'est recréé.
+Cette matrice décrit la cible. L’authentification est connectée depuis le Sprint 02 et les écrans profil/marque depuis le Sprint 03 ; les autres écrans conservent `src/data/api.ts` jusqu'au sprint indiqué. Aucun écran n'est recréé.
 
 | Écran / route | Endpoint cible principal | Sprint |
 |---|---|---:|
@@ -10,8 +10,8 @@ Cette matrice décrit la cible. L’authentification est connectée depuis le Sp
 | Média | `/api/v1/media` | 04 |
 | Planification et calendrier | `/api/v1/publications/{id}/schedule`, `/api/v1/calendar` | 04 |
 | Hashtags | `/api/v1/publications/generate-hashtags` | 10 |
-| Profil | `/api/v1/profile`, `/api/v1/profile/preferences` | 03 |
-| Marque et ton IA | `/api/v1/brands`, `/api/v1/brands/{id}/ai-settings` | 03 |
+| Profil | `/api/v1/profile`, `/api/v1/profile/preferences` | 03 — connecté |
+| Marque et ton IA | `/api/v1/brands`, `/api/v1/brands/{id}/ai-settings` | 03 — connecté |
 | Comptes sociaux et callback OAuth | `/api/v1/social-accounts/*`, callback OAuth | 06 |
 | Liste et détail des commentaires | `/api/v1/comments`, `/api/v1/comments/{id}` | 08 |
 | Historique, statut, escalade | `/api/v1/comments/{id}/history`, `status`, `escalate` | 08 |

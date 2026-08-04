@@ -27,6 +27,7 @@ import {
   TONE_OPTIONS,
 } from '@/data/options';
 import { useAsync, useMutation } from '@/hooks/useAsync';
+import { useSession } from '@/store/SessionProvider';
 import { palette, spacing } from '@/theme';
 import type { Brand, BrandTone, Language } from '@/types';
 
@@ -39,11 +40,22 @@ import type { Brand, BrandTone, Language } from '@/types';
 export default function BrandSettingsScreen() {
   const router = useRouter();
   const { confirm, toast } = useFeedback();
+  const { setBrand } = useSession();
   const mutation = useMutation();
 
-  const request = useAsync(() => brandsApi.getActive(), []);
+  const request = useAsync(async () => {
+    const brands = await brandsApi.list();
+    return brands.find((item) => item.isActive);
+  }, []);
   const [draft, setDraft] = useState<Brand | undefined>(undefined);
   const [newTerm, setNewTerm] = useState('');
+  const [newRecommendedTerm, setNewRecommendedTerm] = useState('');
+  const [newBrand, setNewBrand] = useState({
+    name: '',
+    description: '',
+    sector: 'Autre',
+    primaryLanguage: 'fr' as Language,
+  });
 
   // Seed the editable copy once the brand has loaded, and re-seed after a reload.
   useEffect(() => {
@@ -64,6 +76,22 @@ export default function BrandSettingsScreen() {
     request.setData(result.data);
     setDraft(result.data);
     toast('Paramètres de marque enregistrés.', 'success');
+  };
+
+  const createBrand = async () => {
+    const result = await mutation.run(() =>
+      brandsApi.create({
+        name: newBrand.name.trim(),
+        description: newBrand.description.trim(),
+        sector: newBrand.sector,
+        primaryLanguage: newBrand.primaryLanguage,
+      })
+    );
+    if (!result.ok) return;
+    request.setData(result.data);
+    setDraft(result.data);
+    setBrand(result.data);
+    toast('Marque crÃ©Ã©e. Vous pouvez maintenant dÃ©finir son ton IA.', 'success');
   };
 
   const handleBack = async () => {
@@ -108,6 +136,29 @@ export default function BrandSettingsScreen() {
     });
     if (confirmed && draft) {
       patch({ bannedTerms: draft.bannedTerms.filter((item) => item !== term) });
+    }
+  };
+
+  const addRecommendedTerm = () => {
+    const term = newRecommendedTerm.trim();
+    if (!term || !draft) return;
+    if (draft.recommendedTerms.includes(term)) {
+      toast('Ce terme est dÃ©jÃ  dans la liste.', 'info');
+      return;
+    }
+    patch({ recommendedTerms: [...draft.recommendedTerms, term] });
+    setNewRecommendedTerm('');
+  };
+
+  const removeRecommendedTerm = async (term: string) => {
+    const confirmed = await confirm({
+      title: 'Retirer ce terme ?',
+      message: `Â« ${term} Â» ne sera plus suggÃ©rÃ© Ã  lâ€™IA.`,
+      confirmLabel: 'Retirer',
+      destructive: true,
+    });
+    if (confirmed && draft) {
+      patch({ recommendedTerms: draft.recommendedTerms.filter((item) => item !== term) });
     }
   };
 
@@ -182,7 +233,12 @@ export default function BrandSettingsScreen() {
                   label={option.label}
                   variant="choice"
                   selected={brand.tone === option.value}
-                  onPress={() => patch({ tone: option.value as BrandTone })}
+                  onPress={() =>
+                    patch({
+                      tone: option.value as BrandTone,
+                      ...(option.value === 'formal' ? { useInformalAddress: false } : {}),
+                    })
+                  }
                 />
               ))}
             </ChipWrap>
@@ -274,12 +330,63 @@ export default function BrandSettingsScreen() {
           </View>
 
           <View style={styles.section}>
+            <Text variant="eyebrow">Termes recommandÃ©s</Text>
+            <ChipWrap>
+              {brand.recommendedTerms.map((term) => (
+                <Chip
+                  key={term}
+                  label={`Â« ${term} Â» âœ•`}
+                  variant="tag"
+                  onPress={() => removeRecommendedTerm(term)}
+                />
+              ))}
+              {brand.recommendedTerms.length === 0 ? (
+                <Text variant="footnote" color={palette.inkFaint}>
+                  Aucun terme recommandÃ© pour le moment.
+                </Text>
+              ) : null}
+            </ChipWrap>
+
+            <View style={styles.addRow}>
+              <TextField
+                value={newRecommendedTerm}
+                onChangeText={setNewRecommendedTerm}
+                placeholder="Ajouter un terme recommandÃ©"
+                onSubmitEditing={addRecommendedTerm}
+                returnKeyType="done"
+                containerStyle={styles.addField}
+              />
+              <Button
+                label="Ajouter"
+                variant="secondary"
+                size="sm"
+                onPress={addRecommendedTerm}
+                disabled={!newRecommendedTerm.trim()}
+              />
+            </View>
+          </View>
+
+          <View style={styles.section}>
             <Text variant="eyebrow">Procédures métier</Text>
             <TextField
               label="Règle d’escalade"
-              value={brand.escalationRule}
-              onChangeText={(value) => patch({ escalationRule: value })}
+              value={brand.complaintInstructions ?? ''}
+              onChangeText={(value) => patch({ complaintInstructions: value })}
+              placeholder="Comment traiter une plainte ?"
+              multiline
+            />
+            <TextField
+              label="Urgence"
+              value={brand.urgencyInstructions ?? brand.escalationRule}
+              onChangeText={(value) => patch({ urgencyInstructions: value })}
               placeholder="Quand faut-il escalader un commentaire ?"
+              multiline
+            />
+            <TextField
+              label="Support"
+              value={brand.supportInstructions ?? ''}
+              onChangeText={(value) => patch({ supportInstructions: value })}
+              placeholder="Comment orienter une demande de support ?"
               multiline
             />
           </View>
@@ -290,7 +397,53 @@ export default function BrandSettingsScreen() {
             Ces règles sont envoyées au service IA à chaque génération de réponse.
           </Callout>
         </>
-      ) : null}
+      ) : (
+        <View style={styles.section}>
+          <Text variant="title2" weight="bold">
+            CrÃ©er votre premiÃ¨re marque
+          </Text>
+          <Text variant="body" color={palette.inkFaint}>
+            Une marque isole vos comptes sociaux, publications et rÃ¨gles IA.
+          </Text>
+          <TextField
+            label="Nom de la marque"
+            value={newBrand.name}
+            onChangeText={(name) => setNewBrand((current) => ({ ...current, name }))}
+            placeholder="Ex. Studio Vega"
+          />
+          <TextField
+            label="Description"
+            value={newBrand.description}
+            onChangeText={(description) => setNewBrand((current) => ({ ...current, description }))}
+            placeholder="DÃ©crivez briÃ¨vement votre activitÃ©"
+            multiline
+          />
+          <View style={styles.row}>
+            <SelectField
+              label="Langue principale"
+              value={newBrand.primaryLanguage}
+              options={LANGUAGE_OPTIONS as { value: Language; label: string }[]}
+              onChange={(primaryLanguage) => setNewBrand((current) => ({ ...current, primaryLanguage }))}
+              containerStyle={styles.rowItem}
+            />
+            <SelectField
+              label="Secteur"
+              value={newBrand.sector}
+              options={SECTOR_OPTIONS}
+              onChange={(sector) => setNewBrand((current) => ({ ...current, sector }))}
+              containerStyle={styles.rowItem}
+            />
+          </View>
+          {mutation.error ? <Callout tone="danger">{mutation.error}</Callout> : null}
+          <Button
+            label="CrÃ©er la marque"
+            onPress={createBrand}
+            loading={mutation.pending}
+            disabled={newBrand.name.trim().length < 2}
+            block
+          />
+        </View>
+      )}
     </Screen>
   );
 }

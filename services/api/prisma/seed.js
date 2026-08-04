@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 async function main() {
   const passwordHash = await bcrypt.hash('ChangeMe123!', 12);
 
-  await prisma.user.upsert({
+  const user = await prisma.user.upsert({
     where: { email: 'lea@studio-vega.fr' },
     update: {},
     create: {
@@ -19,6 +19,52 @@ async function main() {
       language: 'fr',
       timezone: 'Europe/Paris',
     },
+  });
+
+  await prisma.$transaction(async (tx) => {
+    let brand = await tx.brand.findFirst({
+      where: { ownerUserId: user.id, name: 'Studio Vega', deletedAt: null, status: 'ACTIVE' },
+    });
+    if (!brand) {
+      brand = await tx.brand.create({
+        data: {
+          ownerUserId: user.id,
+          name: 'Studio Vega',
+          description: 'Agence crÃ©ative de dÃ©monstration.',
+          industry: 'Services',
+          primaryLanguage: 'fr',
+        },
+      });
+    }
+
+    await tx.brandMember.updateMany({ where: { userId: user.id, isActive: true }, data: { isActive: false } });
+    await tx.brandMember.upsert({
+      where: { brandId_userId: { brandId: brand.id, userId: user.id } },
+      update: { role: 'OWNER', isActive: true },
+      create: { brandId: brand.id, userId: user.id, role: 'OWNER', isActive: true },
+    });
+
+    const existingSettings = await tx.brandAiSetting.findFirst({ where: { brandId: brand.id } });
+    if (!existingSettings) {
+      await tx.brandAiSetting.create({
+        data: {
+          brandId: brand.id,
+          version: 1,
+          tone: 'PROFESSIONAL',
+          formality: 'ADAPTIVE',
+          language: 'fr',
+          targetLength: '2 phrases',
+          greeting: 'Bonjour {prÃ©nom},',
+          closing: 'Ã€ trÃ¨s vite !',
+          forbiddenTerms: [],
+          recommendedTerms: [],
+          complaintInstructions: 'Accuser rÃ©ception, rester factuel et proposer une prise en charge.',
+          urgencyInstructions: 'Escalader immÃ©diatement les messages urgents Ã  un responsable humain.',
+          supportInstructions: 'Demander les informations minimales nÃ©cessaires en message privÃ©.',
+          createdByUserId: user.id,
+        },
+      });
+    }
   });
 }
 

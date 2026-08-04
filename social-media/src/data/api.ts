@@ -50,6 +50,7 @@ export type ApiErrorCode =
   | 'offline'
   | 'server'
   | 'unauthorized'
+  | 'forbidden'
   | 'invalid_credentials'
   | 'account_disabled'
   | 'too_many_attempts'
@@ -76,6 +77,7 @@ export const errorMessages: Record<ApiErrorCode, string> = {
   not_found: 'Cet élément n’est plus disponible.',
   conflict: 'Cette action n’est pas autorisée pour le statut actuel.',
   unsupported_media: 'Le fichier sélectionné n’est pas compatible.',
+  forbidden: 'Action not permitted for this brand role.',
 };
 
 export function toUserMessage(error: unknown): string {
@@ -93,6 +95,17 @@ type AuthSession = {
   tokenType: 'Bearer';
   expiresIn: number;
   user: RemoteUser;
+};
+
+type RemoteAiSettings = Partial<
+  Pick<Brand, 'tone' | 'customTone' | 'useInformalAddress' | 'emojisAllowed' | 'targetLength' | 'greeting' | 'closing' | 'version'>
+> & {
+  forbiddenTerms?: string[];
+  recommendedTerms?: string[];
+  instructions?: string;
+  complaintInstructions?: string;
+  urgencyInstructions?: string;
+  supportInstructions?: string;
 };
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, '');
@@ -118,8 +131,10 @@ function errorFromResponse(status: number, payload: unknown): ApiError {
 
   if (code === 'invalid_credentials') return new ApiError('invalid_credentials', message);
   if (code === 'account_disabled') return new ApiError('account_disabled', message);
+  if (code === 'forbidden' || status === 403) return new ApiError('forbidden', message);
   if (code === 'email_taken') return new ApiError('email_taken', message);
   if (code === 'token_expired') return new ApiError('token_expired', message);
+  if (code === 'version_conflict') return new ApiError('conflict', message);
   if (code === 'rate_limited' || status === 429) return new ApiError('too_many_attempts', message);
   if (status === 401 || code === 'authentication_required') return new ApiError('unauthorized', message);
   if (status === 404) return new ApiError('not_found', message);
@@ -306,8 +321,12 @@ export const auth = {
 
   /** `GET /auth/me` equivalent used by the splash screen. */
   async me(): Promise<{ user: User; brand: Brand | undefined; unreadCount: number }> {
-    const data = await fetchApi<{ user: RemoteUser; brand: null; unreadCount: number }>('/api/v1/auth/me', {}, true);
-    return { user: fromRemoteUser(data.user), brand: undefined, unreadCount: data.unreadCount };
+    const data = await fetchApi<{ user: RemoteUser; brand: Brand | null; unreadCount: number }>(
+      '/api/v1/auth/me',
+      {},
+      true
+    );
+    return { user: fromRemoteUser(data.user), brand: data.brand ?? undefined, unreadCount: data.unreadCount };
   },
 
   async logout(): Promise<void> {
@@ -329,13 +348,12 @@ export const auth = {
 
 export const profile = {
   async get(): Promise<User> {
-    return request(() => clone(store.user));
+    return fromRemoteUser(await fetchApi<RemoteUser>('/api/v1/profile', {}, true));
   },
   async update(patch: Partial<User>): Promise<User> {
-    return request(() => {
-      store.user = { ...store.user, ...patch };
-      return clone(store.user);
-    }, 700);
+    return fromRemoteUser(
+      await fetchApi<RemoteUser>('/api/v1/profile', { method: 'PATCH', body: JSON.stringify(patch) }, true)
+    );
   },
   async listSessions(): Promise<Session[]> {
     return request(() => clone(store.sessions));
@@ -354,26 +372,84 @@ export const profile = {
 
 export const brandsApi = {
   async list(): Promise<Brand[]> {
-    return request(() => clone(store.brands));
+    const result = await fetchApi<{ items: Brand[] }>('/api/v1/brands', {}, true);
+    return result.items;
+  },
+  async create(payload: Pick<Brand, 'name' | 'description' | 'sector' | 'primaryLanguage'>): Promise<Brand> {
+    return fetchApi<Brand>(
+      '/api/v1/brands',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          name: payload.name,
+          description: payload.description,
+          industry: payload.sector,
+          primaryLanguage: payload.primaryLanguage,
+        }),
+      },
+      true
+    );
   },
   async getActive(): Promise<Brand> {
-    return request(() => clone(store.brands.find((b) => b.id === store.activeBrandId) ?? store.brands[0]!));
+    const result = await fetchApi<{ items: Brand[] }>('/api/v1/brands?active=true', {}, true);
+    const active = result.items[0];
+    if (!active) throw new ApiError('not_found', 'No active brand is configured.');
+    return active;
   },
   async setActive(id: string): Promise<Brand> {
-    return request(() => {
-      const brand = store.brands.find((b) => b.id === id);
-      if (!brand) throw new ApiError('not_found', errorMessages.not_found);
-      store.activeBrandId = id;
-      return clone(brand);
-    }, 300);
+    return fetchApi<Brand>(`/api/v1/brands/${encodeURIComponent(id)}/activate`, { method: 'POST' }, true);
   },
   async update(id: string, patch: Partial<Brand>): Promise<Brand> {
-    return request(() => {
-      const index = store.brands.findIndex((b) => b.id === id);
-      if (index < 0) throw new ApiError('not_found', errorMessages.not_found);
-      store.brands[index] = { ...store.brands[index]!, ...patch };
-      return clone(store.brands[index]!);
-    }, 700);
+    const identity = {
+      ...(patch.name !== undefined ? { name: patch.name } : {}),
+      ...(patch.description !== undefined ? { description: patch.description } : {}),
+      ...(patch.sector !== undefined ? { industry: patch.sector } : {}),
+      ...(patch.primaryLanguage !== undefined ? { primaryLanguage: patch.primaryLanguage } : {}),
+    };
+    const brand = Object.keys(identity).length
+      ? await fetchApi<Brand>(
+          `/api/v1/brands/${encodeURIComponent(id)}`,
+          { method: 'PATCH', body: JSON.stringify(identity) },
+          true
+        )
+      : await fetchApi<Brand>(`/api/v1/brands/${encodeURIComponent(id)}`, {}, true);
+
+    const aiSettings = {
+      ...(patch.version !== undefined ? { expectedVersion: patch.version } : {}),
+      ...(patch.tone !== undefined ? { tone: patch.tone } : {}),
+      ...(patch.customTone !== undefined ? { customTone: patch.customTone } : {}),
+      ...(patch.tone === 'formal'
+        ? { formality: 'formal' }
+        : patch.useInformalAddress !== undefined
+        ? { formality: patch.useInformalAddress ? 'informal' : 'adaptive' }
+        : {}),
+      ...(patch.primaryLanguage !== undefined ? { language: patch.primaryLanguage } : {}),
+      ...(patch.emojisAllowed !== undefined ? { emojisAllowed: patch.emojisAllowed } : {}),
+      ...(patch.targetLength !== undefined ? { targetLength: patch.targetLength } : {}),
+      ...(patch.greeting !== undefined ? { greeting: patch.greeting } : {}),
+      ...(patch.closing !== undefined ? { closing: patch.closing } : {}),
+      ...(patch.bannedTerms !== undefined ? { forbiddenTerms: patch.bannedTerms } : {}),
+      ...(patch.recommendedTerms !== undefined ? { recommendedTerms: patch.recommendedTerms } : {}),
+      ...(patch.instructions !== undefined ? { instructions: patch.instructions } : {}),
+      ...(patch.complaintInstructions !== undefined ? { complaintInstructions: patch.complaintInstructions } : {}),
+      ...(patch.urgencyInstructions !== undefined ? { urgencyInstructions: patch.urgencyInstructions } : {}),
+      ...(patch.supportInstructions !== undefined ? { supportInstructions: patch.supportInstructions } : {}),
+      ...(patch.escalationRule !== undefined ? { urgencyInstructions: patch.escalationRule } : {}),
+    };
+    if (!Object.keys(aiSettings).some((key) => key !== 'expectedVersion')) return brand;
+
+    const settings = await fetchApi<RemoteAiSettings>(
+      `/api/v1/brands/${encodeURIComponent(id)}/ai-settings`,
+      { method: 'PATCH', body: JSON.stringify(aiSettings) },
+      true
+    );
+    return {
+      ...brand,
+      ...settings,
+      bannedTerms: settings.forbiddenTerms ?? brand.bannedTerms,
+      escalationRule:
+        settings.urgencyInstructions ?? settings.complaintInstructions ?? settings.instructions ?? brand.escalationRule,
+    };
   },
 };
 
