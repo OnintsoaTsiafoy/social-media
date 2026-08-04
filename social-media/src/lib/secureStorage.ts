@@ -11,6 +11,7 @@ import { Platform } from 'react-native';
  */
 
 const TOKEN_KEY = 'hootly.session.token';
+const REFRESH_TOKEN_KEY = 'hootly.session.refresh-token';
 
 const webStore = {
   get(key: string): string | null {
@@ -66,4 +67,35 @@ export async function clearToken(): Promise<void> {
   } catch {
     // Already gone.
   }
+}
+
+export async function saveRefreshToken(token: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    webStore.set(REFRESH_TOKEN_KEY, token);
+    return;
+  }
+  await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token, {
+    keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+  });
+}
+
+export async function readRefreshToken(): Promise<string | null> {
+  if (Platform.OS === 'web') return webStore.get(REFRESH_TOKEN_KEY);
+  try {
+    return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export async function clearSessionTokens(): Promise<void> {
+  if (Platform.OS === 'web') {
+    webStore.remove(TOKEN_KEY);
+    webStore.remove(REFRESH_TOKEN_KEY);
+    return;
+  }
+  await Promise.allSettled([
+    SecureStore.deleteItemAsync(TOKEN_KEY),
+    SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
+  ]);
 }

@@ -1,6 +1,6 @@
 # Matrice écran → endpoint
 
-Cette matrice décrit la cible. Les écrans continuent d'utiliser `src/data/api.ts` jusqu'au sprint indiqué ; aucun écran n'est recréé.
+Cette matrice décrit la cible. L’authentification est connectée depuis le Sprint 02 ; les autres écrans conservent `src/data/api.ts` jusqu'au sprint indiqué. Aucun écran n'est recréé.
 
 | Écran / route | Endpoint cible principal | Sprint |
 |---|---|---:|

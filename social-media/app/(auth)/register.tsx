@@ -104,7 +104,7 @@ export default function RegisterScreen() {
     );
     if (!result.ok) return;
 
-    await signIn(result.data.token, result.data.user);
+    await signIn(result.data.token, result.data.user, result.data.refreshToken);
     toast('Votre compte a été créé avec succès.', 'success');
     router.replace('/home');
   };

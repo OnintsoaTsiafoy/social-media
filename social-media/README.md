@@ -18,13 +18,15 @@ npm run lint
 
 ### Compte de démonstration
 
-Il n’y a pas encore de backend : `src/data/api.ts` simule les appels réseau avec
-latence et erreurs.
+L'authentification utilise désormais l'API Express. Les autres domaines de
+`src/data/api.ts` conservent temporairement leurs simulations avec latence et erreurs.
 
-- Email : `lea@studio-vega.fr` - n’importe quel mot de passe
-- `wrongpassword` → identifiants incorrects
-- `bloque@studio-vega.fr` → compte désactivé
-- `deja@studio-vega.fr` (inscription) → email déjà utilisé
+- Après `./scripts/seed.ps1` lancé depuis la racine : `lea@studio-vega.fr` / `ChangeMe123!`
+- L’inscription crée un utilisateur réel ; l’ancien scénario de démonstration n’est plus utilisé.
+
+Avant de lancer Expo, copiez `.env.example` vers `.env`. Sur l’émulateur Android, utilisez
+`EXPO_PUBLIC_API_URL=http://10.0.2.2:3000`; sur un téléphone physique, remplacez `localhost`
+par l’adresse IP locale de la machine qui exécute Docker.
 
 Le tableau de bord expose un bloc « Démo des états » permettant de déclencher une
 erreur serveur ou de basculer hors connexion, afin de visualiser tous les états
@@ -87,7 +89,7 @@ point de rupture explicite. Le reste du layout est en flex, avec `SafeAreaView`,
 
 ## Reste à faire
 
-- Brancher `src/data/api.ts` sur le backend réel (les signatures sont le contrat).
+- Brancher les domaines restants de `src/data/api.ts` sur le backend réel (les signatures sont le contrat).
 - WebSocket temps réel pour le compteur de notifications (l’UI est prête).
 - Flux OAuth réel via `expo-web-browser` + deep link `hootly://oauth/callback`.
 - Notifications push (`expo-notifications`) et sélection d’avatar.

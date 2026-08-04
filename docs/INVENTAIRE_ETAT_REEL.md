@@ -11,11 +11,11 @@ Date de l'inventaire : 30 juillet 2026. La source de vérité est le code prése
 | API publique | Absente avant ce sprint | Créer le socle Express dans `services/api/`. |
 | Worker | Absent avant ce sprint | Créer un processus supervisable ; pg-boss sera ajouté au Sprint 04. |
 | Service IA | Absent avant ce sprint | Créer un service FastAPI distinct ; l'analyse arrive au Sprint 09. |
-| Base de données et stockage | Absents | Préparer PostgreSQL 16 et MinIO dans Compose ; Prisma arrive au Sprint 02. |
+| Base de données et stockage | PostgreSQL et MinIO dans Compose ; schéma Prisma Auth présent | Les tables Auth sont migrées au Sprint 02 ; médias et stockage métier arrivent au Sprint 04. |
 
 ## Mobile Expo
 
-Les écrans et la navigation existent déjà. `src/data/api.ts` est une façade en mémoire : il simule la latence, les erreurs et les données, mais n'effectue aucun appel HTTP. Les signatures exportées sont le contrat temporaire des écrans.
+Les écrans et la navigation existent déjà. Depuis le Sprint 02, l'authentification de `src/data/api.ts` appelle l'API Express ; les autres domaines conservent une façade en mémoire avec latence et erreurs. Les signatures exportées restent le contrat temporaire des écrans non encore migrés.
 
 | Domaine | Routes existantes | Façade simulée |
 |---|---|---|
@@ -56,7 +56,7 @@ Avant ce sprint, Pydantic exigeait les trois variables Facebook dès l'import, c
 
 | Service | État | Traitement |
 |---|---|---|
-| Mobile | aucune URL de backend | `.env.example` mobile ajouté ; branchement HTTP au Sprint 02/13 |
+| Mobile | URL API configurable ; Auth connectée | Les domaines non-Auth seront branchés selon leur sprint, puis les mocks seront retirés au Sprint 13. |
 | API/worker | pas de configuration initiale | `.env.example` racine et Compose ajoutés |
 | graph-api | `.env.example` existant, Meta obligatoire au démarrage | Meta rendu optionnel pour probes ; jamais committer `.env` |
 | IA | aucun secret requis pour le socle | `AI_MODEL_MODE=stub` seulement en local |

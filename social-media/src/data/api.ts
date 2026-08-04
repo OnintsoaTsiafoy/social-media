@@ -7,6 +7,13 @@
  */
 
 import * as fixtures from './fixtures';
+import {
+  clearSessionTokens,
+  readRefreshToken,
+  readToken,
+  saveRefreshToken,
+  saveToken,
+} from '@/lib/secureStorage';
 import type {
   AiResponse,
   AnalyticsOverview,
@@ -74,6 +81,105 @@ export const errorMessages: Record<ApiErrorCode, string> = {
 export function toUserMessage(error: unknown): string {
   if (error instanceof ApiError) return errorMessages[error.code];
   return 'Une erreur est survenue. Réessayez.';
+}
+
+type ApiEnvelope<T> = { data: T; meta: { requestId: string } };
+
+type RemoteUser = Omit<User, 'avatarInitials'> & { createdAt: string };
+
+type AuthSession = {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: 'Bearer';
+  expiresIn: number;
+  user: RemoteUser;
+};
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, '');
+
+function apiUrl(path: string): string {
+  if (!API_BASE_URL) {
+    throw new ApiError('server', 'L’adresse de l’API n’est pas configurée.');
+  }
+  return `${API_BASE_URL}${path}`;
+}
+
+function fromRemoteUser(user: RemoteUser): User {
+  return {
+    ...user,
+    avatarInitials: `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase(),
+  };
+}
+
+function errorFromResponse(status: number, payload: unknown): ApiError {
+  const error = payload as { error?: { code?: string; message?: string } };
+  const code = error.error?.code;
+  const message = error.error?.message || 'Une erreur est survenue. Réessayez.';
+
+  if (code === 'invalid_credentials') return new ApiError('invalid_credentials', message);
+  if (code === 'account_disabled') return new ApiError('account_disabled', message);
+  if (code === 'email_taken') return new ApiError('email_taken', message);
+  if (code === 'token_expired') return new ApiError('token_expired', message);
+  if (code === 'rate_limited' || status === 429) return new ApiError('too_many_attempts', message);
+  if (status === 401 || code === 'authentication_required') return new ApiError('unauthorized', message);
+  if (status === 404) return new ApiError('not_found', message);
+  if (status === 409) return new ApiError('conflict', message);
+  return new ApiError('server', message);
+}
+
+async function fetchApi<T>(
+  path: string,
+  options: RequestInit = {},
+  withAccessToken = false,
+  retryAfterRefresh = true
+): Promise<T> {
+  const headers = new Headers(options.headers);
+  headers.set('accept', 'application/json');
+  if (options.body) headers.set('content-type', 'application/json');
+
+  if (withAccessToken) {
+    const accessToken = await readToken();
+    if (!accessToken) throw new ApiError('unauthorized', errorMessages.unauthorized);
+    headers.set('authorization', `Bearer ${accessToken}`);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(apiUrl(path), { ...options, headers });
+  } catch {
+    throw new ApiError('offline', errorMessages.offline);
+  }
+
+  if (response.status === 401 && withAccessToken && retryAfterRefresh) {
+    const refreshToken = await readRefreshToken();
+    if (!refreshToken) {
+      await clearSessionTokens();
+      throw new ApiError('unauthorized', errorMessages.unauthorized);
+    }
+
+    let refreshed: AuthSession;
+    try {
+      refreshed = await fetchApi<AuthSession>(
+        '/api/v1/auth/refresh',
+        { method: 'POST', body: JSON.stringify({ refreshToken }) },
+        false,
+        false
+      );
+    } catch {
+      await clearSessionTokens();
+      throw new ApiError('unauthorized', errorMessages.unauthorized);
+    }
+
+    await saveToken(refreshed.accessToken);
+    await saveRefreshToken(refreshed.refreshToken);
+    return fetchApi<T>(path, options, true, false);
+  }
+
+  if (response.status === 204) return undefined as T;
+
+  const payload = await response.json().catch(() => undefined);
+  if (!response.ok) throw errorFromResponse(response.status, payload);
+  return (payload as ApiEnvelope<T>).data;
 }
 
 // ---------------------------------------------------------------------------
@@ -157,72 +263,55 @@ export type RegistrationPayload = {
 
 export const auth = {
   /** Rejects unknown credentials without revealing whether the email exists. */
-  async login({ email, password }: Credentials): Promise<{ token: string; user: User }> {
-    return request(() => {
-      const normalised = email.trim().toLowerCase();
-      if (normalised === 'bloque@studio-vega.fr') {
-        throw new ApiError('account_disabled', errorMessages.account_disabled);
-      }
-      // Any password of a valid length is accepted for the demo except this one.
-      if (password === 'wrongpassword' || normalised !== store.user.email) {
-        throw new ApiError('invalid_credentials', errorMessages.invalid_credentials);
-      }
-      return { token: `demo.jwt.${Date.now()}`, user: clone(store.user) };
-    }, 700);
+  async login({ email, password }: Credentials): Promise<{ token: string; refreshToken: string; user: User }> {
+    const session = await fetchApi<AuthSession>('/api/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    return { token: session.accessToken, refreshToken: session.refreshToken, user: fromRemoteUser(session.user) };
   },
 
-  async register(payload: RegistrationPayload): Promise<{ token: string; user: User }> {
-    return request(() => {
-      if (payload.email.trim().toLowerCase() === 'deja@studio-vega.fr') {
-        throw new ApiError('email_taken', errorMessages.email_taken);
-      }
-      store.user = {
-        ...store.user,
-        firstName: payload.firstName,
-        lastName: payload.lastName,
-        displayName: payload.displayName?.trim() || `${payload.firstName} ${payload.lastName}`,
-        email: payload.email.trim().toLowerCase(),
-        avatarInitials: `${payload.firstName[0] ?? ''}${payload.lastName[0] ?? ''}`.toUpperCase(),
-      };
-      return { token: `demo.jwt.${Date.now()}`, user: clone(store.user) };
-    }, 900);
+  async register(payload: RegistrationPayload): Promise<{ token: string; refreshToken: string; user: User }> {
+    const session = await fetchApi<AuthSession>('/api/v1/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return { token: session.accessToken, refreshToken: session.refreshToken, user: fromRemoteUser(session.user) };
   },
 
   /** Always resolves: the caller shows a generic message either way. */
   async requestPasswordReset(email: string): Promise<void> {
-    return request(() => {
-      if (email.trim().toLowerCase() === 'spam@studio-vega.fr') {
-        throw new ApiError('too_many_attempts', errorMessages.too_many_attempts);
-      }
-    }, 700);
+    await fetchApi('/api/v1/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
   },
 
-  async resetPassword(token: string, _password: string): Promise<void> {
-    return request(() => {
-      if (!token || token === 'expired') {
-        throw new ApiError('token_expired', 'Ce lien de réinitialisation a expiré ou a déjà été utilisé.');
-      }
-    }, 700);
+  async resetPassword(token: string, password: string): Promise<void> {
+    await fetchApi('/api/v1/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    });
   },
 
-  async changePassword(current: string, next: string): Promise<void> {
-    return request(() => {
-      if (current === 'wrongpassword') {
-        throw new ApiError('invalid_credentials', 'Le mot de passe actuel est incorrect.');
-      }
-      if (current === next) {
-        throw new ApiError('weak_password', 'Le nouveau mot de passe doit être différent de l’ancien.');
-      }
-    }, 700);
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const session = await fetchApi<AuthSession>(
+      '/api/v1/auth/change-password',
+      { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) },
+      true
+    );
+    await saveToken(session.accessToken);
+    await saveRefreshToken(session.refreshToken);
   },
 
   /** `GET /auth/me` equivalent used by the splash screen. */
-  async me(): Promise<{ user: User; brand: Brand; unreadCount: number }> {
-    return request(() => ({
-      user: clone(store.user),
-      brand: clone(store.brands.find((b) => b.id === store.activeBrandId) ?? store.brands[0]!),
-      unreadCount: store.notifications.filter((n) => !n.read).length,
-    }), 600);
+  async me(): Promise<{ user: User; brand: Brand | undefined; unreadCount: number }> {
+    const data = await fetchApi<{ user: RemoteUser; brand: null; unreadCount: number }>('/api/v1/auth/me', {}, true);
+    return { user: fromRemoteUser(data.user), brand: undefined, unreadCount: data.unreadCount };
+  },
+
+  async logout(): Promise<void> {
+    await fetchApi('/api/v1/auth/logout', { method: 'POST' }, true);
   },
 
   async deleteAccount(password: string): Promise<void> {

@@ -29,17 +29,24 @@ test('ready reports a missing configuration', async () => {
     DATABASE_URL: process.env.DATABASE_URL,
     SOCIAL_SERVICE_URL: process.env.SOCIAL_SERVICE_URL,
     AI_SERVICE_URL: process.env.AI_SERVICE_URL,
+    JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET,
   };
   delete process.env.DATABASE_URL;
   delete process.env.SOCIAL_SERVICE_URL;
   delete process.env.AI_SERVICE_URL;
+  delete process.env.JWT_ACCESS_SECRET;
 
   try {
     await withServer(async (baseUrl) => {
       const response = await fetch(`${baseUrl}/ready`);
 
       assert.equal(response.status, 503);
-      assert.deepEqual((await response.json()).missing, ['DATABASE_URL', 'SOCIAL_SERVICE_URL', 'AI_SERVICE_URL']);
+      assert.deepEqual((await response.json()).missing, [
+        'DATABASE_URL',
+        'SOCIAL_SERVICE_URL',
+        'AI_SERVICE_URL',
+        'JWT_ACCESS_SECRET',
+      ]);
     });
   } finally {
     for (const [key, value] of Object.entries(previous)) {
@@ -54,10 +61,12 @@ test('ready succeeds when all dependencies are configured', async () => {
     DATABASE_URL: process.env.DATABASE_URL,
     SOCIAL_SERVICE_URL: process.env.SOCIAL_SERVICE_URL,
     AI_SERVICE_URL: process.env.AI_SERVICE_URL,
+    JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET,
   };
   process.env.DATABASE_URL = 'postgresql://example';
   process.env.SOCIAL_SERVICE_URL = 'http://social.example';
   process.env.AI_SERVICE_URL = 'http://ai.example';
+  process.env.JWT_ACCESS_SECRET = 'test-only-signing-secret-that-is-long-enough';
 
   try {
     await withServer(async (baseUrl) => {

@@ -45,7 +45,7 @@ export default function LoginScreen() {
     );
     if (!result.ok) return;
 
-    await signIn(result.data.token, result.data.user);
+    await signIn(result.data.token, result.data.user, result.data.refreshToken);
     router.replace('/home');
   };
 
@@ -123,9 +123,6 @@ export default function LoginScreen() {
 
       <View style={styles.spacer} />
 
-      <Callout tone="neutral" icon="info">
-        Démo : connectez-vous avec lea@studio-vega.fr et n’importe quel mot de passe.
-      </Callout>
     </Screen>
   );
 }

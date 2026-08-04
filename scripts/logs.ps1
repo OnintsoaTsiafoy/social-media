@@ -5,5 +5,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'ContainerRuntime.ps1')
 
-docker compose --env-file .env -f compose.yaml logs --follow @Service
+$composeArguments = @('--env-file', '.env', '-f', 'compose.yaml', 'logs', '--follow')
+$composeArguments += $Service
+Invoke-Compose -Arguments $composeArguments

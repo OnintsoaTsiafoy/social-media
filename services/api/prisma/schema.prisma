@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+model User {
+  id                  String               @id @default(uuid()) @db.Uuid
+  email               String               @unique @db.VarChar(320)
+  passwordHash        String               @map("password_hash")
+  firstName           String               @map("first_name") @db.VarChar(80)
+  lastName            String               @map("last_name") @db.VarChar(80)
+  displayName         String               @map("display_name") @db.VarChar(100)
+  language            String               @default("fr") @db.VarChar(8)
+  timezone            String               @default("Europe/Paris") @db.VarChar(64)
+  status              UserStatus           @default(ACTIVE)
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sessions            UserSession[]
+  passwordResetTokens PasswordResetToken[]
+  auditLogs           AuditLog[]
+
+  @@index([status])
+  @@map("users")
+}
+
+model UserSession {
+  id                  String    @id @default(uuid()) @db.Uuid
+  userId              String    @map("user_id") @db.Uuid
+  refreshTokenHash    String    @map("refresh_token_hash")
+  deviceName          String    @default("Unknown device") @map("device_name") @db.VarChar(255)
+  expiresAt           DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt           DateTime? @map("revoked_at") @db.Timestamptz(6)
+  lastUsedAt          DateTime? @map("last_used_at") @db.Timestamptz(6)
+  replacedBySessionId String?   @map("replaced_by_session_id") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("user_sessions")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("password_reset_tokens")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String?  @map("user_id") @db.Uuid
+  action       String   @db.VarChar(120)
+  resourceType String   @map("resource_type") @db.VarChar(80)
+  resourceId   String?  @map("resource_id") @db.VarChar(255)
+  requestId    String?  @map("request_id") @db.VarChar(100)
+  metadata     Json?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([resourceType, resourceId])
+  @@map("audit_logs")
+}

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { ApiError, auth, brandsApi, notificationsApi } from '@/data/api';
-import { clearToken, readToken, saveToken } from '@/lib/secureStorage';
+import { clearSessionTokens, readToken, saveRefreshToken, saveToken } from '@/lib/secureStorage';
 import type { Brand, User } from '@/types';
 
 export type SessionStatus = 'restoring' | 'signedOut' | 'signedIn';
@@ -13,7 +13,7 @@ type SessionValue = {
   unreadCount: number;
   /** Set when session restore failed for a reason the user can act on. */
   restoreError: string | undefined;
-  signIn: (token: string, user: User) => Promise<void>;
+  signIn: (token: string, user: User, refreshToken: string) => Promise<void>;
   signOut: () => Promise<void>;
   restore: () => Promise<void>;
   setBrand: (brand: Brand) => void;
@@ -76,7 +76,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setStatus('signedIn');
     } catch (error) {
       if (error instanceof ApiError && error.code === 'unauthorized') {
-        await clearToken();
+        await clearSessionTokens();
         setStatus('signedOut');
         return;
       }
@@ -93,8 +93,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     void restore();
   }, [restore]);
 
-  const signIn = useCallback(async (token: string, signedInUser: User) => {
+  const signIn = useCallback(async (token: string, signedInUser: User, refreshToken: string) => {
     await saveToken(token);
+    await saveRefreshToken(refreshToken);
     setUserState(signedInUser);
     setStatus('signedIn');
 
@@ -104,7 +105,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    await clearToken();
+    try {
+      await auth.logout();
+    } catch {
+      // Local revocation still protects the device when it is offline.
+    }
+    await clearSessionTokens();
     setUserState(undefined);
     setBrandState(undefined);
     setUnreadCount(0);
