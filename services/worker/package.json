@@ -1,0 +1,15 @@
+{
+  "name": "hootly-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test/run.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1121.0",
+    "pg": "^8.16.3",
+    "pg-boss": "^10.4.2"
+  }
+}

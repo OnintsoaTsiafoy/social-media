@@ -6,6 +6,8 @@
  * for real `fetch` calls - the signatures are the contract screens rely on.
  */
 
+import { Platform } from 'react-native';
+
 import * as fixtures from './fixtures';
 import {
   clearSessionTokens,
@@ -23,11 +25,13 @@ import type {
   CommentStatus,
   HistoryEvent,
   Intent,
+  Language,
   MediaAsset,
   NotificationPreferences,
   Priority,
   Publication,
   PublicationStatus,
+  PublicationTarget,
   Sentiment,
   Session,
   SocialAccount,
@@ -142,6 +146,36 @@ function errorFromResponse(status: number, payload: unknown): ApiError {
   return new ApiError('server', message);
 }
 
+/**
+ * Rejoue une seule fois le jeton de session.
+ *
+ * Partagé par `fetchApi` et par l'upload multipart, qui n'utilise pas `fetch`.
+ */
+async function refreshAccessToken(): Promise<string> {
+  const refreshToken = await readRefreshToken();
+  if (!refreshToken) {
+    await clearSessionTokens();
+    throw new ApiError('unauthorized', errorMessages.unauthorized);
+  }
+
+  let refreshed: AuthSession;
+  try {
+    refreshed = await fetchApi<AuthSession>(
+      '/api/v1/auth/refresh',
+      { method: 'POST', body: JSON.stringify({ refreshToken }) },
+      false,
+      false
+    );
+  } catch {
+    await clearSessionTokens();
+    throw new ApiError('unauthorized', errorMessages.unauthorized);
+  }
+
+  await saveToken(refreshed.accessToken);
+  await saveRefreshToken(refreshed.refreshToken);
+  return refreshed.accessToken;
+}
+
 async function fetchApi<T>(
   path: string,
   options: RequestInit = {},
@@ -166,27 +200,7 @@ async function fetchApi<T>(
   }
 
   if (response.status === 401 && withAccessToken && retryAfterRefresh) {
-    const refreshToken = await readRefreshToken();
-    if (!refreshToken) {
-      await clearSessionTokens();
-      throw new ApiError('unauthorized', errorMessages.unauthorized);
-    }
-
-    let refreshed: AuthSession;
-    try {
-      refreshed = await fetchApi<AuthSession>(
-        '/api/v1/auth/refresh',
-        { method: 'POST', body: JSON.stringify({ refreshToken }) },
-        false,
-        false
-      );
-    } catch {
-      await clearSessionTokens();
-      throw new ApiError('unauthorized', errorMessages.unauthorized);
-    }
-
-    await saveToken(refreshed.accessToken);
-    await saveRefreshToken(refreshed.refreshToken);
+    await refreshAccessToken();
     return fetchApi<T>(path, options, true, false);
   }
 
@@ -539,229 +553,294 @@ export type PublicationDraft = {
 
 const PAGE_SIZE = 6;
 
-function matchesFilters(publication: Publication, filters: PublicationFilters): boolean {
-  if (filters.status && filters.status !== 'all' && publication.status !== filters.status) return false;
+// --- Contrat serveur ---------------------------------------------------------
 
-  if (filters.network && filters.network !== 'all') {
-    const networks = publication.targets.map((t) => t.network);
-    if (filters.network === 'multi') {
-      if (networks.length < 2) return false;
-    } else if (!networks.includes(filters.network)) {
-      return false;
+type RemoteMedia = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  width: number | null;
+  height: number | null;
+  status: string;
+  previewUrl?: string;
+  expiresAt?: string;
+};
+
+type RemotePublicationTarget = {
+  provider: SocialNetwork;
+  socialAccountId: string | null;
+  status: 'pending' | 'sending' | 'sent' | 'failed';
+  adaptedContent: string | null;
+  adaptedHashtags: string[];
+  externalPublicationId: string | null;
+  lastErrorCode: string | null;
+  lastErrorMessage: string | null;
+  attemptCount: number;
+  sentAt: string | null;
+};
+
+type RemotePublication = {
+  id: string;
+  brandId: string;
+  brandName: string;
+  content: string;
+  language: Language;
+  hashtags: string[];
+  status: PublicationStatus;
+  media: RemoteMedia[];
+  targets: RemotePublicationTarget[];
+  authorName: string;
+  createdAt: string;
+  updatedAt: string;
+  scheduledAt: string | null;
+  publishedAt: string | null;
+  timezone: string;
+  metrics: Publication['metrics'];
+  commentCount: number;
+  negativeCommentCount: number;
+  urgentCommentCount: number;
+};
+
+function fromRemoteMedia(media: RemoteMedia): MediaAsset {
+  return {
+    id: media.id,
+    fileName: media.fileName,
+    mimeType: media.mimeType,
+    size: media.size,
+    width: media.width ?? 0,
+    height: media.height ?? 0,
+    // URL signée à durée de vie courte : aucune clé de stockage ne transite.
+    uri: media.previewUrl,
+    uploadProgress: 1,
+  };
+}
+
+/** Le modèle mobile ne distingue pas « en cours d’envoi » de « en attente ». */
+function fromRemoteTargetStatus(status: RemotePublicationTarget['status']): PublicationTarget['status'] {
+  if (status === 'sent') return 'sent';
+  if (status === 'failed') return 'failed';
+  return 'pending';
+}
+
+function fromRemotePublication(publication: RemotePublication): Publication {
+  const perNetwork: Publication['perNetwork'] = {};
+  for (const target of publication.targets) {
+    if (target.adaptedContent) {
+      perNetwork[target.provider] = {
+        text: target.adaptedContent,
+        hashtags: target.adaptedHashtags ?? [],
+      };
     }
   }
 
-  if (filters.withError && !publication.targets.some((t) => t.status === 'failed')) return false;
-  if (filters.withoutMedia && publication.media !== null) return false;
-
-  const search = filters.search?.trim().toLowerCase();
-  if (search) {
-    const haystack = `${publication.text} ${publication.hashtags.join(' ')}`.toLowerCase();
-    if (!haystack.includes(search)) return false;
-  }
-
-  return true;
+  return {
+    id: publication.id,
+    brandId: publication.brandId,
+    brandName: publication.brandName,
+    text: publication.content,
+    language: publication.language,
+    hashtags: publication.hashtags,
+    // Périmètre MVP : une image par publication (ADR-08).
+    media: publication.media[0] ? fromRemoteMedia(publication.media[0]) : null,
+    targets: publication.targets.map((target) => ({
+      network: target.provider,
+      // Les comptes sociaux liés arrivent au Sprint 06 (OAuth).
+      accountId: target.socialAccountId ?? '',
+      accountUsername: '',
+      status: fromRemoteTargetStatus(target.status),
+      sentAt: target.sentAt,
+      attempts: target.attemptCount,
+      externalId: target.externalPublicationId,
+      error: target.lastErrorMessage,
+    })),
+    status: publication.status,
+    authorName: publication.authorName,
+    createdAt: publication.createdAt,
+    updatedAt: publication.updatedAt,
+    scheduledAt: publication.scheduledAt,
+    publishedAt: publication.publishedAt,
+    timezone: publication.timezone,
+    metrics: publication.metrics,
+    commentCount: publication.commentCount,
+    negativeCommentCount: publication.negativeCommentCount,
+    urgentCommentCount: publication.urgentCommentCount,
+    perNetwork: Object.keys(perNetwork).length > 0 ? perNetwork : undefined,
+  };
 }
 
+function targetsFromDraft(
+  networks: SocialNetwork[],
+  perNetwork: Publication['perNetwork']
+): { provider: SocialNetwork; adaptedContent: string | null; adaptedHashtags: string[] }[] {
+  return networks.map((network) => ({
+    provider: network,
+    adaptedContent: perNetwork?.[network]?.text?.trim() || null,
+    adaptedHashtags: perNetwork?.[network]?.hashtags ?? [],
+  }));
+}
+
+/** Patch accepté par l’écran de modification. */
+export type PublicationPatch = Partial<Pick<Publication, 'text' | 'hashtags' | 'media' | 'perNetwork'>> & {
+  networks?: SocialNetwork[];
+};
+
+/**
+ * Publications, médias, planification : appels réels vers l’API Express.
+ *
+ * L’envoi est asynchrone côté serveur : `publishNow` et `retry` renvoient la
+ * publication passée en « publishing », le worker publie ensuite réellement.
+ * L’écran doit donc rafraîchir pour voir l’issue, jusqu’au temps réel du
+ * Sprint 11.
+ */
 export const publicationsApi = {
-  /** Cursor-free pagination: callers pass the page index. */
+  /** Pagination par index de page, comme l’attend `usePaginatedList`. */
   async list(
     filters: PublicationFilters = {},
     page = 0
   ): Promise<{ items: Publication[]; hasMore: boolean; total: number }> {
-    return request(() => {
-      const all = store.publications
-        .filter((p) => matchesFilters(p, filters))
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      const items = all.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-      return { items: clone(items), hasMore: (page + 1) * PAGE_SIZE < all.length, total: all.length };
-    });
+    const query = new URLSearchParams({ page: String(page + 1), pageSize: String(PAGE_SIZE) });
+    if (filters.status && filters.status !== 'all') query.set('status', filters.status);
+    if (filters.search?.trim()) query.set('search', filters.search.trim());
+    // « multi » (plusieurs réseaux) n’est pas un filtre serveur : il n’est pas
+    // exposé par les écrans actuels.
+    if (filters.network && filters.network !== 'all' && filters.network !== 'multi') {
+      query.set('provider', filters.network);
+    }
+
+    const result = await fetchApi<{
+      items: RemotePublication[];
+      page: number;
+      pageSize: number;
+      total: number;
+    }>(`/api/v1/publications?${query.toString()}`, {}, true);
+
+    return {
+      items: result.items.map(fromRemotePublication),
+      hasMore: result.page * result.pageSize < result.total,
+      total: result.total,
+    };
   },
 
   async counts(): Promise<Record<'all' | PublicationStatus, number>> {
-    return request(() => {
-      const base = {
-        all: store.publications.length,
-        draft: 0,
-        scheduled: 0,
-        publishing: 0,
-        published: 0,
-        partially_published: 0,
-        failed: 0,
-        cancelled: 0,
-      } as Record<'all' | PublicationStatus, number>;
-      for (const p of store.publications) base[p.status] += 1;
-      return base;
-    }, 200);
+    return fetchApi<Record<'all' | PublicationStatus, number>>('/api/v1/publications/counts', {}, true);
   },
 
   async get(id: string): Promise<Publication> {
-    return request(() => {
-      const found = store.publications.find((p) => p.id === id);
-      if (!found) throw new ApiError('not_found', errorMessages.not_found);
-      return clone(found);
-    });
+    return fromRemotePublication(await fetchApi<RemotePublication>(`/api/v1/publications/${id}`, {}, true));
   },
 
-  /** Publications scheduled or published within a given month. */
+  /** Publications planifiées ou publiées dans le mois affiché. */
   async listForMonth(year: number, month: number): Promise<Publication[]> {
-    return request(() => {
-      const items = store.publications.filter((p) => {
-        const iso = p.scheduledAt ?? p.publishedAt;
-        if (!iso) return false;
-        const date = new Date(iso);
-        return date.getFullYear() === year && date.getMonth() === month;
-      });
-      return clone(items);
-    });
+    const from = new Date(year, month, 1);
+    const to = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    const query = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
+
+    const result = await fetchApi<{ items: RemotePublication[] }>(
+      `/api/v1/calendar?${query.toString()}`,
+      {},
+      true
+    );
+    return result.items.map(fromRemotePublication);
   },
 
-  async create(draft: PublicationDraft, mode: 'draft' | 'publish' | 'schedule', scheduledAt?: string) {
-    return request(() => {
-      if (!draft.text.trim()) throw new ApiError('conflict', 'Le texte de la publication est obligatoire.');
-      if (mode !== 'draft' && draft.networks.length === 0) {
-        throw new ApiError('conflict', 'Sélectionnez au moins un réseau.');
-      }
+  async create(
+    draft: PublicationDraft,
+    mode: 'draft' | 'publish' | 'schedule',
+    scheduledAt?: string
+  ): Promise<Publication> {
+    if (!draft.text.trim()) throw new ApiError('conflict', 'Le texte de la publication est obligatoire.');
+    if (mode !== 'draft' && draft.networks.length === 0) {
+      throw new ApiError('conflict', 'Sélectionnez au moins un réseau.');
+    }
 
-      const blocked = draft.networks.find((network) => {
-        const account = store.accounts.find((a) => a.network === network);
-        return !account || account.status === 'expired' || account.status === 'reconnect_required';
-      });
-      if (blocked && mode !== 'draft') {
-        throw new ApiError('token_expired', `Le compte ${blocked === 'facebook' ? 'Facebook' : 'Instagram'} doit être reconnecté.`);
-      }
-
-      const publication: Publication = {
-        id: makeId('pub'),
-        brandId: draft.brandId,
-        brandName: store.brands.find((b) => b.id === draft.brandId)?.name ?? '',
-        text: draft.text.trim(),
-        language: 'fr',
-        hashtags: draft.hashtags,
-        media: draft.media,
-        targets: draft.networks.map((network) => {
-          const account = store.accounts.find((a) => a.network === network);
-          return {
-            network,
-            accountId: account?.id ?? '',
-            accountUsername: account?.username ?? '',
-            status: mode === 'publish' ? ('sent' as const) : ('pending' as const),
-            sentAt: mode === 'publish' ? new Date().toISOString() : null,
-            attempts: mode === 'publish' ? 1 : 0,
-            externalId: mode === 'publish' ? makeId('ext') : null,
-            error: null,
-          };
+    const created = await fetchApi<RemotePublication>(
+      '/api/v1/publications',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          brandId: draft.brandId,
+          content: draft.text.trim(),
+          language: draft.language || 'fr',
+          hashtags: draft.hashtags,
+          mediaIds: draft.media ? [draft.media.id] : [],
+          targets: targetsFromDraft(draft.networks, draft.perNetwork),
         }),
-        status: mode === 'draft' ? 'draft' : mode === 'publish' ? 'published' : 'scheduled',
-        authorName: store.user.firstName,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        scheduledAt: mode === 'schedule' ? (scheduledAt ?? null) : null,
-        publishedAt: mode === 'publish' ? new Date().toISOString() : null,
-        timezone: store.user.timezone,
-        metrics: {
-          reactions: null,
-          comments: null,
-          shares: null,
-          reach: null,
-          impressions: null,
-          engagementRate: null,
-          lastSyncAt: null,
-        },
-        commentCount: 0,
-        negativeCommentCount: 0,
-        urgentCommentCount: 0,
-        perNetwork: draft.perNetwork,
-      };
+      },
+      true
+    );
 
-      store.publications.unshift(publication);
-      return clone(publication);
-    }, 1100);
+    if (mode === 'publish') return publicationsApi.publishNow(created.id);
+    if (mode === 'schedule' && scheduledAt) return publicationsApi.schedule(created.id, scheduledAt);
+    return fromRemotePublication(created);
   },
 
-  async update(id: string, patch: Partial<Publication>): Promise<Publication> {
-    return request(() => {
-      const index = store.publications.findIndex((p) => p.id === id);
-      if (index < 0) throw new ApiError('not_found', errorMessages.not_found);
-      const current = store.publications[index]!;
-      if (current.status === 'publishing' || current.status === 'published') {
-        throw new ApiError('conflict', 'Une publication en cours d’envoi ou publiée ne peut pas être modifiée.');
-      }
-      store.publications[index] = { ...current, ...patch, updatedAt: new Date().toISOString() };
-      return clone(store.publications[index]!);
-    }, 800);
+  async update(id: string, patch: PublicationPatch): Promise<Publication> {
+    const body: Record<string, unknown> = {};
+    if (patch.text !== undefined) body.content = patch.text.trim();
+    if (patch.hashtags !== undefined) body.hashtags = patch.hashtags;
+    if ('media' in patch) body.mediaIds = patch.media ? [patch.media.id] : [];
+    if (patch.networks) body.targets = targetsFromDraft(patch.networks, patch.perNetwork);
+
+    return fromRemotePublication(
+      await fetchApi<RemotePublication>(
+        `/api/v1/publications/${id}`,
+        { method: 'PATCH', body: JSON.stringify(body) },
+        true
+      )
+    );
   },
 
   async schedule(id: string, scheduledAt: string): Promise<Publication> {
-    return request(() => {
-      const publication = store.publications.find((p) => p.id === id);
-      if (!publication) throw new ApiError('not_found', errorMessages.not_found);
-      if (new Date(scheduledAt).getTime() <= Date.now()) {
-        throw new ApiError('conflict', 'La date et l’heure doivent être dans le futur.');
-      }
-      publication.scheduledAt = scheduledAt;
-      publication.status = 'scheduled';
-      publication.updatedAt = new Date().toISOString();
-      return clone(publication);
-    }, 900);
+    if (new Date(scheduledAt).getTime() <= Date.now()) {
+      throw new ApiError('conflict', 'La date et l’heure doivent être dans le futur.');
+    }
+
+    return fromRemotePublication(
+      await fetchApi<RemotePublication>(
+        `/api/v1/publications/${id}/schedule`,
+        {
+          method: 'POST',
+          // Le fuseau de l’appareil accompagne l’instant absolu, pour réafficher
+          // l’heure voulue par le community manager.
+          body: JSON.stringify({ scheduledAt, timezone: deviceTimezone() }),
+        },
+        true
+      )
+    );
   },
 
+  /** La publication redevient un brouillon : elle reste replanifiable. */
   async cancelSchedule(id: string): Promise<Publication> {
-    return request(() => {
-      const publication = store.publications.find((p) => p.id === id);
-      if (!publication) throw new ApiError('not_found', errorMessages.not_found);
-      publication.status = 'cancelled';
-      publication.scheduledAt = null;
-      return clone(publication);
-    }, 700);
+    return fromRemotePublication(
+      await fetchApi<RemotePublication>(`/api/v1/publications/${id}/schedule`, { method: 'DELETE' }, true)
+    );
   },
 
   async publishNow(id: string): Promise<Publication> {
-    return request(() => {
-      const publication = store.publications.find((p) => p.id === id);
-      if (!publication) throw new ApiError('not_found', errorMessages.not_found);
-      publication.status = 'published';
-      publication.publishedAt = new Date().toISOString();
-      publication.targets = publication.targets.map((t) => ({
-        ...t,
-        status: 'sent',
-        sentAt: new Date().toISOString(),
-        attempts: t.attempts + 1,
-        externalId: t.externalId ?? makeId('ext'),
-        error: null,
-      }));
-      return clone(publication);
-    }, 1200);
+    const result = await fetchApi<{ jobId: string | null; publication: RemotePublication }>(
+      `/api/v1/publications/${id}/publish`,
+      { method: 'POST' },
+      true
+    );
+    return fromRemotePublication(result.publication);
   },
 
-  /** Retries only the networks that failed. */
+  /** Relance uniquement le réseau demandé, ou tous ceux en échec. */
   async retry(id: string, network?: SocialNetwork): Promise<Publication> {
-    return request(() => {
-      const publication = store.publications.find((p) => p.id === id);
-      if (!publication) throw new ApiError('not_found', errorMessages.not_found);
-      publication.targets = publication.targets.map((target) => {
-        if (target.status !== 'failed') return target;
-        if (network && target.network !== network) return target;
-        return {
-          ...target,
-          status: 'sent',
-          sentAt: new Date().toISOString(),
-          attempts: target.attempts + 1,
-          externalId: makeId('ext'),
-          error: null,
-        };
-      });
-      publication.status = publication.targets.every((t) => t.status === 'sent') ? 'published' : publication.status;
-      return clone(publication);
-    }, 1200);
+    const result = await fetchApi<{ jobId: string | null; publication: RemotePublication }>(
+      `/api/v1/publications/${id}/retry`,
+      { method: 'POST', body: JSON.stringify(network ? { provider: network } : {}) },
+      true
+    );
+    return fromRemotePublication(result.publication);
   },
 
   async remove(id: string): Promise<void> {
-    return request(() => {
-      store.publications = store.publications.filter((p) => p.id !== id);
-    }, 700);
+    await fetchApi<void>(`/api/v1/publications/${id}`, { method: 'DELETE' }, true);
   },
 
+  // Hashtags et mots-clés restent simulés : ils arrivent avec LangGraph au Sprint 10.
   async generateHashtags(text: string): Promise<string[]> {
     return request(() => {
       if (simulation.aiUnavailable) throw new ApiError('ai_unavailable', errorMessages.ai_unavailable);
@@ -772,6 +851,105 @@ export const publicationsApi = {
 
   async detectKeywords(text: string): Promise<string[]> {
     return request(() => (text.trim() ? [...fixtures.detectedKeywords] : []), 400);
+  },
+};
+
+function deviceTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Paris';
+  } catch {
+    return 'Europe/Paris';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Médias
+// ---------------------------------------------------------------------------
+
+export type UploadCandidate = { uri: string; fileName: string; mimeType: string };
+
+/**
+ * Upload multipart réel vers `POST /api/v1/media`.
+ *
+ * `XMLHttpRequest` est utilisé plutôt que `fetch` pour obtenir la progression
+ * d’envoi affichée par l’écran de sélection de média.
+ */
+async function sendMultipart(
+  token: string,
+  form: FormData,
+  onProgress?: (ratio: number) => void
+): Promise<{ status: number; payload: unknown }> {
+  return new Promise((resolve, reject) => {
+    const request_ = new XMLHttpRequest();
+    request_.open('POST', apiUrl('/api/v1/media'));
+    request_.setRequestHeader('authorization', `Bearer ${token}`);
+    request_.setRequestHeader('accept', 'application/json');
+
+    if (request_.upload) {
+      request_.upload.onprogress = (event) => {
+        if (event.lengthComputable) onProgress?.(event.loaded / event.total);
+      };
+    }
+
+    request_.onload = () => {
+      let payload: unknown;
+      try {
+        payload = request_.responseText ? JSON.parse(request_.responseText) : undefined;
+      } catch {
+        payload = undefined;
+      }
+      resolve({ status: request_.status, payload });
+    };
+    request_.onerror = () => reject(new ApiError('offline', errorMessages.offline));
+    request_.ontimeout = () => reject(new ApiError('offline', errorMessages.offline));
+
+    request_.send(form);
+  });
+}
+
+async function buildMediaForm(candidate: UploadCandidate, brandId: string): Promise<FormData> {
+  const form = new FormData();
+
+  if (Platform.OS === 'web') {
+    // Sur le web, l’URI est un blob local : il faut le matérialiser.
+    const blob = await (await fetch(candidate.uri)).blob();
+    form.append('file', blob, candidate.fileName);
+  } else {
+    form.append('file', {
+      uri: candidate.uri,
+      name: candidate.fileName,
+      type: candidate.mimeType,
+    } as unknown as Blob);
+  }
+
+  form.append('brandId', brandId);
+  form.append('purpose', 'publication');
+  return form;
+}
+
+export const mediaApi = {
+  /** Dépose l’image et retourne le média persistant, prêt à être rattaché. */
+  async upload(
+    candidate: UploadCandidate,
+    brandId: string,
+    onProgress?: (ratio: number) => void
+  ): Promise<MediaAsset> {
+    let token = await readToken();
+    if (!token) throw new ApiError('unauthorized', errorMessages.unauthorized);
+
+    let response = await sendMultipart(token, await buildMediaForm(candidate, brandId), onProgress);
+    if (response.status === 401) {
+      // Une seule tentative de rafraîchissement, comme pour les autres appels.
+      token = await refreshAccessToken();
+      response = await sendMultipart(token, await buildMediaForm(candidate, brandId), onProgress);
+    }
+
+    if (response.status !== 201) throw errorFromResponse(response.status, response.payload);
+    return fromRemoteMedia((response.payload as ApiEnvelope<RemoteMedia>).data);
+  },
+
+  async remove(id: string): Promise<void> {
+    await fetchApi<void>(`/api/v1/media/${id}`, { method: 'DELETE' }, true);
   },
 };
 

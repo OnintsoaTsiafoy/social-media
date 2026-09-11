@@ -99,6 +99,7 @@ export default function EditPublicationScreen() {
         text: draft.text.trim(),
         hashtags: draft.hashtags,
         media: draft.media,
+        networks: draft.networks,
         perNetwork: draft.perNetworkEnabled ? draft.perNetwork : undefined,
       })
     );

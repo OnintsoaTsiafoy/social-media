@@ -16,9 +16,11 @@ import {
   Text,
   type IconName,
 } from '@/components/ui';
+import { mediaApi, toUserMessage } from '@/data/api';
 import { formatFileSize, formatMimeType } from '@/lib/format';
 import { MEDIA_CONSTRAINTS, validateMedia } from '@/lib/validation';
 import { useComposer } from '@/store/ComposerProvider';
+import { useSession } from '@/store/SessionProvider';
 import { palette, spacing } from '@/theme';
 import type { MediaAsset } from '@/types';
 
@@ -39,6 +41,7 @@ const SOURCES: Source[] = [
 export default function MediaPickerScreen() {
   const router = useRouter();
   const { patch } = useComposer();
+  const { brand } = useSession();
 
   const [candidate, setCandidate] = useState<MediaAsset | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -107,21 +110,34 @@ export default function MediaPickerScreen() {
     }
   };
 
-  /** Simulated upload - replace with a real multipart request. */
+  /** Envoi multipart réel vers `POST /api/v1/media`. */
   const upload = async () => {
-    if (!candidate) return;
-    setUploading(true);
-    setError(undefined);
-
-    for (let step = 1; step <= 10; step += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 90));
-      setProgress(step / 10);
+    if (!candidate?.uri) return;
+    if (!brand?.id) {
+      setError('Aucune marque active. Ouvrez « Marque & ton IA » avant d’ajouter un média.');
+      return;
     }
 
-    setUploading(false);
-    // Only now is the media attached to the draft.
-    patch({ media: { ...candidate, uploadProgress: 1 } });
-    close();
+    setUploading(true);
+    setError(undefined);
+    setProgress(0);
+
+    try {
+      const stored = await mediaApi.upload(
+        { uri: candidate.uri, fileName: candidate.fileName, mimeType: candidate.mimeType },
+        brand.id,
+        setProgress
+      );
+      // Le média n’est rattaché au brouillon qu’une fois déposé côté serveur.
+      // L’aperçu garde l’URI locale : elle ne dépend pas d’une URL signée.
+      patch({ media: { ...stored, uri: candidate.uri } });
+      close();
+    } catch (caught) {
+      setProgress(0);
+      setError(toUserMessage(caught));
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (

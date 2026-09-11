@@ -12,5 +12,6 @@ finally {
 }
 
 npm --prefix services/api test
+npm --prefix services/worker test
 npm --prefix social-media run typecheck
 npm --prefix social-media run lint

@@ -11,7 +11,9 @@ Ce dépôt regroupe l'application mobile Expo, la passerelle sociale FastAPI et 
 5. Démarrez l'infrastructure : `./scripts/start.ps1`.
 6. Lancez le mobile séparément : `npm --prefix social-media start`.
 
-Les sondes sont disponibles sur `http://localhost:3000/health` (API), `:3001/health` (worker), `:8000/health` (Social) et `:8080/health` (IA). Le `ready` de Social retourne volontairement `503` tant qu'aucun compte Meta local n'est configuré.
+Les sondes sont disponibles sur `http://localhost:3000/health` (API), `:3001/health` (worker), `:8000/health` (Social) et `:8080/health` (IA). Le `ready` de Social retourne volontairement `503` tant qu'aucun compte Meta local n'est configuré. Depuis le Sprint 04, le `ready` de l'API exige aussi la configuration du stockage média (`S3_ENDPOINT`, `MEDIA_BUCKET`), et l'état des files de travaux est visible sur `http://localhost:3001/internal/v1/jobs/health`.
+
+Les médias sont stockés dans un bucket MinIO privé, créé au démarrage de l'API. Sur un téléphone ou un émulateur, adaptez `S3_PUBLIC_ENDPOINT` dans `.env` : c'est l'hôte utilisé pour signer les URL d'aperçu (`10.0.2.2` sur l'émulateur Android, l'IP LAN de la machine sur un appareil physique).
 
 Pour la vérification : `./scripts/verify-readiness.ps1`, puis `./scripts/test.ps1`.
 
@@ -31,3 +33,6 @@ Les scripts détectent automatiquement Docker ou Podman. Le conteneur API appliq
 - [Risques et décisions ouvertes](docs/RISQUES_DECISIONS_OUVERTES.md)
 - [Validation manuelle du Sprint 01](docs/VALIDATION_SPRINT_01.md)
 - [Authentification du Sprint 02](docs/SPRINT_02_AUTHENTIFICATION.md)
+- [Profil et marques du Sprint 03](docs/SPRINT_03_PROFIL_MARQUES.md)
+- [Publications, médias et scheduler du Sprint 04](docs/SPRINT_04_PUBLICATIONS_MEDIAS_SCHEDULER.md)
+- [Collection Postman de l'API](contracts/hootly-api.postman_collection.json)

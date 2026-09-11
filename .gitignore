@@ -5,3 +5,4 @@ sprint_listing/
 **/__pycache__/
 **/.pytest_cache/
 /services/api/node_modules/
+/services/worker/node_modules/

@@ -3,8 +3,12 @@ import { fileURLToPath } from 'node:url';
 
 import { authRouter } from './auth/routes.js';
 import { brandRouter } from './brands/routes.js';
+import { mediaRouter } from './media/routes.js';
+import { calendarRouter, publicationRouter } from './publications/routes.js';
 import { profileRouter } from './profile/routes.js';
 import { addRequestContext, errorHandler, notFoundHandler } from './lib/http.js';
+import { stopBoss } from './lib/jobs.js';
+import { ensureBucket, isStorageConfigured } from './lib/storage.js';
 
 export const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -41,6 +45,33 @@ const openApiDocument = {
       get: { summary: 'Lire les paramÃ¨tres IA' },
       patch: { summary: 'Versionner les paramÃ¨tres IA' },
     },
+    '/api/v1/media': { post: { summary: 'Déposer un média (multipart/form-data)' } },
+    '/api/v1/media/{mediaId}': {
+      get: { summary: 'Métadonnées et URL signée' },
+      delete: { summary: 'Supprimer un média inutilisé' },
+    },
+    '/api/v1/publications': {
+      get: { summary: 'Lister les publications de la marque' },
+      post: { summary: 'Créer un brouillon' },
+    },
+    '/api/v1/publications/counts': { get: { summary: 'Compter les publications par statut' } },
+    '/api/v1/publications/{publicationId}': {
+      get: { summary: 'Détail d’une publication' },
+      patch: { summary: 'Modifier une publication non envoyée' },
+      delete: { summary: 'Supprimer une publication' },
+    },
+    '/api/v1/publications/{publicationId}/schedule': {
+      post: { summary: 'Planifier une publication' },
+      patch: { summary: 'Replanifier une publication' },
+      delete: { summary: 'Annuler la planification' },
+    },
+    '/api/v1/publications/{publicationId}/publish': {
+      post: { summary: 'Demander un envoi immédiat (202, exécuté par le worker)' },
+    },
+    '/api/v1/publications/{publicationId}/retry': {
+      post: { summary: 'Relancer les réseaux en échec (202)' },
+    },
+    '/api/v1/calendar': { get: { summary: 'Publications planifiées ou publiées sur une période' } },
   },
 };
 
@@ -53,7 +84,9 @@ app.get('/health', (_request, response) => {
 });
 
 app.get('/ready', (_request, response) => {
-  const required = ['DATABASE_URL', 'SOCIAL_SERVICE_URL', 'AI_SERVICE_URL', 'JWT_ACCESS_SECRET'];
+  // Le stockage média devient une dépendance de l'API au Sprint 04 : sans lui,
+  // la création d'une publication avec image échouerait silencieusement.
+  const required = ['DATABASE_URL', 'SOCIAL_SERVICE_URL', 'AI_SERVICE_URL', 'JWT_ACCESS_SECRET', 'S3_ENDPOINT', 'MEDIA_BUCKET'];
   const missing = required.filter((name) => !process.env[name]?.trim());
 
   if (missing.length > 0) {
@@ -76,6 +109,9 @@ app.get('/openapi.json', (_request, response) => {
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/profile', profileRouter);
 app.use('/api/v1/brands', brandRouter);
+app.use('/api/v1/media', mediaRouter);
+app.use('/api/v1/publications', publicationRouter);
+app.use('/api/v1/calendar', calendarRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
@@ -84,7 +120,15 @@ export function start() {
     console.log(`Hootly API listening on port ${port}`);
   });
 
+  // Le bucket privé est créé au démarrage : la première publication avec média
+  // ne doit pas échouer sur une infrastructure neuve.
+  if (isStorageConfigured()) {
+    ensureBucket().catch((error) => console.error({ scope: 'storage', error: error?.message }));
+  }
+
   function shutdown(signal) {
+    // La file pg-boss est fermée proprement pour ne pas laisser de job actif.
+    void stopBoss();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(1), 10_000).unref();
     console.log(`Received ${signal}; shutting down.`);

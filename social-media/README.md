@@ -18,8 +18,11 @@ npm run lint
 
 ### Compte de démonstration
 
-L'authentification utilise désormais l'API Express. Les autres domaines de
-`src/data/api.ts` conservent temporairement leurs simulations avec latence et erreurs.
+L'authentification, le profil, les marques, les publications, les médias, la
+planification et le calendrier utilisent l'API Express. Les autres domaines de
+`src/data/api.ts` (commentaires, comptes sociaux, notifications, tableau de bord,
+analytics, hashtags) conservent temporairement leurs simulations avec latence et
+erreurs.
 
 - Après `./scripts/seed.ps1` lancé depuis la racine : `lea@studio-vega.fr` / `ChangeMe123!`
 - L’inscription crée un utilisateur réel ; l’ancien scénario de démonstration n’est plus utilisé.
@@ -56,7 +59,7 @@ src/
 ├── theme/               Tokens (couleurs, espacements, rayons, typographie) + helpers responsive
 ├── components/ui/       Composants transverses (Screen, AppHeader, Button, TextField, Badge…)
 ├── components/domain/   Cartes métier (PublicationCard, CommentCard, TabBar, CalendarMonth…)
-├── data/                api.ts (façade réseau) · fixtures.ts (jeu de données) · options.ts
+├── data/                api.ts (appels réels + façade résiduelle) · fixtures.ts · options.ts
 ├── hooks/               useAsync · useMutation · usePaginatedList
 ├── store/               SessionProvider (session + marque active) · ComposerProvider
 ├── lib/                 validation · format · secureStorage

@@ -94,7 +94,7 @@ export default function NewPublicationScreen() {
       return;
     }
     if (mode === 'publish') {
-      toast('La publication a été envoyée.', 'success');
+      toast('Envoi lancé. Actualisez pour suivre le résultat.', 'success');
       router.replace(`/publications/${result.data.id}`);
       return;
     }

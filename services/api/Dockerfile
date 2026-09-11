@@ -1,13 +1,16 @@
+# Contexte de build : la racine du dépôt, pour embarquer `services/shared`
+# (modules purs partagés avec le worker) en conservant les chemins relatifs.
 FROM node:20-alpine
 
-WORKDIR /app
+WORKDIR /app/services/api
 
-COPY package*.json ./
+COPY services/api/package*.json ./
 RUN npm ci
 
-COPY prisma ./prisma
+COPY services/shared /app/services/shared
+COPY services/api/prisma ./prisma
 RUN npx prisma generate
-COPY src ./src
+COPY services/api/src ./src
 
 EXPOSE 3000
 

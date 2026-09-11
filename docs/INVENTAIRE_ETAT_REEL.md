@@ -15,12 +15,14 @@ Date de l'inventaire : 30 juillet 2026. La source de vérité est le code prése
 
 ## Mobile Expo
 
-Les écrans et la navigation existent déjà. Depuis le Sprint 02, l'authentification de `src/data/api.ts` appelle l'API Express ; les autres domaines conservent une façade en mémoire avec latence et erreurs. Les signatures exportées restent le contrat temporaire des écrans non encore migrés.
+Les écrans et la navigation existent déjà. Depuis le Sprint 02, l'authentification de `src/data/api.ts` appelle l'API Express ; s'y ajoutent le profil et les marques (Sprint 03), puis les publications, médias, planification et calendrier (Sprint 04). Les autres domaines conservent une façade en mémoire avec latence et erreurs. Les signatures exportées restent le contrat temporaire des écrans non encore migrés.
 
 | Domaine | Routes existantes | Façade simulée |
 |---|---|---|
 | Authentification | `index`, `register`, `login`, `forgot-password`, `reset-password` | `auth` |
-| Accueil et publications | `home`, `publications`, `publications/new`, détail, modification, planification, calendrier, média, hashtags | `dashboardApi`, `publicationsApi` |
+| Accueil | `home` | `dashboardApi` |
+| Publications, média, planification, calendrier | `publications`, `publications/new`, détail, modification, planification, calendrier, média | API réelle depuis le Sprint 04 (`publicationsApi`, `mediaApi`) |
+| Hashtags | `hashtags` | `publicationsApi.generateHashtags` (Sprint 10) |
 | Commentaires | liste, détail, réponse, historique | `commentsApi` |
 | Comptes et profil | profil, comptes sociaux, marque, sécurité, suppression | `profile`, `brandsApi`, `accountsApi` |
 | Notifications | centre et paramètres | `notificationsApi` |

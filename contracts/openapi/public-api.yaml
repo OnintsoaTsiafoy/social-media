@@ -1,8 +1,10 @@
 openapi: 3.1.0
 info:
   title: Hootly Public API
-  version: 0.1.0
-  description: Contrat initial gelé au Sprint 01. Les opérations d'authentification sont implémentées au Sprint 02.
+  version: 0.4.0
+  description: >
+    Contrat public Hootly. Authentification (Sprint 02), profil et marques
+    (Sprint 03), publications, médias, planification et calendrier (Sprint 04).
 servers:
   - url: http://localhost:3000
 paths:
@@ -218,6 +220,201 @@ paths:
         '400': { $ref: '#/components/responses/ValidationFailed' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/media:
+    post:
+      summary: Déposer une image (JPEG, PNG ou WebP)
+      description: >
+        Envoi multipart. Le type réel est déduit des octets, jamais du nom de
+        fichier. Le média reste TEMPORARY tant qu'il n'est pas rattaché à une
+        publication, puis il est déplacé vers la clé définitive.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                brandId: { type: string, format: uuid }
+                purpose: { type: string, enum: [publication, avatar], default: publication }
+      responses:
+        '201': { $ref: '#/components/responses/Media' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/MediaTooLarge' }
+        '415': { $ref: '#/components/responses/MediaTypeNotAllowed' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/v1/media/{mediaId}:
+    parameters:
+      - { name: mediaId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Métadonnées et URL de lecture signée
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/Media' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: Supprimer un média non utilisé
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Média supprimé }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/publications:
+    get:
+      summary: Lister les publications accessibles
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: brandId, in: query, schema: { type: string, format: uuid } }
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, draft, scheduled, publishing, published, partially_published, failed, cancelled]
+        - { name: provider, in: query, schema: { type: string, enum: [facebook, instagram] } }
+        - { name: search, in: query, schema: { type: string, maxLength: 120 } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { $ref: '#/components/responses/PublicationList' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+    post:
+      summary: Créer un brouillon (rôle COMMUNITY_MANAGER minimum)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/PublicationCreate' } } }
+      responses:
+        '201': { $ref: '#/components/responses/Publication' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/v1/publications/counts:
+    get:
+      summary: Compter les publications par statut
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: brandId, in: query, schema: { type: string, format: uuid } }
+      responses: { '200': { $ref: '#/components/responses/Success' } }
+  /api/v1/publications/{publicationId}:
+    parameters:
+      - { name: publicationId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Détail d'une publication
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/Publication' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Modifier une publication non envoyée
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/PublicationPatch' } } }
+      responses:
+        '200': { $ref: '#/components/responses/Publication' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      summary: Supprimer une publication (suppression logique)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Publication supprimée }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/publications/{publicationId}/schedule:
+    parameters:
+      - { name: publicationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Planifier l'envoi
+      description: >
+        `scheduledAt` est un instant absolu (ISO 8601 avec décalage), stocké en
+        UTC. `timezone` sert uniquement à réafficher l'heure locale voulue.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ScheduleRequest' } } }
+      responses:
+        '201': { $ref: '#/components/responses/Publication' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    patch:
+      summary: Replanifier l'envoi
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ScheduleRequest' } } }
+      responses:
+        '200': { $ref: '#/components/responses/Publication' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+    delete:
+      summary: Annuler la planification (retour au brouillon)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/Publication' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/publications/{publicationId}/publish:
+    parameters:
+      - { name: publicationId, in: path, required: true, schema: { type: string, format: uuid } }
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema: { type: string, maxLength: 200 }
+        description: Rejoue la réponse mémorisée si la même commande est renvoyée.
+    post:
+      summary: Demander un envoi immédiat
+      description: >
+        Réponse `202` : l'envoi est exécuté par le worker. La publication passe
+        en `publishing`, puis en `published`, `partially_published` ou `failed`.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '202': { $ref: '#/components/responses/PublishAccepted' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/v1/publications/{publicationId}/retry:
+    parameters:
+      - { name: publicationId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: Idempotency-Key, in: header, required: false, schema: { type: string, maxLength: 200 } }
+    post:
+      summary: Relancer les réseaux en échec
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                provider: { type: string, enum: [facebook, instagram] }
+      responses:
+        '202': { $ref: '#/components/responses/PublishAccepted' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/v1/calendar:
+    get:
+      summary: Publications planifiées ou publiées sur une période
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: brandId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200': { $ref: '#/components/responses/PublicationList' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
 components:
   securitySchemes:
     bearerAuth:
@@ -225,6 +422,92 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    PublicationTargetInput:
+      type: object
+      required: [provider]
+      properties:
+        provider: { type: string, enum: [facebook, instagram] }
+        socialAccountId:
+          type: [string, 'null']
+          format: uuid
+          description: Renseigné à partir du Sprint 06 (comptes liés par OAuth).
+        adaptedContent: { type: [string, 'null'], maxLength: 5000 }
+        adaptedHashtags: { type: array, items: { type: string }, maxItems: 30 }
+    PublicationCreate:
+      type: object
+      required: [brandId, content]
+      properties:
+        brandId: { type: string, format: uuid }
+        content: { type: string, minLength: 1, maxLength: 5000 }
+        language: { type: string, enum: [fr, en, ar], default: fr }
+        hashtags: { type: array, items: { type: string }, maxItems: 30 }
+        mediaIds:
+          type: array
+          items: { type: string, format: uuid }
+          maxItems: 1
+          description: Une image par publication dans le MVP (ADR-08).
+        targets: { type: array, items: { $ref: '#/components/schemas/PublicationTargetInput' }, maxItems: 2 }
+        timezone: { type: string, default: Europe/Paris }
+    PublicationPatch:
+      type: object
+      minProperties: 1
+      properties:
+        content: { type: string, minLength: 1, maxLength: 5000 }
+        language: { type: string, enum: [fr, en, ar] }
+        hashtags: { type: array, items: { type: string }, maxItems: 30 }
+        mediaIds: { type: array, items: { type: string, format: uuid }, maxItems: 1 }
+        targets: { type: array, items: { $ref: '#/components/schemas/PublicationTargetInput' }, maxItems: 2 }
+        timezone: { type: string }
+    ScheduleRequest:
+      type: object
+      required: [scheduledAt]
+      properties:
+        scheduledAt: { type: string, format: date-time }
+        timezone: { type: string, example: Europe/Paris }
+    Publication:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        brandId: { type: string, format: uuid }
+        brandName: { type: string }
+        content: { type: string }
+        language: { type: string }
+        hashtags: { type: array, items: { type: string } }
+        status:
+          type: string
+          enum: [draft, scheduled, publishing, published, partially_published, failed, cancelled]
+        media: { type: array, items: { $ref: '#/components/schemas/Media' } }
+        targets:
+          type: array
+          items:
+            type: object
+            properties:
+              provider: { type: string, enum: [facebook, instagram] }
+              status: { type: string, enum: [pending, sending, sent, failed] }
+              externalPublicationId: { type: [string, 'null'] }
+              lastErrorCode: { type: [string, 'null'] }
+              lastErrorMessage: { type: [string, 'null'] }
+              attemptCount: { type: integer }
+              sentAt: { type: [string, 'null'], format: date-time }
+        scheduledAt: { type: [string, 'null'], format: date-time }
+        publishedAt: { type: [string, 'null'], format: date-time }
+        timezone: { type: string }
+        metrics:
+          type: object
+          description: Toujours nul avant le Sprint 12 ; « non disponible » n'est jamais 0.
+        commentCount: { type: integer }
+    Media:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        fileName: { type: string }
+        mimeType: { type: string, enum: [image/jpeg, image/png, image/webp] }
+        size: { type: integer }
+        width: { type: [integer, 'null'] }
+        height: { type: [integer, 'null'] }
+        status: { type: string, enum: [TEMPORARY, READY, DELETED] }
+        previewUrl: { type: string, description: URL signée à durée de vie courte }
+        expiresAt: { type: string, format: date-time }
     ProfilePatch:
       type: object
       minProperties: 1
@@ -368,6 +651,65 @@ components:
             requestId: { type: string }
             details: { type: array, items: { type: object } }
   responses:
+    Publication:
+      description: Publication sous enveloppe Hootly
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Publication' }
+    PublicationList:
+      description: Liste paginée de publications
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      items: { type: array, items: { $ref: '#/components/schemas/Publication' } }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      total: { type: integer }
+    Media:
+      description: Média et URL signée
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Media' }
+    PublishAccepted:
+      description: Commande acceptée ; l'envoi est exécuté par le worker
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      jobId: { type: [string, 'null'] }
+                      publication: { $ref: '#/components/schemas/Publication' }
+    Unprocessable:
+      description: Règle métier non satisfaite
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    MediaTooLarge:
+      description: Fichier au-delà de la taille autorisée (media_too_large)
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    MediaTypeNotAllowed:
+      description: Format refusé (media_type_not_allowed)
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
     Success:
       description: RÃ©ponse rÃ©ussie sous enveloppe Hootly
       content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } }

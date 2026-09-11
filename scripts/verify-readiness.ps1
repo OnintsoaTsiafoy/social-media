@@ -8,7 +8,11 @@ $ErrorActionPreference = 'Stop'
 function Assert-Status {
     param(
         [string]$Url,
-        [int[]]$ExpectedStatus
+        [int[]]$ExpectedStatus,
+        # Le worker ouvre ses files pg-boss juste apres son demarrage : la sonde
+        # est reinterrogee quelques secondes avant d'etre declaree en echec.
+        [int]$Retries = 5,
+        [int]$DelaySeconds = 2
     )
 
     $response = $null
@@ -27,6 +31,11 @@ function Assert-Status {
     try {
         $statusCode = [int]$response.StatusCode
         if ($statusCode -notin $ExpectedStatus) {
+            if ($Retries -gt 0) {
+                Start-Sleep -Seconds $DelaySeconds
+                Assert-Status -Url $Url -ExpectedStatus $ExpectedStatus -Retries ($Retries - 1) -DelaySeconds $DelaySeconds
+                return
+            }
             throw "$Url a retourné HTTP $statusCode, attendu : $($ExpectedStatus -join ', ')."
         }
 

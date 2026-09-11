@@ -32,6 +32,40 @@ enum AiTone {
   CUSTOM
 }
 
+enum PublicationStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  PARTIALLY_PUBLISHED
+  FAILED
+  CANCELLED
+}
+
+enum PublicationTargetStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+}
+
+enum DeliveryAttemptStatus {
+  STARTED
+  SUCCEEDED
+  FAILED
+}
+
+enum SocialProvider {
+  FACEBOOK
+  INSTAGRAM
+}
+
+enum ScheduleStatus {
+  PENDING
+  DISPATCHED
+  CANCELLED
+}
+
 enum AiFormality {
   INFORMAL
   FORMAL
@@ -60,6 +94,8 @@ model User {
   ownedBrands         Brand[]              @relation("BrandOwner")
   aiSettingsCreated   BrandAiSetting[]     @relation("AiSettingsAuthor")
   uploadedMedia       Media[]              @relation("MediaOwner")
+  publications        Publication[]        @relation("PublicationAuthor")
+  schedules           ScheduledPublication[] @relation("ScheduleAuthor")
   avatarMedia         Media?               @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
 
   @@index([status])
@@ -81,6 +117,7 @@ model Brand {
   members         BrandMember[]
   aiSettings      BrandAiSetting[]
   media           Media[]
+  publications    Publication[]
 
   @@index([ownerUserId])
   @@index([deletedAt])
@@ -143,11 +180,14 @@ model Media {
   width       Int?
   height      Int?
   status      String    @default("READY") @db.VarChar(32)
+  purpose     String    @default("publication") @db.VarChar(32)
   checksum    String?   @db.VarChar(128)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   owner       User?     @relation("MediaOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
   brand       Brand?    @relation(fields: [brandId], references: [id], onDelete: SetNull)
   avatarFor   User?     @relation("UserAvatar")
+  publications PublicationMedia[]
 
   @@index([ownerUserId, createdAt])
   @@index([brandId, createdAt])
@@ -198,4 +238,124 @@ model AuditLog {
   @@index([userId, createdAt])
   @@index([resourceType, resourceId])
   @@map("audit_logs")
+}
+
+model Publication {
+  id              String                @id @default(uuid()) @db.Uuid
+  brandId         String                @map("brand_id") @db.Uuid
+  createdByUserId String                @map("created_by_user_id") @db.Uuid
+  content         String                @db.Text
+  language        String                @default("fr") @db.VarChar(8)
+  hashtags        Json                  @default("[]")
+  status          PublicationStatus     @default(DRAFT)
+  scheduledAt     DateTime?             @map("scheduled_at") @db.Timestamptz(6)
+  timezone        String                @default("Europe/Paris") @db.VarChar(64)
+  publishedAt     DateTime?             @map("published_at") @db.Timestamptz(6)
+  deletedAt       DateTime?             @map("deleted_at") @db.Timestamptz(6)
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  brand           Brand                 @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  createdBy       User                  @relation("PublicationAuthor", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  targets         PublicationTarget[]
+  media           PublicationMedia[]
+  schedule        ScheduledPublication?
+
+  @@index([brandId, status])
+  @@index([brandId, scheduledAt])
+  @@index([status, scheduledAt])
+  @@index([deletedAt])
+  @@map("publications")
+}
+
+model PublicationTarget {
+  id                    String                       @id @default(uuid()) @db.Uuid
+  publicationId         String                       @map("publication_id") @db.Uuid
+  // Renseigné au Sprint 06, quand les comptes sociaux liés par OAuth existeront.
+  // La contrainte de clé étrangère sera ajoutée avec la table `social_accounts`.
+  socialAccountId       String?                      @map("social_account_id") @db.Uuid
+  provider              SocialProvider
+  adaptedContent        String?                      @map("adapted_content") @db.Text
+  adaptedHashtags       Json                         @default("[]") @map("adapted_hashtags")
+  status                PublicationTargetStatus      @default(PENDING)
+  externalPublicationId String?                      @map("external_publication_id") @db.VarChar(255)
+  lastErrorCode         String?                      @map("last_error_code") @db.VarChar(80)
+  lastErrorMessage      String?                      @map("last_error_message") @db.Text
+  attemptCount          Int                          @default(0) @map("attempt_count")
+  sentAt                DateTime?                    @map("sent_at") @db.Timestamptz(6)
+  createdAt             DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  publication           Publication                  @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  attempts              PublicationDeliveryAttempt[]
+
+  @@unique([publicationId, provider])
+  @@index([status])
+  @@map("publication_targets")
+}
+
+model PublicationMedia {
+  id            String      @id @default(uuid()) @db.Uuid
+  publicationId String      @map("publication_id") @db.Uuid
+  mediaId       String      @map("media_id") @db.Uuid
+  position      Int         @default(0)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  publication   Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  media         Media       @relation(fields: [mediaId], references: [id], onDelete: Restrict)
+
+  @@unique([publicationId, mediaId])
+  @@unique([publicationId, position])
+  @@index([mediaId])
+  @@map("publication_media")
+}
+
+model ScheduledPublication {
+  id              String         @id @default(uuid()) @db.Uuid
+  publicationId   String         @unique @map("publication_id") @db.Uuid
+  scheduledAt     DateTime       @map("scheduled_at") @db.Timestamptz(6)
+  timezone        String         @default("Europe/Paris") @db.VarChar(64)
+  jobId           String?        @map("job_id") @db.VarChar(64)
+  status          ScheduleStatus @default(PENDING)
+  createdByUserId String         @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  publication     Publication    @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  createdBy       User           @relation("ScheduleAuthor", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([status, scheduledAt])
+  @@map("scheduled_publications")
+}
+
+model PublicationDeliveryAttempt {
+  id                    String                @id @default(uuid()) @db.Uuid
+  publicationTargetId   String                @map("publication_target_id") @db.Uuid
+  attemptNumber         Int                   @map("attempt_number")
+  // Empêche qu'une même tentative parte deux fois, même si le job est rejoué.
+  idempotencyKey        String                @unique @map("idempotency_key") @db.VarChar(200)
+  status                DeliveryAttemptStatus @default(STARTED)
+  errorCode             String?               @map("error_code") @db.VarChar(80)
+  errorMessage          String?               @map("error_message") @db.Text
+  externalPublicationId String?               @map("external_publication_id") @db.VarChar(255)
+  startedAt             DateTime              @default(now()) @map("started_at") @db.Timestamptz(6)
+  finishedAt            DateTime?             @map("finished_at") @db.Timestamptz(6)
+  target                PublicationTarget     @relation(fields: [publicationTargetId], references: [id], onDelete: Cascade)
+
+  @@unique([publicationTargetId, attemptNumber], map: "publication_delivery_attempts_target_attempt_key")
+  @@index([status, startedAt])
+  @@map("publication_delivery_attempts")
+}
+
+model IdempotencyKey {
+  id             String   @id @default(uuid()) @db.Uuid
+  key            String   @db.VarChar(200)
+  endpoint       String   @db.VarChar(120)
+  userId         String   @map("user_id") @db.Uuid
+  requestHash    String   @map("request_hash") @db.VarChar(64)
+  responseStatus Int?     @map("response_status")
+  responseBody   Json?    @map("response_body")
+  resourceId     String?  @map("resource_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(6)
+
+  @@unique([endpoint, key])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
 }

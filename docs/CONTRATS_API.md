@@ -49,7 +49,18 @@ Une erreur suit toujours :
 | 409 | `conflict` / `idempotency_conflict` | doublon ou transition concurrente |
 | 422 | `unprocessable` | règle métier non satisfaite |
 | 429 | `rate_limited` | limite atteinte ; inclure `Retry-After` |
-| 502/503/504 | `provider_unavailable` | dépendance sociale ou IA indisponible |
+| 502/503/504 | `provider_unavailable` | dépendance sociale, IA ou file de travaux indisponible |
+
+Codes métier ajoutés au Sprint 04 :
+
+| HTTP | Code | Usage |
+|---:|---|---|
+| 409 | `media_in_use` | média rattaché à une publication ou utilisé comme avatar |
+| 409 | `idempotency_conflict` | même `Idempotency-Key` réutilisée avec un autre corps, ou commande déjà en cours |
+| 413 | `media_too_large` | fichier au-delà de la taille autorisée |
+| 415 | `media_type_not_allowed` | type réel hors JPEG, PNG et WebP (ADR-08) |
+| 422 | `media_not_ready` | média introuvable, supprimé ou pas encore disponible |
+| 503 | `storage_unavailable` | stockage objet non configuré ou injoignable |
 
 ## Authentification à figer au Sprint 02
 

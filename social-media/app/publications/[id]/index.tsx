@@ -57,7 +57,7 @@ export default function PublicationDetailScreen() {
     setRetryingNetwork(undefined);
     if (!result.ok) return;
     request.setData(result.data);
-    toast('Nouvelle tentative envoyée.', 'success');
+    toast('Nouvelle tentative lancée. Actualisez pour suivre le résultat.', 'success');
   };
 
   const publishNow = async () => {
@@ -72,7 +72,9 @@ export default function PublicationDetailScreen() {
     const result = await mutation.run(() => publicationsApi.publishNow(publication.id));
     if (!result.ok) return;
     request.setData(result.data);
-    toast('La publication a été envoyée.', 'success');
+    // L'envoi est exécuté par le worker : l'écran affiche « en cours » puis
+    // l'issue réelle au rafraîchissement.
+    toast('Envoi lancé. Actualisez pour suivre le résultat.', 'success');
   };
 
   const remove = async () => {
@@ -199,7 +201,8 @@ export default function PublicationDetailScreen() {
                     <View style={styles.targetRow}>
                       <View style={styles.targetText}>
                         <Text variant="body" weight="bold">
-                          {networkMeta[target.network].label} · {target.accountUsername}
+                          {networkMeta[target.network].label}
+                          {target.accountUsername ? ` · ${target.accountUsername}` : ''}
                         </Text>
                         <Text
                           variant="micro"
