@@ -771,7 +771,9 @@ export const publicationsApi = {
     );
 
     if (mode === 'publish') return publicationsApi.publishNow(created.id);
-    if (mode === 'schedule' && scheduledAt) return publicationsApi.schedule(created.id, scheduledAt);
+    if (mode === 'schedule' && scheduledAt) {
+      return publicationsApi.schedule(created.id, scheduledAt, created.timezone);
+    }
     return fromRemotePublication(created);
   },
 
@@ -791,7 +793,7 @@ export const publicationsApi = {
     );
   },
 
-  async schedule(id: string, scheduledAt: string): Promise<Publication> {
+  async schedule(id: string, scheduledAt: string, timezone: string): Promise<Publication> {
     if (new Date(scheduledAt).getTime() <= Date.now()) {
       throw new ApiError('conflict', 'La date et l’heure doivent être dans le futur.');
     }
@@ -801,9 +803,9 @@ export const publicationsApi = {
         `/api/v1/publications/${id}/schedule`,
         {
           method: 'POST',
-          // Le fuseau de l’appareil accompagne l’instant absolu, pour réafficher
+          // Le fuseau de la publication accompagne l’instant absolu, pour réafficher
           // l’heure voulue par le community manager.
-          body: JSON.stringify({ scheduledAt, timezone: deviceTimezone() }),
+          body: JSON.stringify({ scheduledAt, timezone }),
         },
         true
       )
@@ -854,13 +856,6 @@ export const publicationsApi = {
   },
 };
 
-function deviceTimezone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Paris';
-  } catch {
-    return 'Europe/Paris';
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Médias

@@ -23,7 +23,13 @@ import {
 import { publicationsApi } from '@/data/api';
 import { REMINDER_OPTIONS, TIME_SLOT_OPTIONS } from '@/data/options';
 import { useAsync, useMutation } from '@/hooks/useAsync';
-import { combineDateAndTime, excerpt, formatDateTime, formatMonthYear, formatTimezone } from '@/lib/format';
+import {
+  combineDateAndTime,
+  excerpt,
+  formatDateTimeIn,
+  formatMonthYear,
+  formatTimezone,
+} from '@/lib/format';
 import { palette, spacing } from '@/theme';
 
 /**
@@ -51,7 +57,9 @@ export default function SchedulePublicationScreen() {
   const [reminder, setReminder] = useState('30');
   const [error, setError] = useState<string | undefined>(undefined);
 
-  const scheduledIso = combineDateAndTime(selected, time);
+  // Le créneau saisi est lu dans le fuseau annoncé à l'écran, jamais celui du téléphone.
+  const timezone = publication?.timezone ?? 'Europe/Paris';
+  const scheduledIso = combineDateAndTime(selected, time, timezone);
   const inPast = new Date(scheduledIso).getTime() <= Date.now();
 
   const blockedAccount = publication?.targets.length === 0;
@@ -63,10 +71,10 @@ export default function SchedulePublicationScreen() {
     }
     setError(undefined);
 
-    const result = await mutation.run(() => publicationsApi.schedule(id, scheduledIso));
+    const result = await mutation.run(() => publicationsApi.schedule(id, scheduledIso, timezone));
     if (!result.ok) return;
 
-    toast(`Publication planifiée le ${formatDateTime(scheduledIso)}.`, 'success');
+    toast(`Publication planifiée le ${formatDateTimeIn(scheduledIso, timezone)}.`, 'success');
     router.replace(`/publications/${id}`);
   };
 
@@ -186,7 +194,7 @@ export default function SchedulePublicationScreen() {
               label="Comptes"
               value={publication.targets.map((target) => target.accountUsername).join(', ') || '-'}
             />
-            <DetailRow label="Envoi" value={formatDateTime(scheduledIso)} />
+            <DetailRow label="Envoi" value={formatDateTimeIn(scheduledIso, timezone)} />
             <DetailRow label="Fuseau" value={formatTimezone(publication.timezone)} />
           </Card>
 

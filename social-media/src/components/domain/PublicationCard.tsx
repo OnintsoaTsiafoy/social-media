@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { Badge, Button, Card, CardPressArea, publicationStatusMeta, Text, Thumbnail } from '@/components/ui';
-import { excerpt, formatDateTime, formatTime, formatTimezone } from '@/lib/format';
+import { excerpt, formatDateTime, formatDateTimeIn, formatTime, formatTimezone } from '@/lib/format';
 import { palette, spacing } from '@/theme';
 import type { Publication } from '@/types';
 
@@ -16,7 +16,7 @@ export function networksLabel(publication: Publication): string {
 /** The date that matters for the current status. */
 function timingLabel(publication: Publication): string {
   if (publication.status === 'scheduled' && publication.scheduledAt) {
-    return `${formatDateTime(publication.scheduledAt)} ${formatTimezone(publication.timezone).split(' · ')[0]}`;
+    return `${formatDateTimeIn(publication.scheduledAt, publication.timezone)} ${formatTimezone(publication.timezone).split(' · ')[0]}`;
   }
   if (publication.publishedAt) return formatDateTime(publication.publishedAt);
   return `Créé le ${formatDateTime(publication.createdAt)}`;

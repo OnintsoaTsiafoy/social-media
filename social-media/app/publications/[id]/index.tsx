@@ -28,7 +28,14 @@ import {
 } from '@/components/ui';
 import { publicationsApi } from '@/data/api';
 import { useAsync, useMutation } from '@/hooks/useAsync';
-import { formatDateTime, formatMetric, formatPercent, formatRelative, formatTimezone } from '@/lib/format';
+import {
+  formatDateTime,
+  formatDateTimeIn,
+  formatMetric,
+  formatPercent,
+  formatRelative,
+  formatTimezone,
+} from '@/lib/format';
 import { palette, spacing } from '@/theme';
 import type { SocialNetwork } from '@/types';
 
@@ -160,7 +167,7 @@ export default function PublicationDetailScreen() {
               {publication.publishedAt
                 ? `${formatDateTime(publication.publishedAt)} · par ${publication.authorName}`
                 : publication.scheduledAt
-                  ? `Planifiée ${formatDateTime(publication.scheduledAt)}`
+                  ? `Planifiée ${formatDateTimeIn(publication.scheduledAt, publication.timezone)}`
                   : `Créée ${formatDateTime(publication.createdAt)}`}
             </Text>
           </View>
@@ -174,7 +181,11 @@ export default function PublicationDetailScreen() {
             <Divider />
             <DetailRow
               label="Planification"
-              value={publication.scheduledAt ? formatDateTime(publication.scheduledAt) : '-'}
+              value={
+                publication.scheduledAt
+                  ? formatDateTimeIn(publication.scheduledAt, publication.timezone)
+                  : '-'
+              }
             />
             <Divider />
             <DetailRow

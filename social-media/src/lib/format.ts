@@ -45,6 +45,24 @@ export function formatDateTime(iso: string): string {
   return `${formatDayMonth(iso)} · ${formatTime(iso)}`;
 }
 
+/**
+ * `28/07 · 18:00` read in `timezone` instead of the device's - for a scheduled
+ * slot, which the community manager picked in the publication's own zone.
+ */
+export function formatDateTimeIn(iso: string, timezone: string): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: timezone,
+    hour12: false,
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).formatToParts(new Date(iso));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((candidate) => candidate.type === type)?.value ?? '';
+  return `${part('day')}/${part('month')} · ${pad(Number(part('hour')) % 24)}:${part('minute')}`;
+}
+
 /** `jeudi 30 juillet` */
 export function formatLongDay(date: Date): string {
   return `${DAY_NAMES[date.getDay()]} ${date.getDate()} ${MONTH_NAMES[date.getMonth()]}`;
@@ -56,13 +74,41 @@ export function formatMonthYear(date: Date): string {
   return `${month.charAt(0).toUpperCase()}${month.slice(1)} ${date.getFullYear()}`;
 }
 
-/** `UTC+1 · Paris` - a readable label for an IANA timezone. */
+/**
+ * Minutes east of UTC for an IANA timezone, read from that zone's own wall clock
+ * so summer time is included. The device timezone never enters into it.
+ */
+function timezoneOffsetMinutes(timezone: string, date: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((candidate) => candidate.type === type)?.value);
+  // `hour12: false` renders midnight as 24 on some engines.
+  const wallClock = Date.UTC(
+    part('year'),
+    part('month') - 1,
+    part('day'),
+    part('hour') % 24,
+    part('minute'),
+  );
+  return Math.round((wallClock - Math.floor(date.getTime() / 60_000) * 60_000) / 60_000);
+}
+
+/** `UTC+2 · Paris` - a readable label for an IANA timezone. */
 export function formatTimezone(timezone: string): string {
   const city = timezone.split('/').pop()?.replace(/_/g, ' ') ?? timezone;
-  const offsetMinutes = -new Date().getTimezoneOffset();
-  const sign = offsetMinutes >= 0 ? '+' : '−';
+  const offsetMinutes = timezoneOffsetMinutes(timezone, new Date());
+  const sign = offsetMinutes < 0 ? '−' : '+';
   const hours = Math.floor(Math.abs(offsetMinutes) / 60);
-  return `UTC${sign}${hours} · ${city}`;
+  const minutes = Math.abs(offsetMinutes) % 60;
+  return `UTC${sign}${hours}${minutes === 0 ? '' : `:${pad(minutes)}`} · ${city}`;
 }
 
 /** `il y a 12 min`, `Hier · 18:00`, `28/07 · 18:00` */
@@ -131,12 +177,24 @@ export function excerpt(text: string, maxLength = 90): string {
   return `${cut.slice(0, lastSpace > 40 ? lastSpace : maxLength).trimEnd()}…`;
 }
 
-/** Combines a `YYYY-MM-DD` date and a `HH:mm` time into an ISO string. */
-export function combineDateAndTime(date: Date, time: string): string {
+/**
+ * Combines a calendar day and a `HH:mm` time into the matching instant, reading
+ * the time as wall clock in `timezone` - the zone the scheduler shows the user,
+ * which is not necessarily the device's.
+ */
+export function combineDateAndTime(date: Date, time: string, timezone: string): string {
   const [hours, minutes] = time.split(':').map(Number);
-  const result = new Date(date);
-  result.setHours(hours ?? 0, minutes ?? 0, 0, 0);
-  return result.toISOString();
+  const asUtc = Date.UTC(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    hours ?? 0,
+    minutes ?? 0,
+  );
+  // Second pass: around a summer-time switch the first offset can be the one
+  // in force on the other side of the transition.
+  const rough = asUtc - timezoneOffsetMinutes(timezone, new Date(asUtc)) * 60_000;
+  return new Date(asUtc - timezoneOffsetMinutes(timezone, new Date(rough)) * 60_000).toISOString();
 }
 
 /** Calendar grid for a month, padded to whole Monday-first weeks. */
