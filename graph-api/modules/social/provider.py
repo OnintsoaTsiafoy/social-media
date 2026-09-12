@@ -22,7 +22,19 @@ class SocialProvider(Protocol):
     async def get_comments(
         self, *, account: dict, token: str, external_publication_id: str, limit: int, cursor: str | None
     ) -> tuple[list[CommentSyncItem], str | None, bool]:
-        """Returns (comments, next_cursor, has_more)."""
+        """Returns (comments, next_cursor, has_more). No `since`/watermark
+        parameter: checked directly against Meta's current reference docs for
+        both edges during planning (not assumed) — neither Facebook's nor
+        Instagram's comments edge supports filtering by timestamp at all
+        ("Comments cannot be filtered by timestamp" is Meta's own wording for
+        Instagram), and Facebook's documented default order is chronological
+        (oldest first), which would make a "stop once we see an old one"
+        optimization backwards even if one edge did support a cursor hint.
+        The backfill sync (Day 3) instead does a full, capped re-walk of each
+        known post's comment pages every run and relies on `social_comments`'
+        own upsert-by-key to make re-seeing an unchanged comment a cheap
+        no-op — simpler and correct, not an approximation of something the
+        Graph API doesn't actually offer."""
         ...
 
     async def reply_to_comment(

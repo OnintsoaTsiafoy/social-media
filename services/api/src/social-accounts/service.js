@@ -118,13 +118,23 @@ async function requireAccountAccess(socialAccountId, userId, minimumRole = 'VIEW
 // "Sync" revalidates the connection against Meta (catches a silent
 // revocation) rather than fetching comments/metrics — that persistence
 // layer doesn't exist yet (Sprint 08/12, see docs/MATRICE_ENDPOINT_SPRINT.md).
-// A REAUTHENTICATION_REQUIRED (409) from graph-api propagates as-is; the
-// mobile screen already treats any sync failure as "reconnect the account".
+// graph-api's REAUTHENTICATION_REQUIRED (409) is translated to this
+// codebase's own token_expired by callSocialService, so the mobile's
+// existing token_expired copy ("reconnect the account") actually fires
+// instead of the generic conflict fallback.
 export async function syncAccount({ userId, socialAccountId }, request) {
   const account = await requireAccountAccess(socialAccountId, userId);
 
   await callSocialService(`/internal/v1/social-accounts/${socialAccountId}/refresh-token`, {
     scope: 'social:write',
+  });
+  // refresh-token only revalidates the token/permissions; the displayed
+  // name/username/avatar only ever refreshed at the initial OAuth connect
+  // without this — a renamed Page or Instagram handle would otherwise stay
+  // stale in Hootly forever.
+  await callSocialService(`/internal/v1/social-accounts/${socialAccountId}/profile`, {
+    method: 'GET',
+    scope: 'social:read',
   });
 
   await writeAuditLog(prisma, {

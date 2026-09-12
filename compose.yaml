@@ -116,6 +116,17 @@ services:
       FACEBOOK_PAGE_ID: ${FACEBOOK_PAGE_ID}
       FACEBOOK_PAGE_ACCESS_TOKEN: ${FACEBOOK_PAGE_ACCESS_TOKEN}
       FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET}
+      # Sprint 07: Instagram Login (direct, no Facebook Page) — a separate
+      # Meta API product from the Facebook app above, its own credentials.
+      # Previously missing here entirely: the code/tests were complete but
+      # no deployment could ever configure this path (found via live E2E
+      # testing, not caught by pytest, which sets these directly in-process).
+      INSTAGRAM_APP_ID: ${INSTAGRAM_APP_ID}
+      INSTAGRAM_APP_SECRET: ${INSTAGRAM_APP_SECRET}
+      # Sprint 08: Meta webhook subscription challenge secret (hub.verify_token)
+      # — wired here from day one this time (see the two comments above for
+      # what happens when a new Meta credential is forgotten from Compose).
+      META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN}
       PUBLIC_BASE_URL: ${SOCIAL_SERVICE_PUBLIC_URL}
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET}
       # Sprint 06: graph-api's own connection for social_accounts/oauth_tokens/

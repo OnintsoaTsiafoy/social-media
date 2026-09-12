@@ -25,16 +25,17 @@ import {
 import { commentsApi, type CommentFilters } from '@/data/api';
 import { useAsync } from '@/hooks/useAsync';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
+import { useSession } from '@/store/SessionProvider';
 import { palette, spacing, useResponsive } from '@/theme';
 import type { CommentStatus, Intent, Priority, Sentiment, SocialNetwork } from '@/types';
 
-type Quick = 'new' | 'priority' | 'negative' | 'treated' | 'all';
+type Quick = 'new' | 'priority' | 'negative' | 'processed' | 'all';
 
 const QUICK_FILTERS: { value: Quick; label: string }[] = [
   { value: 'new', label: 'Nouveaux' },
   { value: 'priority', label: 'Prioritaires' },
   { value: 'negative', label: 'Négatifs' },
-  { value: 'treated', label: 'Traités' },
+  { value: 'processed', label: 'Traités' },
   { value: 'all', label: 'Tous' },
 ];
 
@@ -47,8 +48,8 @@ function quickToFilters(quick: Quick): CommentFilters {
       return { priority: 'high' };
     case 'negative':
       return { sentiment: 'negative' };
-    case 'treated':
-      return { status: 'treated' };
+    case 'processed':
+      return { status: 'processed' };
     default:
       return {};
   }
@@ -62,6 +63,7 @@ function quickToFilters(quick: Quick): CommentFilters {
  */
 export default function CommentsScreen() {
   const router = useRouter();
+  const { brand } = useSession();
   const { toast } = useFeedback();
   const { gutter } = useResponsive();
   const bottomInset = useBottomContentInset();
@@ -89,10 +91,10 @@ export default function CommentsScreen() {
   };
 
   const list = usePaginatedList(
-    (page) => commentsApi.list(filters, page),
-    [quick, search, sort, network, sentiment, priority, intent, status]
+    (page) => commentsApi.list(filters, page, brand?.id ?? ''),
+    [quick, search, sort, network, sentiment, priority, intent, status, brand?.id]
   );
-  const counts = useAsync(() => commentsApi.counts(), []);
+  const counts = useAsync(() => commentsApi.counts(brand?.id ?? ''), [brand?.id]);
 
   const advancedCount =
     (network !== 'all' ? 1 : 0) +
@@ -112,7 +114,7 @@ export default function CommentsScreen() {
   const sync = async () => {
     setSyncing(true);
     try {
-      await commentsApi.sync();
+      await commentsApi.sync(brand?.id ?? '');
       list.reload();
       void counts.refresh();
       toast('Commentaires synchronisés.', 'success');
@@ -346,16 +348,10 @@ export default function CommentsScreen() {
             <Chip label="Tous" variant="choice" selected={status === 'all'} onPress={() => setStatus('all')} />
             <Chip label="Nouveaux" variant="choice" selected={status === 'new'} onPress={() => setStatus('new')} />
             <Chip
-              label="Non traités"
-              variant="choice"
-              selected={status === 'untreated'}
-              onPress={() => setStatus('untreated')}
-            />
-            <Chip
               label="Traités"
               variant="choice"
-              selected={status === 'treated'}
-              onPress={() => setStatus('treated')}
+              selected={status === 'processed'}
+              onPress={() => setStatus('processed')}
             />
             <Chip
               label="Ignorés"

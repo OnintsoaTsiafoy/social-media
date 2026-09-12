@@ -6,6 +6,7 @@ export const QUEUES = {
   retryFailed: 'retry-failed-publication',
   cleanupTemporaryMedia: 'cleanup-temporary-media',
   refreshExpiringTokens: 'refresh-expiring-oauth-tokens',
+  syncSocialComments: 'sync-social-comments',
 };
 
 export const ALL_QUEUES = Object.values(QUEUES);

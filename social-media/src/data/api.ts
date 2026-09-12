@@ -1012,93 +1012,58 @@ export type CommentFilters = {
   sort?: 'recent' | 'priority';
 };
 
-const priorityRank = { high: 0, medium: 1, low: 2 } as const;
-
 export const commentsApi = {
-  async list(filters: CommentFilters = {}, page = 0) {
-    return request(() => {
-      let items = [...store.comments];
+  /** `list`/`counts`/`sync` are brand-scoped server-side (Sprint 08) —
+   * `get`/`history`/`setStatus` resolve their brand from the comment's own
+   * social account instead, so they don't need it. AI-pipeline filters
+   * (sentiment/priority/intent) aren't sent: nothing persists that analysis
+   * yet (Sprint 09/10), so the server wouldn't know what to do with them —
+   * sending them would silently do nothing, so they're dropped here instead
+   * of pretending to filter. */
+  async list(filters: CommentFilters = {}, page = 0, brandId = '') {
+    const query = new URLSearchParams({ brandId, page: String(page + 1), pageSize: String(PAGE_SIZE) });
+    if (filters.status && filters.status !== 'all') query.set('status', filters.status);
+    if (filters.network && filters.network !== 'all') query.set('network', filters.network);
+    if (filters.publicationId) query.set('publicationId', filters.publicationId);
+    if (filters.search?.trim()) query.set('search', filters.search.trim());
 
-      if (filters.status && filters.status !== 'all') {
-        items = items.filter((c) => c.status === filters.status);
-      }
-      if (filters.sentiment && filters.sentiment !== 'all') {
-        items = items.filter((c) => c.analysis?.sentiment === filters.sentiment);
-      }
-      if (filters.priority && filters.priority !== 'all') {
-        items = items.filter((c) => c.analysis?.priority === filters.priority);
-      }
-      if (filters.intent && filters.intent !== 'all') {
-        items = items.filter((c) => c.analysis?.intent === filters.intent);
-      }
-      if (filters.network && filters.network !== 'all') {
-        items = items.filter((c) => c.network === filters.network);
-      }
-      if (filters.publicationId) {
-        items = items.filter((c) => c.publicationId === filters.publicationId);
-      }
-      const search = filters.search?.trim().toLowerCase();
-      if (search) {
-        items = items.filter(
-          (c) => c.text.toLowerCase().includes(search) || c.authorName.toLowerCase().includes(search)
-        );
-      }
-
-      items.sort((a, b) => {
-        if (filters.sort === 'priority') {
-          const rank =
-            priorityRank[a.analysis?.priority ?? 'low'] - priorityRank[b.analysis?.priority ?? 'low'];
-          if (rank !== 0) return rank;
-        }
-        return b.publishedAt.localeCompare(a.publishedAt);
-      });
-
-      const pageItems = items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-      return { items: clone(pageItems), hasMore: (page + 1) * PAGE_SIZE < items.length, total: items.length };
-    });
+    const result = await fetchApi<{ items: Comment[]; page: number; pageSize: number; total: number }>(
+      `/api/v1/comments?${query.toString()}`,
+      {},
+      true
+    );
+    return { items: result.items, hasMore: result.page * result.pageSize < result.total, total: result.total };
   },
 
-  async counts(): Promise<{ untreated: number; highPriority: number; pendingAiResponses: number }> {
-    return request(
-      () => ({
-        untreated: store.comments.filter((c) => c.status === 'new' || c.status === 'untreated').length,
-        highPriority: store.comments.filter((c) => c.analysis?.priority === 'high').length,
-        pendingAiResponses: store.comments.filter((c) => c.response?.status === 'proposed').length,
-      }),
-      200
-    );
+  async counts(brandId = ''): Promise<{ untreated: number; highPriority: number; pendingAiResponses: number }> {
+    return fetchApi(`/api/v1/comments/counts?brandId=${encodeURIComponent(brandId)}`, {}, true);
   },
 
   async get(id: string): Promise<Comment> {
-    return request(() => {
-      const found = store.comments.find((c) => c.id === id);
-      if (!found) throw new ApiError('not_found', errorMessages.not_found);
-      return clone(found);
-    });
+    return fetchApi<Comment>(`/api/v1/comments/${id}`, {}, true);
   },
 
   async history(id: string): Promise<HistoryEvent[]> {
-    return request(() => clone(store.history[id] ?? []));
+    return fetchApi<HistoryEvent[]>(`/api/v1/comments/${id}/history`, {}, true);
   },
 
-  async sync(): Promise<{ imported: number }> {
-    return request(() => {
-      const expired = store.accounts.find(
-        (a) => a.status === 'expired' || a.status === 'reauth_required'
-      );
-      if (expired) throw new ApiError('token_expired', errorMessages.token_expired);
-      return { imported: 0 };
-    }, 1400);
+  /** The real backfill already runs automatically every 15 minutes
+   * server-side — this just triggers the same thing on demand. */
+  async sync(brandId: string): Promise<{ imported: number }> {
+    const result = await fetchApi<{ syncedAccounts: number }>(
+      '/api/v1/comments/sync',
+      { method: 'POST', body: JSON.stringify({ brandId }) },
+      true
+    );
+    return { imported: result.syncedAccounts };
   },
 
   async setStatus(id: string, status: CommentStatus): Promise<Comment> {
-    return request(() => {
-      const comment = store.comments.find((c) => c.id === id);
-      if (!comment) throw new ApiError('not_found', errorMessages.not_found);
-      comment.status = status;
-      comment.isNew = false;
-      return clone(comment);
-    }, 600);
+    return fetchApi<Comment>(
+      `/api/v1/comments/${id}/status`,
+      { method: 'PATCH', body: JSON.stringify({ status }) },
+      true
+    );
   },
 
   async analyse(id: string): Promise<Comment> {
@@ -1175,37 +1140,38 @@ export const commentsApi = {
     }, 600);
   },
 
-  /** Human validation is mandatory: nothing is ever sent automatically. */
+  /** Human validation is mandatory: nothing is ever sent automatically.
+   * Real send (Sprint 08 Day 5) — the server rejects an already-sent or
+   * deleted-on-platform comment with 409, and a token_expired account with
+   * 409 as well, both surfaced via the standard error mapping.
+   *
+   * Sprint 08 tracks sent replies in its own audit table (`sent_responses`),
+   * not yet the AI response-history table Sprint 09/10 owns, so the real
+   * `Comment` the server returns always has `response: null`. This screen's
+   * "already sent" check needs `response.status === 'sent'` to keep working
+   * without a rewrite, so it's synthesized here from data the send call
+   * itself confirms is true (the text that was actually sent) — not
+   * fabricated, just represented in a shape the AI table doesn't back yet. */
   async approveAndSend(id: string, text: string): Promise<Comment> {
-    return request(() => {
-      const comment = store.comments.find((c) => c.id === id);
-      if (!comment) throw new ApiError('not_found', errorMessages.not_found);
-      if (comment.deletedOnPlatform) {
-        throw new ApiError('conflict', 'Ce commentaire a été supprimé sur la plateforme.');
-      }
-      if (comment.response?.status === 'sent') {
-        throw new ApiError('conflict', 'Cette réponse a déjà été envoyée.');
-      }
-      const account = store.accounts.find((a) => a.network === comment.network);
-      if (!account || account.status === 'expired' || account.status === 'reauth_required') {
-        throw new ApiError('token_expired', errorMessages.token_expired);
-      }
-      comment.response = {
-        ...(comment.response ?? {
-          id: makeId('rsp'),
-          language: 'fr',
-          tone: 'friendly',
-          createdAt: new Date().toISOString(),
-          generatedByAi: true,
-          originalText: text,
-          version: 1,
-        }),
+    const comment = await fetchApi<Comment>(
+      `/api/v1/comments/${id}/reply`,
+      { method: 'POST', body: JSON.stringify({ text }) },
+      true
+    );
+    return {
+      ...comment,
+      response: {
+        id: `sent-${comment.id}`,
         text,
+        language: 'fr',
+        tone: 'friendly',
         status: 'sent',
-      };
-      comment.status = 'treated';
-      return clone(comment);
-    }, 1400);
+        createdAt: new Date().toISOString(),
+        generatedByAi: false,
+        originalText: comment.response?.originalText ?? text,
+        version: (comment.response?.version ?? 0) + 1,
+      },
+    };
   },
 };
 
@@ -1268,7 +1234,7 @@ export const dashboardApi = {
   async summary() {
     return request(() => ({
       scheduledCount: store.publications.filter((p) => p.status === 'scheduled').length,
-      newCommentCount: store.comments.filter((c) => c.isNew || c.status === 'untreated').length,
+      newCommentCount: store.comments.filter((c) => c.isNew).length,
       highPriorityCount: store.comments.filter((c) => c.analysis?.priority === 'high').length,
       pendingAiResponseCount: store.comments.filter((c) => c.response?.status === 'proposed').length,
     }), 400);
@@ -1278,7 +1244,7 @@ export const dashboardApi = {
     return request(() =>
       clone(
         store.comments
-          .filter((c) => c.analysis?.priority === 'high' && c.status !== 'treated' && c.status !== 'ignored')
+          .filter((c) => c.analysis?.priority === 'high' && c.status !== 'processed' && c.status !== 'ignored')
           .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
           .slice(0, 3)
       )

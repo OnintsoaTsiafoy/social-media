@@ -11,6 +11,7 @@ from api.routes.health import router as health_router
 from api.routes.internal_routes import router as internal_router
 from api.routes.oauth_routes import router as oauth_router
 from api.routes.social_account_routes import router as social_account_router
+from api.routes.webhook_routes import router as webhook_router
 from core.config import settings
 from core.exceptions import default_code_for_status
 from core.middleware import RequestIdMiddleware
@@ -92,3 +93,4 @@ app.include_router(facebook_router)
 app.include_router(internal_router)
 app.include_router(oauth_router)
 app.include_router(social_account_router)
+app.include_router(webhook_router)

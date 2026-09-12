@@ -21,3 +21,25 @@ export async function defaultRefreshToken(socialAccountId) {
   }
   return response.json();
 }
+
+// Sprint 08 Day 3 — graph-api walks every page of every listed post
+// internally and persists as it goes (see internal_service.py::sync_comments);
+// this call's only job is to ask it to do that for one account.
+export async function defaultSyncComments(socialAccountId, provider, publicationExternalIds) {
+  const token = mintServiceJwt(['social:read']);
+  const response = await fetch(`${baseUrl()}/internal/v1/comments/sync`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      socialAccountId,
+      provider,
+      publicationExternalIds,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.error?.code ?? `comment_sync_failed_${response.status}`);
+  }
+  return response.json();
+}

@@ -23,7 +23,12 @@ export type Intent = 'question' | 'complaint' | 'info_request' | 'claim' | 'othe
 
 export type Priority = 'low' | 'medium' | 'high';
 
-export type CommentStatus = 'new' | 'untreated' | 'treated' | 'ignored' | 'escalated';
+// Matches the backend's CommentStatus enum verbatim (lowercased on the wire,
+// same convention as AccountStatus) — Sprint 08 native states only. No
+// `untreated` (the code never distinguished it from `new`) and no
+// `treated` (renamed `processed` to match the backend, which also reaches
+// this status when a reply is actually sent, not just via a manual action).
+export type CommentStatus = 'new' | 'processed' | 'ignored' | 'escalated';
 
 export type ResponseStatus = 'proposed' | 'edited' | 'approved' | 'rejected' | 'sent' | 'failed';
 

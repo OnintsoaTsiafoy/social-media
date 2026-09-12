@@ -9,8 +9,11 @@ from db import (
     idempotency_repository,
     oauth_states_repository,
     oauth_tokens_repository,
+    sent_responses_repository,
     social_accounts_repository,
+    social_comments_repository,
     social_permissions_repository,
+    webhook_events_repository,
 )
 from modules.facebook.clients.facebook_client import facebook_client
 from main import app
@@ -161,14 +164,31 @@ def fake_social_accounts_store(monkeypatch):
                 return dict(account)
         return None
 
+    async def fake_get_by_external_id(provider, external_account_id):
+        account = store.get((provider.upper(), external_account_id))
+        return dict(account) if account else None
+
     async def fake_update_status(account_id, status):
         for account in store.values():
             if account["id"] == account_id:
                 account["status"] = status
 
+    async def fake_update_profile(account_id, *, name, username, avatar_url):
+        for account in store.values():
+            if account["id"] == account_id:
+                account.update({"name": name, "username": username, "avatar_url": avatar_url})
+
+    async def fake_mark_comments_synced(account_id):
+        for account in store.values():
+            if account["id"] == account_id:
+                account["last_comments_sync_at"] = "2026-01-01T00:00:00+00:00"
+
     monkeypatch.setattr(social_accounts_repository, "upsert_account", fake_upsert_account)
     monkeypatch.setattr(social_accounts_repository, "get_by_id", fake_get_by_id)
+    monkeypatch.setattr(social_accounts_repository, "get_by_external_id", fake_get_by_external_id)
     monkeypatch.setattr(social_accounts_repository, "update_status", fake_update_status)
+    monkeypatch.setattr(social_accounts_repository, "update_profile", fake_update_profile)
+    monkeypatch.setattr(social_accounts_repository, "mark_comments_synced", fake_mark_comments_synced)
     return store
 
 
@@ -215,6 +235,155 @@ def fake_social_permissions_store(monkeypatch):
     monkeypatch.setattr(social_permissions_repository, "upsert_permissions", fake_upsert_permissions)
     monkeypatch.setattr(social_permissions_repository, "list_permissions", fake_list_permissions)
     return store
+
+
+@pytest.fixture(autouse=True)
+def fake_webhook_events_store(monkeypatch):
+    """Keyed like the real unique(provider, payload_hash) constraint."""
+    store: dict[tuple[str, str], dict] = {}
+    counter = {"n": 0}
+
+    async def fake_claim_event(*, provider, payload_hash, raw_payload):
+        key = (provider, payload_hash)
+        if key in store:
+            return None
+        counter["n"] += 1
+        store[key] = {"id": f"event-{counter['n']}", "status": "RECEIVED", "raw_payload": raw_payload}
+        return {"id": store[key]["id"]}
+
+    async def fake_mark_processed(event_id):
+        for event in store.values():
+            if event["id"] == event_id:
+                event["status"] = "PROCESSED"
+
+    async def fake_mark_failed(event_id, error_message):
+        for event in store.values():
+            if event["id"] == event_id:
+                event["status"] = "FAILED"
+                event["error_message"] = error_message
+
+    monkeypatch.setattr(webhook_events_repository, "claim_event", fake_claim_event)
+    monkeypatch.setattr(webhook_events_repository, "mark_processed", fake_mark_processed)
+    monkeypatch.setattr(webhook_events_repository, "mark_failed", fake_mark_failed)
+    return store
+
+
+@pytest.fixture(autouse=True)
+def fake_social_comments_store(monkeypatch):
+    """Keyed like the real unique(social_account_id, external_comment_id)."""
+    store: dict[tuple[str, str], dict] = {}
+    counter = {"n": 0}
+
+    async def fake_upsert_comment(
+        *, social_account_id, external_comment_id, external_publication_id, author_external_id,
+        author_name, content, meta_created_at, meta_updated_at,
+    ):
+        key = (social_account_id, external_comment_id)
+        if key not in store:
+            counter["n"] += 1
+            store[key] = {"id": f"comment-{counter['n']}", "status": "NEW", "is_deleted_on_platform": False}
+        row = store[key]
+        row.update(
+            {
+                "social_account_id": social_account_id,
+                "external_comment_id": external_comment_id,
+                # COALESCE semantics: a None from the caller never clears an
+                # already-known field, matching the real upsert's SQL.
+                "external_publication_id": external_publication_id or row.get("external_publication_id"),
+                "author_external_id": author_external_id or row.get("author_external_id"),
+                "author_name": author_name or row.get("author_name"),
+                "content": content if content is not None else row.get("content"),
+            }
+        )
+        return {"id": row["id"], "status": row["status"]}
+
+    async def fake_mark_deleted(social_account_id, external_comment_id):
+        row = store.get((social_account_id, external_comment_id))
+        if row is None:
+            return None
+        row["is_deleted_on_platform"] = True
+        return {"id": row["id"]}
+
+    async def fake_get_by_id(comment_id):
+        for row in store.values():
+            if row["id"] == comment_id:
+                return dict(row)
+        return None
+
+    async def fake_set_status(comment_id, to_status, *, changed_by_user_id, note=None):
+        for row in store.values():
+            if row["id"] == comment_id:
+                row["status"] = to_status
+
+    async def fake_list_known_external_ids(social_account_id, external_publication_id):
+        return {
+            row["external_comment_id"]
+            for row in store.values()
+            if row["social_account_id"] == social_account_id
+            and row.get("external_publication_id") == external_publication_id
+            and not row["is_deleted_on_platform"]
+        }
+
+    monkeypatch.setattr(social_comments_repository, "upsert_comment", fake_upsert_comment)
+    monkeypatch.setattr(social_comments_repository, "mark_deleted", fake_mark_deleted)
+    monkeypatch.setattr(social_comments_repository, "get_by_id", fake_get_by_id)
+    monkeypatch.setattr(social_comments_repository, "set_status", fake_set_status)
+    monkeypatch.setattr(social_comments_repository, "list_known_external_ids", fake_list_known_external_ids)
+    return store
+
+
+@pytest.fixture(autouse=True)
+def fake_sent_responses_store(monkeypatch):
+    """Keyed like the real unique(comment_id) constraint."""
+    store: dict[str, dict] = {}
+
+    async def fake_claim(*, comment_id, social_account_id, content, sent_by_user_id):
+        existing = store.get(comment_id)
+        # Mirrors the real `ON CONFLICT ... WHERE status = 'FAILED'`: a
+        # FAILED attempt may be retried, a STARTED/SUCCEEDED one may not.
+        if existing is not None and existing["status"] != "FAILED":
+            return None
+        store[comment_id] = {
+            "id": existing["id"] if existing else f"response-{len(store) + 1}",
+            "comment_id": comment_id,
+            "social_account_id": social_account_id,
+            "content": content,
+            "sent_by_user_id": sent_by_user_id,
+            "status": "STARTED",
+            "external_reply_id": None,
+        }
+        return {"id": store[comment_id]["id"]}
+
+    async def fake_mark_succeeded(response_id, external_reply_id):
+        for row in store.values():
+            if row["id"] == response_id:
+                row["status"] = "SUCCEEDED"
+                row["external_reply_id"] = external_reply_id
+
+    async def fake_mark_failed(response_id, error_code, error_message):
+        for row in store.values():
+            if row["id"] == response_id:
+                row["status"] = "FAILED"
+                row["error_code"] = error_code
+                row["error_message"] = error_message
+
+    async def fake_get_by_comment_id(comment_id):
+        row = store.get(comment_id)
+        return dict(row) if row else None
+
+    monkeypatch.setattr(sent_responses_repository, "claim", fake_claim)
+    monkeypatch.setattr(sent_responses_repository, "mark_succeeded", fake_mark_succeeded)
+    monkeypatch.setattr(sent_responses_repository, "mark_failed", fake_mark_failed)
+    monkeypatch.setattr(sent_responses_repository, "get_by_comment_id", fake_get_by_comment_id)
+    return store
+
+
+@pytest.fixture
+def webhook_settings(monkeypatch):
+    monkeypatch.setattr(settings, "meta_webhook_verify_token", "test-webhook-verify-token")
+    monkeypatch.setattr(settings, "facebook_app_secret", "test-app-secret")
+    monkeypatch.setattr(settings, "instagram_app_secret", "test-ig-app-secret")
+    return settings
 
 
 @pytest.fixture

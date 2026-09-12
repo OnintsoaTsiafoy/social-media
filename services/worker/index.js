@@ -12,10 +12,11 @@ import PgBoss from 'pg-boss';
 
 import { mockSocialProvider } from '../shared/social-provider.js';
 import { ALL_QUEUES, QUEUES } from '../shared/jobs.js';
+import { createCommentSync } from './src/comment-sync.js';
 import { createMediaCleanup } from './src/cleanup-media.js';
 import { createDeliveryService } from './src/delivery.js';
 import { closePool, query } from './src/db.js';
-import { defaultRefreshToken } from './src/social-account-client.js';
+import { defaultRefreshToken, defaultSyncComments } from './src/social-account-client.js';
 import { createSocialHttpProvider } from './src/social-http-provider.js';
 import { deleteObject, isStorageConfigured, signedReadUrl } from './src/storage.js';
 import { createTokenRefresh } from './src/token-refresh.js';
@@ -61,6 +62,7 @@ async function startBoss() {
 
   const mediaCleanup = createMediaCleanup({ query, deleteObject });
   const tokenRefresh = createTokenRefresh({ query, refreshToken: defaultRefreshToken });
+  const commentSync = createCommentSync({ query, syncComments: defaultSyncComments });
 
   await boss.work(QUEUES.publishScheduled, async (jobs) => {
     for (const job of jobs) {
@@ -103,6 +105,17 @@ async function startBoss() {
 
   // Revalidation quotidienne des comptes sociaux connectés (Sprint 06 Jour 4).
   await boss.schedule(QUEUES.refreshExpiringTokens, '0 3 * * *', {});
+
+  await boss.work(QUEUES.syncSocialComments, async (jobs) => {
+    for (const job of jobs) {
+      const result = await commentSync.run(job.data ?? {});
+      console.log({ scope: 'comment-sync', ...result });
+    }
+  });
+
+  // Filet de secours pour les webhooks manqués (Sprint 08 Jour 3) — ne
+  // couvre que les posts publiés par Hootly (voir comment-sync.js).
+  await boss.schedule(QUEUES.syncSocialComments, '*/15 * * * *', {});
 
   state.boss = boss;
   state.queues = ALL_QUEUES;

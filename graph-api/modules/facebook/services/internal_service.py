@@ -10,8 +10,9 @@ account.
 """
 from datetime import datetime, timezone
 
+from core.config import settings
 from core.exceptions import GraphAPIError
-from db import oauth_tokens_repository, social_accounts_repository
+from db import oauth_tokens_repository, sent_responses_repository, social_accounts_repository, social_comments_repository
 from modules.facebook.clients.facebook_client import facebook_client
 from modules.facebook.provider import FacebookProvider
 from modules.facebook.schemas.internal import (
@@ -114,7 +115,41 @@ async def publish(body: PublishRequest) -> PublishResponse:
     return PublishResponse(publication_id=body.publication_id, results=results)
 
 
+def _parse_meta_timestamp(value: str | None):
+    """CommentSyncItem carries Meta's timestamps as plain strings (the
+    existing wire contract), but the repository needs real datetimes for a
+    timestamptz column. Never lets a surprising format break the whole sync —
+    same "one bad item doesn't fail the batch" reasoning as the webhook path."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+async def _persist_comment(social_account_id: str, item: CommentSyncItem) -> None:
+    await social_comments_repository.upsert_comment(
+        social_account_id=social_account_id,
+        external_comment_id=item.external_comment_id,
+        external_publication_id=item.external_publication_id,
+        author_external_id=item.author_external_id,
+        author_name=item.author_name,
+        content=item.content,
+        meta_created_at=_parse_meta_timestamp(item.created_at),
+        meta_updated_at=_parse_meta_timestamp(item.updated_at),
+    )
+
+
 async def sync_comments(body: CommentsSyncRequest) -> CommentsSyncResponse:
+    """Walks every page of every requested post internally (Sprint 08 Day 3)
+    instead of exposing cursoring to the caller — see schemas/internal.py's
+    comment on CommentsSyncRequest for why. Persists as it goes and detects
+    deletions by diffing against what's already known locally; a real
+    resolved account also gets its `last_comments_sync_at` bumped in the same
+    call. The Sprint 05 legacy path (no socialAccountId) stays read-only/
+    transient, matching its original behavior — there's no social_accounts
+    row to persist against or bump."""
     account, token = await _resolve_account_and_token(body.social_account_id)
     if account is not None:
         _require_matching_provider(account, body.provider)
@@ -125,44 +160,81 @@ async def sync_comments(body: CommentsSyncRequest) -> CommentsSyncResponse:
         account = {"external_account_id": facebook_client.page_id}
         token = facebook_client.access_token
 
-    external_ids = body.publication_external_ids or []
-    single_target = len(external_ids) == 1
-    comments: list[CommentSyncItem] = []
-    has_more = False
-    next_cursor: str | None = None
+    all_comments: list[CommentSyncItem] = []
 
-    for external_publication_id in external_ids:
-        items, cursor, more = await provider.get_comments(
-            account=account,
-            token=token,
-            external_publication_id=external_publication_id,
-            limit=body.limit,
-            cursor=body.cursor if single_target else None,
-        )
-        comments.extend(items)
-        has_more = has_more or more
-        # A single shared cursor can't meaningfully represent N independent
-        # posts' pagination state; real multi-post cursoring is Sprint 08 scope.
-        if single_target:
-            next_cursor = cursor
+    for external_publication_id in body.publication_external_ids or []:
+        cursor: str | None = None
+        seen_external_ids: set[str] = set()
+        for _ in range(settings.comments_sync_max_pages_per_post):
+            items, cursor, has_more = await provider.get_comments(
+                account=account, token=token, external_publication_id=external_publication_id,
+                limit=body.limit, cursor=cursor,
+            )
+            all_comments.extend(items)
+            if account.get("id"):
+                for item in items:
+                    seen_external_ids.add(item.external_comment_id)
+                    await _persist_comment(account["id"], item)
+            if not has_more or not cursor:
+                break
 
-    return CommentsSyncResponse(comments=comments, next_cursor=next_cursor, has_more=has_more)
+        if account.get("id"):
+            known = await social_comments_repository.list_known_external_ids(account["id"], external_publication_id)
+            for missing_id in known - seen_external_ids:
+                await social_comments_repository.mark_deleted(account["id"], missing_id)
+
+    if account.get("id"):
+        await social_accounts_repository.mark_comments_synced(account["id"])
+
+    return CommentsSyncResponse(comments=all_comments)
 
 
 async def reply_comment(body: CommentsReplyRequest) -> CommentsReplyResponse:
-    account, token = await _resolve_account_and_token(body.social_account_id)
-    if account is not None:
-        _require_matching_provider(account, body.provider)
-        provider = get_provider(account["provider"])
-    else:
-        _require_legacy_provider(body.provider)
-        provider = FacebookProvider()
-        account = {"external_account_id": facebook_client.page_id}
-        token = facebook_client.access_token
+    """Two independent guards against a double reply, per the Sprint 08 plan:
+    this claim (a DB row reserved before Meta is ever called) is the real
+    exactly-once guarantee; the Idempotency-Key cache one layer up in
+    internal_routes.py only replays the same HTTP response to a legitimate
+    Express-side retry — it writes *after* success, so on its own it would
+    leave a real double-send window if the process died between Meta
+    accepting the reply and the cache being written."""
+    comment = await social_comments_repository.get_by_id(body.comment_id)
+    if comment is None:
+        raise GraphAPIError(status_code=404, detail="Commentaire introuvable.", code="not_found")
+    if comment["is_deleted_on_platform"]:
+        raise GraphAPIError(
+            status_code=409, detail="Ce commentaire a été supprimé sur la plateforme.", code="conflict"
+        )
 
-    external_reply_id = await provider.reply_to_comment(
-        account=account, token=token, external_comment_id=body.external_comment_id, text=body.text
+    account = await social_accounts_repository.get_by_id(comment["social_account_id"])
+    token = await oauth_tokens_repository.get_decrypted_access_token(account["id"])
+    if token is None:
+        raise GraphAPIError(
+            status_code=409,
+            detail="Aucun token actif pour ce compte ; reconnexion requise.",
+            code="TOKEN_EXPIRED",
+        )
+
+    claimed = await sent_responses_repository.claim(
+        comment_id=comment["id"], social_account_id=account["id"], content=body.text, sent_by_user_id=body.user_id
     )
+    if claimed is None:
+        raise GraphAPIError(
+            status_code=409, detail="Une réponse a déjà été envoyée pour ce commentaire.", code="conflict"
+        )
+
+    try:
+        external_reply_id = await get_provider(account["provider"]).reply_to_comment(
+            account=account, token=token, external_comment_id=comment["external_comment_id"], text=body.text
+        )
+    except GraphAPIError as exc:
+        await sent_responses_repository.mark_failed(str(claimed["id"]), exc.code, exc.detail)
+        raise
+
+    await sent_responses_repository.mark_succeeded(str(claimed["id"]), external_reply_id)
+    await social_comments_repository.set_status(
+        comment["id"], "PROCESSED", changed_by_user_id=body.user_id, note=None
+    )
+
     return CommentsReplyResponse(
         status="SUCCESS",
         external_reply_id=external_reply_id,

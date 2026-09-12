@@ -544,7 +544,7 @@ export const comments: Comment[] = [
     publishedAt: '2026-07-30T08:02:00.000Z',
     publicationId: 'pub_6',
     publicationTitle: 'Post carrousel conseils',
-    status: 'untreated',
+    status: 'new',
     isNew: false,
     deletedOnPlatform: false,
     analysis: {
@@ -570,7 +570,7 @@ export const comments: Comment[] = [
     publishedAt: '2026-07-30T07:41:00.000Z',
     publicationId: 'pub_5',
     publicationTitle: 'Reels produit',
-    status: 'treated',
+    status: 'processed',
     isNew: false,
     deletedOnPlatform: false,
     analysis: {

@@ -89,7 +89,7 @@ export function CommentCard({ comment, onPress, onTreat, treating = false }: Com
             <Badge label="Réponse IA prête" tone="success" icon="ai" />
           ) : null}
           {comment.status === 'escalated' ? <Badge label="Escaladé" tone="warning" icon="escalate" /> : null}
-          {comment.status === 'treated' ? <Badge label="Traité" tone="neutral" icon="check" /> : null}
+          {comment.status === 'processed' ? <Badge label="Traité" tone="neutral" icon="check" /> : null}
         </View>
 
         {onTreat ? (

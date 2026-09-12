@@ -292,8 +292,7 @@ export default function CommentDetailScreen() {
 function statusLabel(status: CommentStatus): string {
   const labels: Record<CommentStatus, string> = {
     new: 'nouveau',
-    untreated: 'non traité',
-    treated: 'traité',
+    processed: 'traité',
     ignored: 'ignoré',
     escalated: 'escaladé',
   };

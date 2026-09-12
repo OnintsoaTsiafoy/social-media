@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import { authRouter } from './auth/routes.js';
 import { brandRouter } from './brands/routes.js';
+import { commentRouter } from './comments/routes.js';
 import { mediaRouter } from './media/routes.js';
 import { calendarRouter, publicationRouter } from './publications/routes.js';
 import { profileRouter } from './profile/routes.js';
@@ -86,7 +87,31 @@ const openApiDocument = {
       delete: { summary: 'Déconnecter un compte social (révoque côté Social, 204)' },
     },
     '/api/v1/social-accounts/{socialAccountId}/sync': {
-      post: { summary: 'Revalider la connexion auprès de Meta (409 REAUTHENTICATION_REQUIRED si expirée)' },
+      post: { summary: 'Revalider la connexion auprès de Meta (409 token_expired si expirée)' },
+    },
+    '/api/v1/comments': {
+      get: { summary: 'Lister les commentaires d’une marque (?brandId=, filtres status/network/publicationId/search)' },
+    },
+    '/api/v1/comments/counts': {
+      get: { summary: 'Compteurs de commentaires par marque (?brandId=)' },
+    },
+    '/api/v1/comments/sync': {
+      post: { summary: 'Synchroniser maintenant (déclenche le même appel que le cron de secours, 409 token_expired si un compte a expiré)' },
+    },
+    '/api/v1/comments/{commentId}': {
+      get: { summary: 'Détail d’un commentaire' },
+    },
+    '/api/v1/comments/{commentId}/history': {
+      get: { summary: 'Historique d’un commentaire (statuts, réponse envoyée/échouée)' },
+    },
+    '/api/v1/comments/{commentId}/status': {
+      patch: { summary: 'Changer le statut localement (processed/ignored/escalated — jamais "new")' },
+    },
+    '/api/v1/comments/{commentId}/escalate': {
+      post: { summary: 'Raccourci pour PATCH status=escalated' },
+    },
+    '/api/v1/comments/{commentId}/reply': {
+      post: { summary: 'Envoyer une réponse (idempotent par commentaire, 409 si déjà envoyée ou commentaire supprimé)' },
     },
   },
 };
@@ -129,6 +154,7 @@ app.use('/api/v1/media', mediaRouter);
 app.use('/api/v1/publications', publicationRouter);
 app.use('/api/v1/calendar', calendarRouter);
 app.use('/api/v1/social-accounts', socialAccountRouter);
+app.use('/api/v1/comments', commentRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 

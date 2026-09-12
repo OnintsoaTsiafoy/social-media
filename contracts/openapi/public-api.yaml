@@ -1,10 +1,12 @@
 openapi: 3.1.0
 info:
   title: Hootly Public API
-  version: 0.4.0
+  version: 0.5.0
   description: >
     Contrat public Hootly. Authentification (Sprint 02), profil et marques
-    (Sprint 03), publications, médias, planification et calendrier (Sprint 04).
+    (Sprint 03), publications, médias, planification et calendrier (Sprint 04),
+    comptes sociaux et OAuth Meta (Sprint 06/07), commentaires et réponses
+    contrôlées (Sprint 08).
 servers:
   - url: http://localhost:3000
 paths:
@@ -466,10 +468,140 @@ paths:
     parameters:
       - { name: socialAccountId, in: path, required: true, schema: { type: string, format: uuid } }
     post:
-      summary: Revalider la connexion auprès de Meta (pas de sync commentaires/métriques avant les Sprints 08/12)
+      summary: Revalider la connexion auprès de Meta (pas de sync métriques avant le Sprint 12 — commentaires depuis le Sprint 08, voir /api/v1/comments/sync)
       security: [{ bearerAuth: [] }]
       responses:
         '200': { $ref: '#/components/responses/Success' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/comments:
+    get:
+      summary: Lister les commentaires d'une marque, paginé et filtré (Sprint 08)
+      description: >
+        Les filtres liés à l'analyse IA (sentiment/priorité/intention) ne
+        sont pas exposés ici : rien ne persiste encore cette analyse
+        (Sprints 09/10).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: brandId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { type: string, enum: [new, processed, ignored, escalated, all] } }
+        - { name: network, in: query, schema: { type: string, enum: [facebook, instagram] } }
+        - { name: publicationId, in: query, schema: { type: string } }
+        - { name: search, in: query, schema: { type: string, maxLength: 120 } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/comments/counts:
+    get:
+      summary: Compteurs de commentaires par marque (Sprint 08)
+      description: highPriority/pendingAiResponses valent toujours 0 avant les Sprints 09/10 — jamais une valeur inventée.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: brandId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/comments/sync:
+    post:
+      summary: Synchroniser maintenant les commentaires d'une marque (Sprint 08)
+      description: >
+        Déclenche à la demande le même appel que le cron de secours toutes
+        les 15 minutes (services/worker) — ne couvre que les posts publiés
+        par Hootly (voir docs/SPRINT_08_WEBHOOKS_COMMENTAIRES_SYNCHRO.md).
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [brandId], properties: { brandId: { type: string, format: uuid } } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict', description: Un compte a besoin d'être reconnecté }
+  /api/v1/comments/{commentId}:
+    parameters:
+      - { name: commentId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Détail d'un commentaire (Sprint 08)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/comments/{commentId}/history:
+    parameters:
+      - { name: commentId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Historique d'un commentaire (Sprint 08)
+      description: >
+        Union de sources : comment_received, status_changed/escalated,
+        send_failed/response_sent. Les genres liés à l'IA (ai_analysis,
+        response_proposed, response_edited) n'apparaissent pas encore
+        (Sprints 09/10) — pas une omission à corriger ici.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/comments/{commentId}/status:
+    parameters:
+      - { name: commentId, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      summary: Changer le statut localement (Sprint 08, COMMUNITY_MANAGER ou plus)
+      description: '"new" n''est jamais accepté : état système, jamais une action manuelle.'
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [processed, ignored, escalated] }
+                note: { type: string, maxLength: 1000 }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/comments/{commentId}/escalate:
+    parameters:
+      - { name: commentId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Raccourci pour PATCH status=escalated (Sprint 08)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { note: { type: string, maxLength: 1000 } } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/comments/{commentId}/reply:
+    parameters:
+      - { name: commentId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Envoyer une réponse (Sprint 08, COMMUNITY_MANAGER ou plus)
+      description: >
+        Idempotent par commentaire (une seule réponse valide, jamais plus) —
+        pas de client-supplied Idempotency-Key ici, la clé est dérivée côté
+        serveur de commentId. 409 si déjà envoyée avec succès, en cours
+        d'envoi, ou si le commentaire a été supprimé sur la plateforme ; un
+        échec précédent peut être retenté.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 8000 }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 components:

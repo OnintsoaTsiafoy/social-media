@@ -89,6 +89,25 @@ enum SocialPermissionStatus {
   DECLINED
 }
 
+// Sprint 08 native states only: NEW (received), PROCESSED (resolved, either
+// manually or via a sent reply), IGNORED, ESCALATED. Deliberately excludes
+// the AI-pipeline states (ANALYZING/ANALYZED) and IN_PROGRESS from the sprint
+// spec's own list — nothing in this sprint sets or reads them. Sprint 09 can
+// extend this enum (ALTER TYPE ... ADD VALUE) once real analysis exists,
+// rather than this sprint guessing at unused states now.
+enum CommentStatus {
+  NEW
+  PROCESSED
+  IGNORED
+  ESCALATED
+}
+
+enum WebhookEventStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+}
+
 enum ScheduleStatus {
   PENDING
   DISPATCHED
@@ -102,49 +121,51 @@ enum AiFormality {
 }
 
 model User {
-  id                  String               @id @default(uuid()) @db.Uuid
-  email               String               @unique @db.VarChar(320)
-  passwordHash        String               @map("password_hash")
-  firstName           String               @map("first_name") @db.VarChar(80)
-  lastName            String               @map("last_name") @db.VarChar(80)
-  displayName         String               @map("display_name") @db.VarChar(100)
-  language            String               @default("fr") @db.VarChar(8)
-  timezone            String               @default("Europe/Paris") @db.VarChar(64)
-  phone               String?              @db.VarChar(30)
-  preferences         Json                 @default("{}")
-  avatarMediaId       String?              @unique @map("avatar_media_id") @db.Uuid
-  status              UserStatus           @default(ACTIVE)
-  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
-  sessions            UserSession[]
-  passwordResetTokens PasswordResetToken[]
-  auditLogs           AuditLog[]
-  memberships         BrandMember[]
-  ownedBrands         Brand[]              @relation("BrandOwner")
-  aiSettingsCreated   BrandAiSetting[]     @relation("AiSettingsAuthor")
-  uploadedMedia       Media[]              @relation("MediaOwner")
-  publications        Publication[]        @relation("PublicationAuthor")
-  schedules           ScheduledPublication[] @relation("ScheduleAuthor")
-  avatarMedia         Media?               @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
-  connectedSocialAccounts SocialAccount[]  @relation("SocialAccountConnector")
-  oauthStates         OAuthState[]
+  id                      String                 @id @default(uuid()) @db.Uuid
+  email                   String                 @unique @db.VarChar(320)
+  passwordHash            String                 @map("password_hash")
+  firstName               String                 @map("first_name") @db.VarChar(80)
+  lastName                String                 @map("last_name") @db.VarChar(80)
+  displayName             String                 @map("display_name") @db.VarChar(100)
+  language                String                 @default("fr") @db.VarChar(8)
+  timezone                String                 @default("Europe/Paris") @db.VarChar(64)
+  phone                   String?                @db.VarChar(30)
+  preferences             Json                   @default("{}")
+  avatarMediaId           String?                @unique @map("avatar_media_id") @db.Uuid
+  status                  UserStatus             @default(ACTIVE)
+  createdAt               DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sessions                UserSession[]
+  passwordResetTokens     PasswordResetToken[]
+  auditLogs               AuditLog[]
+  memberships             BrandMember[]
+  ownedBrands             Brand[]                @relation("BrandOwner")
+  aiSettingsCreated       BrandAiSetting[]       @relation("AiSettingsAuthor")
+  uploadedMedia           Media[]                @relation("MediaOwner")
+  publications            Publication[]          @relation("PublicationAuthor")
+  schedules               ScheduledPublication[] @relation("ScheduleAuthor")
+  avatarMedia             Media?                 @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+  connectedSocialAccounts SocialAccount[]        @relation("SocialAccountConnector")
+  oauthStates             OAuthState[]
+  commentStatusChanges    CommentStatusHistory[]
+  sentResponses           SentResponse[]         @relation("SentResponseAuthor")
 
   @@index([status])
   @@map("users")
 }
 
 model Brand {
-  id              String         @id @default(uuid()) @db.Uuid
-  ownerUserId     String         @map("owner_user_id") @db.Uuid
-  name            String         @db.VarChar(120)
-  description     String?        @db.Text
-  industry        String?        @db.VarChar(100)
-  primaryLanguage String         @default("fr") @map("primary_language") @db.VarChar(8)
-  status          BrandStatus    @default(ACTIVE)
-  deletedAt       DateTime?      @map("deleted_at") @db.Timestamptz(6)
-  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
-  owner           User           @relation("BrandOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  id              String           @id @default(uuid()) @db.Uuid
+  ownerUserId     String           @map("owner_user_id") @db.Uuid
+  name            String           @db.VarChar(120)
+  description     String?          @db.Text
+  industry        String?          @db.VarChar(100)
+  primaryLanguage String           @default("fr") @map("primary_language") @db.VarChar(8)
+  status          BrandStatus      @default(ACTIVE)
+  deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  owner           User             @relation("BrandOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
   members         BrandMember[]
   aiSettings      BrandAiSetting[]
   media           Media[]
@@ -175,27 +196,27 @@ model BrandMember {
 }
 
 model BrandAiSetting {
-  id                  String      @id @default(uuid()) @db.Uuid
-  brandId             String      @map("brand_id") @db.Uuid
-  version             Int
-  tone                AiTone      @default(PROFESSIONAL)
-  customTone          String?     @map("custom_tone") @db.Text
-  formality           AiFormality @default(ADAPTIVE)
-  language            String      @default("fr") @db.VarChar(8)
-  emojisAllowed       Boolean     @default(true) @map("emojis_allowed")
-  targetLength        String      @default("2 phrases") @map("target_length") @db.VarChar(32)
-  greeting            String?     @db.VarChar(300)
-  closing             String?     @db.VarChar(300)
-  forbiddenTerms      Json        @default("[]") @map("forbidden_terms")
-  recommendedTerms    Json        @default("[]") @map("recommended_terms")
-  instructions        String?     @db.Text
-  complaintInstructions String?   @map("complaint_instructions") @db.Text
-  urgencyInstructions String?     @map("urgency_instructions") @db.Text
-  supportInstructions String?     @map("support_instructions") @db.Text
-  createdByUserId     String      @map("created_by_user_id") @db.Uuid
-  createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  brand               Brand       @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  createdByUser       User        @relation("AiSettingsAuthor", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  id                    String      @id @default(uuid()) @db.Uuid
+  brandId               String      @map("brand_id") @db.Uuid
+  version               Int
+  tone                  AiTone      @default(PROFESSIONAL)
+  customTone            String?     @map("custom_tone") @db.Text
+  formality             AiFormality @default(ADAPTIVE)
+  language              String      @default("fr") @db.VarChar(8)
+  emojisAllowed         Boolean     @default(true) @map("emojis_allowed")
+  targetLength          String      @default("2 phrases") @map("target_length") @db.VarChar(32)
+  greeting              String?     @db.VarChar(300)
+  closing               String?     @db.VarChar(300)
+  forbiddenTerms        Json        @default("[]") @map("forbidden_terms")
+  recommendedTerms      Json        @default("[]") @map("recommended_terms")
+  instructions          String?     @db.Text
+  complaintInstructions String?     @map("complaint_instructions") @db.Text
+  urgencyInstructions   String?     @map("urgency_instructions") @db.Text
+  supportInstructions   String?     @map("support_instructions") @db.Text
+  createdByUserId       String      @map("created_by_user_id") @db.Uuid
+  createdAt             DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  brand                 Brand       @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  createdByUser         User        @relation("AiSettingsAuthor", fields: [createdByUserId], references: [id], onDelete: Restrict)
 
   @@unique([brandId, version])
   @@index([brandId, createdAt])
@@ -203,23 +224,23 @@ model BrandAiSetting {
 }
 
 model Media {
-  id          String    @id @default(uuid()) @db.Uuid
-  ownerUserId String?   @map("owner_user_id") @db.Uuid
-  brandId     String?   @map("brand_id") @db.Uuid
-  bucket      String    @default("hootly") @db.VarChar(100)
-  objectKey   String    @unique @map("object_key") @db.VarChar(1024)
-  mimeType    String    @map("mime_type") @db.VarChar(127)
-  sizeBytes   Int       @map("size_bytes")
-  width       Int?
-  height      Int?
-  status      String    @default("READY") @db.VarChar(32)
-  purpose     String    @default("publication") @db.VarChar(32)
-  checksum    String?   @db.VarChar(128)
-  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  owner       User?     @relation("MediaOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
-  brand       Brand?    @relation(fields: [brandId], references: [id], onDelete: SetNull)
-  avatarFor   User?     @relation("UserAvatar")
+  id           String             @id @default(uuid()) @db.Uuid
+  ownerUserId  String?            @map("owner_user_id") @db.Uuid
+  brandId      String?            @map("brand_id") @db.Uuid
+  bucket       String             @default("hootly") @db.VarChar(100)
+  objectKey    String             @unique @map("object_key") @db.VarChar(1024)
+  mimeType     String             @map("mime_type") @db.VarChar(127)
+  sizeBytes    Int                @map("size_bytes")
+  width        Int?
+  height       Int?
+  status       String             @default("READY") @db.VarChar(32)
+  purpose      String             @default("publication") @db.VarChar(32)
+  checksum     String?            @db.VarChar(128)
+  deletedAt    DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  owner        User?              @relation("MediaOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  brand        Brand?             @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  avatarFor    User?              @relation("UserAvatar")
   publications PublicationMedia[]
 
   @@index([ownerUserId, createdAt])
@@ -428,6 +449,8 @@ model SocialAccount {
   oauthTokens        OAuthToken[]
   permissions        SocialPermission[]
   publicationTargets PublicationTarget[]
+  comments           SocialComment[]
+  sentResponses      SentResponse[]
 
   // Un compte Meta donné (une Page, un compte IG) ne peut être lié qu'à une
   // seule marque à la fois — pas de constraint par brandId, volontairement.
@@ -506,4 +529,99 @@ model ServiceIdempotencyKey {
   @@unique([endpoint, key])
   @@index([expiresAt])
   @@map("service_idempotency_keys")
+}
+
+// Sprint 08. Written only by graph-api (raw SQL, always sourced from Meta —
+// same "Prisma owns DDL, graph-api owns writes" split as SocialAccount /
+// OAuthToken). Express reads directly via Prisma (not secret, unlike
+// oauth_tokens) and writes only `status` for local moderation actions.
+model SocialComment {
+  id                    String                 @id @default(uuid()) @db.Uuid
+  socialAccountId       String                 @map("social_account_id") @db.Uuid
+  externalCommentId     String                 @map("external_comment_id") @db.VarChar(255)
+  externalPublicationId String?                @map("external_publication_id") @db.VarChar(255)
+  authorExternalId      String?                @map("author_external_id") @db.VarChar(255)
+  authorName            String?                @map("author_name") @db.VarChar(255)
+  content               String?                @db.Text
+  status                CommentStatus          @default(NEW)
+  isDeletedOnPlatform   Boolean                @default(false) @map("is_deleted_on_platform")
+  metaCreatedAt         DateTime?              @map("meta_created_at") @db.Timestamptz(6)
+  metaUpdatedAt         DateTime?              @map("meta_updated_at") @db.Timestamptz(6)
+  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  socialAccount         SocialAccount          @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  statusHistory         CommentStatusHistory[]
+  sentResponse          SentResponse?
+
+  // Clé d'upsert (webhook et synchronisation de secours) — dédup naturelle en
+  // plus du hash de webhook_events.
+  @@unique([socialAccountId, externalCommentId])
+  @@index([socialAccountId, status])
+  @@map("social_comments")
+}
+
+// Append-only. Écrit par Express (actions manuelles : ignorer/escalader/
+// marquer traité) et par graph-api (transition automatique vers PROCESSED
+// quand une réponse part réellement).
+model CommentStatusHistory {
+  id              String         @id @default(uuid()) @db.Uuid
+  commentId       String         @map("comment_id") @db.Uuid
+  fromStatus      CommentStatus? @map("from_status")
+  toStatus        CommentStatus  @map("to_status")
+  // Null seulement en théorie (transition système sans utilisateur identifié) ;
+  // dans ce sprint, toute transition a un utilisateur réel derrière elle.
+  changedByUserId String?        @map("changed_by_user_id") @db.Uuid
+  note            String?        @db.Text
+  changedAt       DateTime       @default(now()) @map("changed_at") @db.Timestamptz(6)
+  comment         SocialComment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  changedByUser   User?          @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([commentId, changedAt])
+  @@map("comment_status_history")
+}
+
+// Journal brut des livraisons webhook Meta — écrit uniquement par graph-api.
+// Le hash est calculé par `change` individuel (pas par requête entière : Meta
+// peut grouper plusieurs commentaires dans un seul POST), upsert de façon
+// synchrone dans la requête avant toute BackgroundTask, pour que deux
+// livraisons quasi simultanées du même événement ne passent pas toutes les
+// deux la vérification de dédup avant qu'aucune ne l'ait enregistrée.
+model WebhookEvent {
+  id           String             @id @default(uuid()) @db.Uuid
+  provider     SocialProvider
+  payloadHash  String             @map("payload_hash") @db.VarChar(64)
+  rawPayload   Json               @map("raw_payload")
+  status       WebhookEventStatus @default(RECEIVED)
+  errorMessage String?            @map("error_message") @db.Text
+  receivedAt   DateTime           @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedAt  DateTime?          @map("processed_at") @db.Timestamptz(6)
+
+  @@unique([provider, payloadHash])
+  @@index([status, receivedAt])
+  @@map("webhook_events")
+}
+
+// Une seule réponse valide par commentaire, jamais plus. La ligne est
+// réclamée par `INSERT ... ON CONFLICT (comment_id) DO NOTHING` AVANT
+// l'appel Meta (même idiome que PublicationDeliveryAttempt/CLAIM_TARGET) —
+// garde-fou indépendant du cache de rejeu service_idempotency_keys, qui
+// n'écrit qu'après coup et laisserait une fenêtre de double-envoi sans ça.
+model SentResponse {
+  id              String                @id @default(uuid()) @db.Uuid
+  commentId       String                @unique @map("comment_id") @db.Uuid
+  socialAccountId String                @map("social_account_id") @db.Uuid
+  externalReplyId String?               @map("external_reply_id") @db.VarChar(255)
+  content         String                @db.Text
+  sentByUserId    String                @map("sent_by_user_id") @db.Uuid
+  status          DeliveryAttemptStatus @default(STARTED)
+  errorCode       String?               @map("error_code") @db.VarChar(80)
+  errorMessage    String?               @map("error_message") @db.Text
+  startedAt       DateTime              @default(now()) @map("started_at") @db.Timestamptz(6)
+  finishedAt      DateTime?             @map("finished_at") @db.Timestamptz(6)
+  comment         SocialComment         @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  socialAccount   SocialAccount         @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  sentByUser      User                  @relation("SentResponseAuthor", fields: [sentByUserId], references: [id], onDelete: Restrict)
+
+  @@index([status, startedAt])
+  @@map("sent_responses")
 }

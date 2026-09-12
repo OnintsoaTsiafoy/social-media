@@ -57,6 +57,20 @@ class Settings(BaseSettings):
     token_encryption_key_current_version: int = 1
     token_encryption_key_1: str | None = None
 
+    # Sprint 08 Day 3 — safety cap on the backfill sync's per-post page walk.
+    # Neither comments edge supports server-side timestamp filtering (checked
+    # directly against Meta's current docs, not assumed), so each run
+    # re-walks every page of every known post; this bounds the worst case
+    # for a post with an unusually large comment count. Kept low in tests.
+    comments_sync_max_pages_per_post: int = 20
+
+    # Sprint 08 — Meta webhook challenge handshake secret (hub.verify_token),
+    # distinct from facebook_app_secret/instagram_app_secret (those sign the
+    # POST body's payload, this one is only compared against the GET
+    # subscription challenge). One value shared across both Meta Apps: it's
+    # Hootly's own secret, not Meta's, so there's no reason to split it.
+    meta_webhook_verify_token: str | None = None
+
     # This service's OWN public base URL — used only to build the
     # `redirect_uri` registered with Meta (`{public_base_url}/oauth/{provider}/callback`).
     # Distinct from graph_api_base_url, which is Meta's API host. Must be a
@@ -108,6 +122,13 @@ class Settings(BaseSettings):
     @property
     def encryption_configured(self) -> bool:
         return bool(self.token_encryption_key_1)
+
+    @property
+    def webhook_configured(self) -> bool:
+        return bool(self.meta_webhook_verify_token) and bool(
+            (self.facebook_app_secret and self.facebook_app_secret.strip())
+            or (self.instagram_app_secret and self.instagram_app_secret.strip())
+        )
 
 
 settings = Settings()

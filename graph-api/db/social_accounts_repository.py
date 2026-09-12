@@ -58,6 +58,21 @@ async def get_by_id(account_id: str) -> dict | None:
             return await cur.fetchone()
 
 
+async def get_by_external_id(provider: str, external_account_id: str) -> dict | None:
+    """Resolves a Meta-side page/IG user id (as seen in a webhook payload or
+    a sync response) to our own social_accounts row — a webhook for an
+    account nobody connected (a lingering test subscription, a disconnected
+    Page) legitimately resolves to None."""
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT * FROM social_accounts WHERE provider = %s AND external_account_id = %s",
+                (provider.upper(), external_account_id),
+            )
+            return await cur.fetchone()
+
+
 async def update_status(account_id: str, status: str) -> None:
     pool = await get_pool()
     async with pool.connection() as conn:
@@ -65,6 +80,21 @@ async def update_status(account_id: str, status: str) -> None:
             await cur.execute(
                 "UPDATE social_accounts SET status = %s, updated_at = now() WHERE id = %s",
                 (status, account_id),
+            )
+
+
+async def mark_comments_synced(account_id: str) -> None:
+    """Sprint 08 Day 3 — the only writer of last_comments_sync_at (a column
+    that has existed since Sprint 06 but was never written until now): graph-
+    api owns this write in the same call that persists the synced comments,
+    so there's no separate round-trip that could skip it if the worker
+    crashes in between."""
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "UPDATE social_accounts SET last_comments_sync_at = now() WHERE id = %s",
+                (account_id,),
             )
 
 

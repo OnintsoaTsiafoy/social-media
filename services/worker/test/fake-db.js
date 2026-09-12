@@ -146,6 +146,35 @@ export function createFakeDb(initial = {}) {
       return [];
     }
 
+    // Sprint 08 comment-sync.js's own candidate-selection query also starts
+    // with `FROM social_accounts`, without the `sa` alias token-refresh.js
+    // uses — matched here on `last_comments_sync_at` instead, a fragment
+    // unique to this query, per this file's own established lesson (see the
+    // `pm.position`/`publication_media` note above) about picking maximally
+    // specific substrings rather than a generic table name.
+    if (text.includes('last_comments_sync_at')) {
+      const [staleAfterMinutes, limit] = params;
+      const staleThreshold = Date.now() - staleAfterMinutes * 60 * 1000;
+      return (state.socialAccounts ?? [])
+        .filter((row) => {
+          if (!['CONNECTED', 'EXPIRING'].includes(row.status)) return false;
+          return !row.last_comments_sync_at || new Date(row.last_comments_sync_at).getTime() < staleThreshold;
+        })
+        .sort((a, b) => {
+          if (!a.last_comments_sync_at) return -1;
+          if (!b.last_comments_sync_at) return 1;
+          return new Date(a.last_comments_sync_at).getTime() - new Date(b.last_comments_sync_at).getTime();
+        })
+        .slice(0, limit)
+        .map((row) => ({ id: row.id, provider: row.provider }));
+    }
+
+    if (text.includes('DISTINCT external_publication_id')) {
+      return (state.targets ?? [])
+        .filter((row) => row.social_account_id === params[0] && row.external_publication_id)
+        .map((row) => ({ external_publication_id: row.external_publication_id }));
+    }
+
     if (text.includes('FROM social_accounts sa')) {
       const [expiringWithinHours, staleAfterHours, limit] = params;
       const expiryThreshold = Date.now() + expiringWithinHours * 3600 * 1000;

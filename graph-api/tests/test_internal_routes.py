@@ -204,8 +204,6 @@ def test_comments_sync_nominal(client, service_jwt_settings, respx_mock):
             "socialAccountId": None,
             "provider": "facebook",
             "publicationExternalIds": ["1_1"],
-            "since": None,
-            "cursor": None,
             "limit": 100,
         },
         headers=_auth_header(scope=["social:read"]),
@@ -217,37 +215,17 @@ def test_comments_sync_nominal(client, service_jwt_settings, respx_mock):
     assert body["comments"][0]["authorName"] == "Alice"
 
 
-def test_comments_reply_nominal(client, service_jwt_settings, respx_mock):
-    respx_mock.post(f"{META_BASE_URL}/c1/comments").mock(
-        return_value=httpx.Response(200, json={"id": "reply-1"})
-    )
-
-    response = client.post(
-        "/internal/v1/comments/reply",
-        json={
-            "socialAccountId": None,
-            "provider": "facebook",
-            "externalCommentId": "c1",
-            "text": "Merci !",
-        },
-        headers={"Idempotency-Key": "idem-4", **_auth_header()},
-    )
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["status"] == "SUCCESS"
-    assert body["externalReplyId"] == "reply-1"
+# comments/reply has no legacy no-socialAccountId path (unlike publish/sync
+# above): Sprint 08 Day 5 rewrote it to key off Hootly's own comment id, which
+# only ever exists once a real social_accounts-linked comment has been
+# synced — see test_internal_routes_per_account.py's reply tests for the
+# real (and only) contract, including the idempotency-key requirement below.
 
 
 def test_comments_reply_requires_idempotency_key(client, service_jwt_settings, respx_mock):
     response = client.post(
         "/internal/v1/comments/reply",
-        json={
-            "socialAccountId": None,
-            "provider": "facebook",
-            "externalCommentId": "c1",
-            "text": "Merci !",
-        },
+        json={"commentId": "does-not-matter", "userId": "user-1", "text": "Merci !"},
         headers=_auth_header(),
     )
 

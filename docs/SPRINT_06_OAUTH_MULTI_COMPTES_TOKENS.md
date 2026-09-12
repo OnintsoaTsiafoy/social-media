@@ -86,7 +86,8 @@ qu'il ne veut pas via « Déconnecter ».
 |---|---|
 | `POST /internal/v1/oauth/{provider}/authorization-url` | `instagram` renvoie `422 PROVIDER_NOT_SUPPORTED` avant le Sprint 07. |
 | `GET /oauth/facebook/callback` | Public, protégé par le state. |
-| `POST /internal/v1/social-accounts/{id}/refresh-token` | Revalide (les tokens de Page n'expirent pas activement) ; `409 REAUTHENTICATION_REQUIRED` si Meta rejette le token. |
+| `GET /internal/v1/social-accounts/{id}/profile` | Relit `name`/`username`/`avatar_url` depuis Meta et les persiste ; `409 REAUTHENTICATION_REQUIRED` si Meta rejette le token. Ajouté après coup (voir « Correction adjacente » ci-dessous) : listé dans les « API concernées » de la fiche sprint mais absent de la livraison initiale. |
+| `POST /internal/v1/social-accounts/{id}/refresh-token` | Revalide (les tokens de Page n'expirent pas activement) ; `409 REAUTHENTICATION_REQUIRED` si Meta rejette le token. Ne touche pas `name`/`username`/`avatar_url` — c'est le rôle de `/profile` ci-dessus. |
 | `GET /internal/v1/social-accounts/{id}/permissions` | `{permissions, missingRequiredPermissions}`. |
 | `POST /internal/v1/social-accounts/{id}/revoke` | Local uniquement — ne révoque pas côté Meta (voir Décisions Meta ci-dessous). |
 
@@ -122,6 +123,20 @@ Confirmé empiriquement (script Node isolé) puis corrigé dans
 reproduisait le même bug par imitation. Sans lien avec le Sprint 06 au
 départ, mais bloquant sa propre vérification manuelle.
 
+## Correction adjacente : route `/profile` manquante
+
+Détecté en audit après coup (relecture de la fiche sprint contre le code
+livré) : `GET /internal/v1/social-accounts/{id}/profile` figure dans les
+« API concernées » du Sprint 06 mais n'avait pas été implémentée —
+`POST .../refresh-token` avait été construit pour couvrir la revalidation du
+token, mais ne rafraîchit jamais `name`/`username`/`avatar_url`. Sans cette
+route, un compte renommé côté Meta (Page renommée, pseudo Instagram changé)
+restait affiché avec son ancien nom dans Hootly indéfiniment — aucune autre
+route ne réécrit ces champs après la connexion initiale. Ajoutée avec 4 tests
+(`test_social_account_routes.py`), et `POST /api/v1/social-accounts/{id}/sync`
+(Express) appelle désormais `/refresh-token` puis `/profile` dans la même
+requête au lieu du seul `/refresh-token`.
+
 ## Vocabulaire mobile aligné
 
 `AccountStatus` (mobile) colle désormais exactement à l'enum backend
@@ -130,6 +145,49 @@ maintenir une table de correspondance : `expiring_soon` → `expiring`,
 `reconnect_required` → `reauth_required`. `PublicationTarget.accountUsername`
 n'est plus systématiquement vide : `publications/service.js` inclut
 désormais le compte lié (`social_accounts.username`/`name`).
+
+## Notifications techniques (hors périmètre, décision explicite)
+
+La fiche sprint demande des « notifications techniques de base en DB » au
+Jour 4. `docs/MATRICE_ENDPOINT_SPRINT.md` (doc d'état livré, plus autoritatif
+que la fiche sprint générique — même principe que le report des
+commentaires/métriques aux Sprints 08/12) attribue tout `/api/v1/notifications*`
+et sa persistance au **Sprint 11**. Créer ici une table technique ad hoc
+aurait anticipé un schéma qui appartient à ce sprint et risqué d'entrer en
+conflit avec lui. À la place : un sync/refresh en échec renvoie une erreur
+stable (`REAUTHENTICATION_REQUIRED`, etc.) que l'écran mobile affiche
+directement (voir `toUserMessage()` côté mobile) — pas de notification
+poussée, mais aucune information n'est perdue pour l'utilisateur qui consulte
+l'écran.
+
+## Procédure App Review Meta (à exécuter par l'utilisateur)
+
+Hors périmètre de cette livraison (nécessite le compte Meta Developer/Business
+de l'utilisateur — voir le plan), mais voici la procédure à suivre avant un
+lancement réel, dans l'ordre :
+
+1. **Mode développement suffit pour tester** : tant que l'App Meta reste en
+   mode « Development », ses propres admins/développeurs/testeurs (ajoutés
+   dans Meta App Dashboard → Rôles) peuvent utiliser l'intégralité du flux
+   OAuth et publier réellement, sans App Review. C'est le mode attendu pour
+   toute la vérification manuelle de ce sprint.
+2. **Vérification Business (Business Verification)** : préalable à l'App
+   Review pour les permissions `pages_*`/`instagram_*` avancées. Se fait dans
+   Meta Business Manager, indépendamment du code Hootly.
+3. **App Review à proprement parler** : soumettre l'app avec, pour chaque
+   permission listée ci-dessus, un cas d'usage écrit et un screencast montrant
+   le parcours réel dans Hootly (connecter un compte, publier, répondre à un
+   commentaire) — à enregistrer une fois le Sprint 07 stable en environnement
+   de démonstration.
+4. **Prérequis techniques déjà en place côté code** : politique de
+   confidentialité et instructions de suppression des données (exigées par le
+   formulaire d'App Review) restent à rédiger et héberger par l'utilisateur —
+   rien dans `graph-api`/Express n'en dépend techniquement, seul le formulaire
+   Meta les demande.
+5. **Après approbation** : aucun changement de code prévu — l'app passe de
+   Development à Live dans le Dashboard Meta, les mêmes routes OAuth
+   fonctionnent pour n'importe quel utilisateur Facebook/Instagram, pas
+   seulement les rôles ajoutés manuellement.
 
 ## Décisions Meta non vérifiées (à confirmer avant mise en production)
 
@@ -151,12 +209,14 @@ désormais le compte lié (`social_accounts.username`/`name`).
 
 ## Tests
 
-`graph-api` : 104 tests (respx, aucun appel Meta réel) —
-`test_oauth_authorization_url.py`, `test_oauth_callback.py`,
+`graph-api` : 104 tests à la livraison initiale (respx, aucun appel Meta
+réel) — `test_oauth_authorization_url.py`, `test_oauth_callback.py`,
 `test_social_account_routes.py`, `test_crypto.py` en plus des suites
-Sprint 05. `services/api` : 38 tests (`social-accounts.test.js`, dont le
-vecteur croisé `hashState`). `services/worker` : 16 tests
-(`token-refresh.test.js`, double d'accès `pg` étendu dans `test/fake-db.js`).
+Sprint 05 ; 128 après la correction `/profile` ci-dessus et la rotation
+Instagram Login du Sprint 07 (voir `docs/SPRINT_07_INSTAGRAM_INTEGRATION.md`).
+`services/api` : 38 tests (`social-accounts.test.js`, dont le vecteur croisé
+`hashState`). `services/worker` : 16 tests (`token-refresh.test.js`, double
+d'accès `pg` étendu dans `test/fake-db.js`).
 Mobile : `tsc --noEmit` et `expo lint` verts ; bundle Metro web vérifié
 (1434 modules, aucune erreur).
 

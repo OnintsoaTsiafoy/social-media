@@ -356,29 +356,174 @@ def test_instagram_comments_sync_maps_username_and_text(
     assert comment["content"] == "Superbe !"
 
 
+def _seed_comment(fake_social_comments_store, *, comment_id, social_account_id, external_comment_id, is_deleted=False):
+    fake_social_comments_store[(social_account_id, external_comment_id)] = {
+        "id": comment_id,
+        "social_account_id": social_account_id,
+        "external_comment_id": external_comment_id,
+        "external_publication_id": "post-1",
+        "status": "NEW",
+        "is_deleted_on_platform": is_deleted,
+    }
+
+
 def test_instagram_reply_uses_the_replies_edge_not_comments(
-    client, service_jwt_settings, respx_mock, fake_social_accounts_store, fake_oauth_tokens_store
+    client, service_jwt_settings, respx_mock, fake_social_accounts_store, fake_oauth_tokens_store, fake_social_comments_store
 ):
     """Instagram replies post to {comment_id}/replies, not /comments like Facebook."""
     _seed_instagram_account(fake_social_accounts_store, fake_oauth_tokens_store)
+    _seed_comment(
+        fake_social_comments_store, comment_id="comment-ig-1", social_account_id=INSTAGRAM_ACCOUNT_ID, external_comment_id="igc1"
+    )
     route = respx_mock.post(f"{META_BASE_URL}/igc1/replies").mock(
         return_value=httpx.Response(200, json={"id": "igr1"})
     )
 
     response = client.post(
         "/internal/v1/comments/reply",
-        json={
-            "socialAccountId": INSTAGRAM_ACCOUNT_ID,
-            "provider": "instagram",
-            "externalCommentId": "igc1",
-            "text": "Merci beaucoup !",
-        },
+        json={"commentId": "comment-ig-1", "userId": "user-1", "text": "Merci beaucoup !"},
         headers={"Idempotency-Key": "idem-ig-reply", **_auth_header()},
     )
 
     assert response.status_code == 200
     assert response.json()["externalReplyId"] == "igr1"
     assert route.called
+
+
+def test_reply_persists_a_sent_response_and_marks_the_comment_processed(
+    client, service_jwt_settings, respx_mock, fake_social_accounts_store, fake_oauth_tokens_store,
+    fake_social_comments_store, fake_sent_responses_store,
+):
+    _seed_facebook_account(fake_social_accounts_store, fake_oauth_tokens_store)
+    _seed_comment(
+        fake_social_comments_store, comment_id="comment-fb-1", social_account_id=FACEBOOK_ACCOUNT_ID, external_comment_id="c1"
+    )
+    respx_mock.post(f"{META_BASE_URL}/c1/comments").mock(return_value=httpx.Response(200, json={"id": "reply-1"}))
+
+    response = client.post(
+        "/internal/v1/comments/reply",
+        json={"commentId": "comment-fb-1", "userId": "user-42", "text": "Merci !"},
+        headers={"Idempotency-Key": "idem-reply-1", **_auth_header()},
+    )
+
+    assert response.status_code == 200
+    stored = fake_sent_responses_store["comment-fb-1"]
+    assert stored["status"] == "SUCCEEDED"
+    assert stored["external_reply_id"] == "reply-1"
+    assert stored["sent_by_user_id"] == "user-42"
+    assert fake_social_comments_store[(FACEBOOK_ACCOUNT_ID, "c1")]["status"] == "PROCESSED"
+
+
+def test_reply_to_an_already_replied_comment_is_rejected_without_calling_meta(
+    client, service_jwt_settings, respx_mock, fake_social_accounts_store, fake_oauth_tokens_store,
+    fake_social_comments_store, fake_sent_responses_store,
+):
+    """The claim (fake_sent_responses_store) is the real exactly-once guard —
+    a second attempt must be rejected before ever reaching Meta."""
+    _seed_facebook_account(fake_social_accounts_store, fake_oauth_tokens_store)
+    _seed_comment(
+        fake_social_comments_store, comment_id="comment-fb-2", social_account_id=FACEBOOK_ACCOUNT_ID, external_comment_id="c2"
+    )
+    route = respx_mock.post(f"{META_BASE_URL}/c2/comments").mock(return_value=httpx.Response(200, json={"id": "reply-2"}))
+
+    first = client.post(
+        "/internal/v1/comments/reply",
+        json={"commentId": "comment-fb-2", "userId": "user-1", "text": "Première réponse"},
+        headers={"Idempotency-Key": "idem-first", **_auth_header()},
+    )
+    assert first.status_code == 200
+    assert route.call_count == 1
+
+    second = client.post(
+        "/internal/v1/comments/reply",
+        json={"commentId": "comment-fb-2", "userId": "user-1", "text": "Deuxième réponse"},
+        headers={"Idempotency-Key": "idem-second", **_auth_header()},
+    )
+
+    assert second.status_code == 409
+    assert second.json()["error"]["code"] == "conflict"
+    assert route.call_count == 1  # never called again
+
+
+def test_reply_to_a_deleted_comment_is_rejected(
+    client, service_jwt_settings, fake_social_accounts_store, fake_oauth_tokens_store, fake_social_comments_store
+):
+    _seed_facebook_account(fake_social_accounts_store, fake_oauth_tokens_store)
+    _seed_comment(
+        fake_social_comments_store, comment_id="comment-fb-3", social_account_id=FACEBOOK_ACCOUNT_ID,
+        external_comment_id="c3", is_deleted=True,
+    )
+
+    response = client.post(
+        "/internal/v1/comments/reply",
+        json={"commentId": "comment-fb-3", "userId": "user-1", "text": "Trop tard"},
+        headers={"Idempotency-Key": "idem-deleted", **_auth_header()},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "conflict"
+
+
+def test_reply_meta_failure_marks_the_sent_response_failed_not_the_comment_processed(
+    client, service_jwt_settings, respx_mock, fake_social_accounts_store, fake_oauth_tokens_store,
+    fake_social_comments_store, fake_sent_responses_store,
+):
+    _seed_facebook_account(fake_social_accounts_store, fake_oauth_tokens_store)
+    _seed_comment(
+        fake_social_comments_store, comment_id="comment-fb-4", social_account_id=FACEBOOK_ACCOUNT_ID, external_comment_id="c4"
+    )
+    respx_mock.post(f"{META_BASE_URL}/c4/comments").mock(
+        return_value=httpx.Response(403, json={"error": {"message": "Permission manquante", "code": 200}})
+    )
+
+    response = client.post(
+        "/internal/v1/comments/reply",
+        json={"commentId": "comment-fb-4", "userId": "user-1", "text": "Merci !"},
+        headers={"Idempotency-Key": "idem-fail", **_auth_header()},
+    )
+
+    assert response.status_code == 403
+    assert fake_sent_responses_store["comment-fb-4"]["status"] == "FAILED"
+    # A failed send must not silently resolve the comment.
+    assert fake_social_comments_store[(FACEBOOK_ACCOUNT_ID, "c4")]["status"] == "NEW"
+
+
+def test_reply_can_be_retried_after_a_failure(
+    client, service_jwt_settings, respx_mock, fake_social_accounts_store, fake_oauth_tokens_store,
+    fake_social_comments_store, fake_sent_responses_store,
+):
+    """A FAILED attempt (unlike a SUCCEEDED one) must not permanently block
+    the comment_id — otherwise a transient Meta error would make a comment
+    unreplyable forever. Found by reasoning through the claim's conflict
+    semantics before relying on it in manual testing, not by a failing test."""
+    _seed_facebook_account(fake_social_accounts_store, fake_oauth_tokens_store)
+    _seed_comment(
+        fake_social_comments_store, comment_id="comment-fb-5", social_account_id=FACEBOOK_ACCOUNT_ID, external_comment_id="c5"
+    )
+    route = respx_mock.post(f"{META_BASE_URL}/c5/comments")
+    route.side_effect = [
+        httpx.Response(500, json={"error": {"message": "Erreur temporaire"}}),
+        httpx.Response(200, json={"id": "reply-5"}),
+    ]
+
+    first = client.post(
+        "/internal/v1/comments/reply",
+        json={"commentId": "comment-fb-5", "userId": "user-1", "text": "Merci !"},
+        headers={"Idempotency-Key": "idem-retry-1", **_auth_header()},
+    )
+    assert first.status_code == 500
+    assert fake_sent_responses_store["comment-fb-5"]["status"] == "FAILED"
+
+    second = client.post(
+        "/internal/v1/comments/reply",
+        json={"commentId": "comment-fb-5", "userId": "user-1", "text": "Merci ! (nouvel essai)"},
+        headers={"Idempotency-Key": "idem-retry-2", **_auth_header()},
+    )
+
+    assert second.status_code == 200
+    assert second.json()["externalReplyId"] == "reply-5"
+    assert fake_sent_responses_store["comment-fb-5"]["status"] == "SUCCEEDED"
+    assert fake_sent_responses_store["comment-fb-5"]["content"] == "Merci ! (nouvel essai)"
 
 
 def test_instagram_metrics_sync_null_for_unavailable(

@@ -96,9 +96,11 @@ REAUTHENTICATION_REQUIRED`, symétrique au chemin Facebook.
 
 ## Tests
 
-`graph-api` : 124 tests (respx, aucun appel Meta réel), dont
+`graph-api` : 128 tests (respx, aucun appel Meta réel), dont
 `test_internal_routes_per_account.py`, `test_instagram_oauth_callback.py`,
-et les deux nouveaux cas de rotation `INSTAGRAM_LOGIN` dans
+les deux cas de rotation `INSTAGRAM_LOGIN` et les quatre cas de
+`GET .../profile` (route Sprint 06 manquante, ajoutée ici — voir
+`docs/SPRINT_06_OAUTH_MULTI_COMPTES_TOKENS.md`) dans
 `test_social_account_routes.py`. `services/api` : 38 tests (inchangés ce
 sprint). `services/worker` : 23 tests, dont `social-http-provider.test.js`
 (adaptateur `deliver()` réel). Mobile : `tsc --noEmit` et `expo lint` verts —

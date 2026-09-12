@@ -1,14 +1,198 @@
 openapi: 3.1.0
 info:
   title: Hootly Social Internal API
-  version: 0.2.0
+  version: 0.4.0
   description: >
     Contrat interne, protégé par un JWT de service depuis le Sprint 05.
     Implémenté par graph-api sous /internal/v1 (voir
-    api/routes/internal_routes.py). Sprint 05 : provider "facebook"
-    uniquement, résolu via la Page unique configurée en local — la résolution
-    par socialAccountId arrive au Sprint 06 (OAuth), Instagram au Sprint 07.
+    api/routes/internal_routes.py, oauth_routes.py, social_account_routes.py,
+    webhook_routes.py). Sprint 05 : provider "facebook" uniquement, résolu
+    via la Page unique configurée en local. Sprint 06 : résolution par
+    socialAccountId, OAuth Meta et gestion des comptes connectés. Sprint 07 :
+    provider "instagram", doubles parcours OAuth (Page liée ou Instagram
+    Login direct). Sprint 08 : webhooks Meta (/webhooks/meta, public, en
+    dehors de ce contrat de service JWT), persistance des commentaires et
+    réponses idempotentes par commentaire.
 paths:
+  /webhooks/meta:
+    get:
+      summary: Challenge d'abonnement webhook Meta (public, Sprint 08)
+      description: >
+        Appelé directement par le Dashboard Meta App, pas par nos services —
+        aucun JWT de service. Répond hub.challenge en texte brut si
+        hub.verify_token correspond à META_WEBHOOK_VERIFY_TOKEN.
+      parameters:
+        - in: query
+          name: hub.mode
+          schema: { type: string }
+        - in: query
+          name: hub.verify_token
+          schema: { type: string }
+        - in: query
+          name: hub.challenge
+          schema: { type: string }
+      responses:
+        '200': { description: hub.challenge renvoyé tel quel, text/plain }
+        '403': { description: hub.verify_token absent ou incorrect }
+    post:
+      summary: Livraison d'événements webhook Meta (public, Sprint 08)
+      description: >
+        Vérifié par X-Hub-Signature-256 (HMAC-SHA256 du corps brut), pas un
+        JWT de service — le secret utilisé dépend du champ "object" du
+        payload ("page" → FACEBOOK_APP_SECRET, "instagram" →
+        INSTAGRAM_APP_SECRET). Toujours 200 une fois la signature validée,
+        même si certains événements individuels échouent au traitement
+        (chacun a son propre webhook_events ; Meta redélivre agressivement
+        sur tout non-200). Dédupliqué par (provider, hash du "change"
+        individuel) — un même événement redélivré ne crée jamais deux
+        commentaires.
+      parameters:
+        - in: header
+          name: X-Hub-Signature-256
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, description: "Format Meta natif (object/entry/changes), non enveloppé" }
+      responses:
+        '200': { description: Signature valide, événements traités (voir webhook_events pour le détail) }
+        '400': { description: Corps JSON invalide }
+        '403': { description: "object inconnu ou signature invalide" }
+  /internal/v1/oauth/{provider}/authorization-url:
+    post:
+      summary: Démarrer une connexion OAuth (Sprint 06/07)
+      security: [{ serviceJwt: [] }]
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema: { type: string, enum: [facebook, instagram] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthorizationUrlRequest' }
+      responses:
+        '200':
+          description: URL du dialogue Meta et state à usage unique
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthorizationUrlResponse' }
+        '401': { description: JWT de service absent, invalide ou expiré }
+        '403': { description: Scope social:write manquant }
+  /oauth/facebook/callback:
+    get:
+      summary: Callback OAuth Facebook (public, protégé par le state)
+      description: >
+        Appelé directement par Meta comme redirection navigateur — pas de
+        JWT de service ici. Consomme le state à usage unique, échange le
+        code, découvre les Pages éligibles et leur compte Instagram lié.
+      parameters:
+        - in: query
+          name: code
+          schema: { type: string, nullable: true }
+        - in: query
+          name: state
+          schema: { type: string, nullable: true }
+        - in: query
+          name: error
+          schema: { type: string, nullable: true }
+      responses:
+        '302': { description: Redirection vers le deep link mobile (status/network/account/reason) }
+  /oauth/instagram/callback:
+    get:
+      summary: Callback Instagram Login direct, sans Page (public, Sprint 07)
+      parameters:
+        - in: query
+          name: code
+          schema: { type: string, nullable: true }
+        - in: query
+          name: state
+          schema: { type: string, nullable: true }
+        - in: query
+          name: error
+          schema: { type: string, nullable: true }
+      responses:
+        '302': { description: Redirection vers le deep link mobile (status/network/account/reason) }
+  /internal/v1/social-accounts/{socialAccountId}/profile:
+    get:
+      summary: Relit et persiste name/username/avatarUrl depuis Meta (Sprint 06)
+      security: [{ serviceJwt: [] }]
+      parameters:
+        - in: path
+          name: socialAccountId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Profil actualisé
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfileResponse' }
+        '401': { description: JWT de service absent, invalide ou expiré }
+        '403': { description: Scope social:read manquant }
+        '404': { description: Compte social introuvable }
+        '409': { description: Token invalide côté Meta ; reconnexion requise (voir ErrorEnvelope) }
+  /internal/v1/social-accounts/{socialAccountId}/refresh-token:
+    post:
+      summary: Revalide (Page) ou tourne (Instagram Login) le token (Sprint 06/07)
+      security: [{ serviceJwt: [] }]
+      parameters:
+        - in: path
+          name: socialAccountId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Token toujours valide, ou rotation réussie
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RefreshTokenResponse' }
+        '401': { description: JWT de service absent, invalide ou expiré }
+        '403': { description: Scope social:write manquant }
+        '404': { description: Compte social introuvable }
+        '409': { description: Token invalide côté Meta ; reconnexion requise (voir ErrorEnvelope) }
+  /internal/v1/social-accounts/{socialAccountId}/permissions:
+    get:
+      summary: Permissions Meta connues pour ce compte (Sprint 06)
+      security: [{ serviceJwt: [] }]
+      parameters:
+        - in: path
+          name: socialAccountId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Permissions accordées et manquantes
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PermissionsResponse' }
+        '401': { description: JWT de service absent, invalide ou expiré }
+        '403': { description: Scope social:read manquant }
+        '404': { description: Compte social introuvable }
+  /internal/v1/social-accounts/{socialAccountId}/revoke:
+    post:
+      summary: Déconnecte localement le compte (Sprint 06)
+      description: >
+        Local uniquement — ne révoque pas l'autorisation côté Meta (voir
+        docs/SPRINT_06_OAUTH_MULTI_COMPTES_TOKENS.md, section Décisions Meta).
+      security: [{ serviceJwt: [] }]
+      parameters:
+        - in: path
+          name: socialAccountId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Compte déconnecté côté Hootly
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RevokeResponse' }
+        '401': { description: JWT de service absent, invalide ou expiré }
+        '403': { description: Scope social:write manquant }
+        '404': { description: Compte social introuvable }
   /health:
     get:
       responses: { '200': { description: Processus actif } }
@@ -42,7 +226,15 @@ paths:
         '403': { description: Scope social:write manquant }
   /internal/v1/comments/sync:
     post:
-      summary: Synchroniser les commentaires d'un ou plusieurs posts
+      summary: Synchroniser (et persister) les commentaires d'un ou plusieurs posts
+      description: >
+        Sprint 08 : marche désormais tous les posts listés en interne, page
+        par page (plafonné par un réglage serveur), et persiste chaque
+        commentaire au fil de l'eau plutôt que de renvoyer une seule page au
+        choix de l'appelant — voir CommentsSyncRequest, qui n'a donc plus ni
+        since ni cursor (aucun des deux fils de commentaires Meta ne
+        supporte un filtre par date). Met aussi à jour
+        social_accounts.lastCommentsSyncAt pour un socialAccountId résolu.
       security: [{ serviceJwt: [] }]
       requestBody:
         required: true
@@ -51,7 +243,7 @@ paths:
             schema: { $ref: '#/components/schemas/CommentsSyncRequest' }
       responses:
         '200':
-          description: Commentaires normalisés
+          description: Commentaires normalisés (déjà persistés)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CommentsSyncResponse' }
@@ -59,7 +251,15 @@ paths:
         '403': { description: Scope social:read manquant }
   /internal/v1/comments/reply:
     post:
-      summary: Répondre à un commentaire
+      summary: Répondre à un commentaire (Sprint 08 — clé sur l'id de commentaire Hootly)
+      description: >
+        Résout le compte social et l'id de commentaire externe depuis
+        social_comments (CommentsReplyRequest ne prend plus provider/
+        socialAccountId/externalCommentId séparément — rien avant ce sprint
+        n'avait de ligne à résoudre). Réclame une ligne sent_responses avant
+        l'appel Meta (409 si déjà envoyée avec succès ou en cours ; un échec
+        précédent peut être retenté) et fait passer le commentaire à
+        PROCESSED en cas de succès.
       security: [{ serviceJwt: [] }]
       parameters:
         - in: header
@@ -80,6 +280,8 @@ paths:
         '400': { description: En-tête Idempotency-Key manquant }
         '401': { description: JWT de service absent, invalide ou expiré }
         '403': { description: Scope social:write manquant }
+        '404': { description: Commentaire introuvable }
+        '409': { description: "Déjà envoyée, envoi en cours, ou commentaire supprimé sur la plateforme" }
   /internal/v1/metrics/sync:
     post:
       summary: Synchroniser les métriques disponibles (null si indisponible)
@@ -155,13 +357,14 @@ components:
       required: [provider]
       properties:
         socialAccountId: { type: string, format: uuid, nullable: true }
-        provider: { type: string, enum: [facebook] }
+        provider: { type: string, enum: [facebook, instagram] }
         publicationExternalIds:
           type: array
           items: { type: string }
-        since: { type: string, format: date-time, nullable: true }
-        cursor: { type: string, nullable: true }
-        limit: { type: integer, default: 100 }
+        limit:
+          type: integer
+          default: 100
+          description: Taille de page par appel Meta interne, pas une limite sur le total renvoyé.
     CommentSyncItem:
       type: object
       properties:
@@ -179,15 +382,12 @@ components:
         comments:
           type: array
           items: { $ref: '#/components/schemas/CommentSyncItem' }
-        nextCursor: { type: string, nullable: true }
-        hasMore: { type: boolean }
     CommentsReplyRequest:
       type: object
-      required: [provider, externalCommentId, text]
+      required: [commentId, userId, text]
       properties:
-        socialAccountId: { type: string, format: uuid, nullable: true }
-        provider: { type: string, enum: [facebook] }
-        externalCommentId: { type: string }
+        commentId: { type: string, format: uuid, description: Id social_comments Hootly, pas l'id externe Meta. }
+        userId: { type: string, format: uuid, description: À qui attribuer la réponse et le changement de statut. }
         text: { type: string, minLength: 1 }
     CommentsReplyResponse:
       type: object
@@ -223,3 +423,43 @@ components:
         metrics:
           type: array
           items: { $ref: '#/components/schemas/MetricItem' }
+    AuthorizationUrlRequest:
+      type: object
+      required: [userId, brandId, mobileRedirectUri]
+      properties:
+        userId: { type: string, format: uuid }
+        brandId: { type: string, format: uuid }
+        mobileRedirectUri: { type: string, format: uri }
+    AuthorizationUrlResponse:
+      type: object
+      properties:
+        authorizationUrl: { type: string, format: uri }
+        state: { type: string }
+        expiresAt: { type: string, format: date-time }
+    ProfileResponse:
+      type: object
+      properties:
+        socialAccountId: { type: string, format: uuid }
+        name: { type: string }
+        username: { type: string, nullable: true }
+        avatarUrl: { type: string, nullable: true }
+    RefreshTokenResponse:
+      type: object
+      properties:
+        socialAccountId: { type: string, format: uuid }
+        status: { type: string, enum: [CONNECTED, EXPIRING, EXPIRED, REAUTH_REQUIRED, REVOKED, DISCONNECTED] }
+        expiresAt: { type: string, format: date-time, nullable: true }
+        refreshed: { type: boolean }
+    PermissionsResponse:
+      type: object
+      properties:
+        permissions:
+          type: array
+          items: { type: string }
+        missingRequiredPermissions:
+          type: array
+          items: { type: string }
+    RevokeResponse:
+      type: object
+      properties:
+        status: { type: string, enum: [DISCONNECTED] }

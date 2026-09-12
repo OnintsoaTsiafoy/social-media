@@ -4,7 +4,7 @@ from core.exceptions import GraphAPIError
 from core.security import require_service_jwt
 from db import social_accounts_repository
 from modules.oauth import account_service
-from modules.oauth.schemas import PermissionsResponse, RefreshTokenResponse, RevokeResponse
+from modules.oauth.schemas import PermissionsResponse, ProfileResponse, RefreshTokenResponse, RevokeResponse
 
 router = APIRouter(prefix="/internal/v1/social-accounts", tags=["Social Accounts"])
 
@@ -14,6 +14,15 @@ async def _require_account(social_account_id: str) -> dict:
     if account is None:
         raise GraphAPIError(status_code=404, detail="Compte social introuvable.", code="not_found")
     return account
+
+
+@router.get("/{social_account_id}/profile", response_model=ProfileResponse)
+async def get_profile(
+    social_account_id: str,
+    _auth: dict = Depends(require_service_jwt("social:read")),
+):
+    account = await _require_account(social_account_id)
+    return await account_service.get_profile(account)
 
 
 @router.post("/{social_account_id}/refresh-token", response_model=RefreshTokenResponse)

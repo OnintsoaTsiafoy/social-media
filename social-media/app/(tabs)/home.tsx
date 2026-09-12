@@ -64,7 +64,7 @@ export default function HomeScreen() {
   const syncNow = async () => {
     setSyncing(true);
     try {
-      await commentsApi.sync();
+      await commentsApi.sync(brand?.id ?? '');
       await refreshAll();
       toast('Synchronisation terminée.', 'success');
     } catch {
@@ -75,7 +75,7 @@ export default function HomeScreen() {
   };
 
   const treatComment = async (id: string) => {
-    const result = await treat.run(() => commentsApi.setStatus(id, 'treated'));
+    const result = await treat.run(() => commentsApi.setStatus(id, 'processed'));
     if (!result.ok) {
       toast(result.error ?? 'Action impossible.', 'error');
       return;

@@ -50,14 +50,20 @@ class CommentSyncItem(BaseModel):
     model_config = {"populate_by_name": True, "validate_by_alias": True}
 
 
+# Sprint 08 Day 3: dropped `since`/`cursor`/`nextCursor`/`hasMore` from the
+# shape sprint_listing/APIS/03_FASTAPI_RESEAUX_SOCIAUX.md originally sketched
+# — checked directly against Meta's current reference docs during planning:
+# neither the Facebook nor the Instagram comments edge supports filtering by
+# timestamp at all, so `since` could never do anything. With no real caller
+# yet (nothing in Sprints 05-07 ever invoked this route), internal_service.py
+# now walks every page of every requested post internally and persists as it
+# goes, so client-facing cursoring has nothing left to represent either.
 class CommentsSyncRequest(BaseModel):
     social_account_id: str | None = Field(default=None, alias="socialAccountId")
     provider: str
     publication_external_ids: list[str] = Field(
         default_factory=list, alias="publicationExternalIds"
     )
-    since: str | None = None
-    cursor: str | None = None
     limit: int = 100
 
     model_config = {"populate_by_name": True}
@@ -65,16 +71,23 @@ class CommentsSyncRequest(BaseModel):
 
 class CommentsSyncResponse(BaseModel):
     comments: list[CommentSyncItem]
-    next_cursor: str | None = Field(default=None, alias="nextCursor")
-    has_more: bool = Field(default=False, alias="hasMore")
 
     model_config = {"populate_by_name": True, "validate_by_alias": True}
 
 
+# Sprint 08 Day 5: takes Hootly's own comment id, not a provider/external-id
+# pair — nothing before this sprint had a `social_comments` row to resolve
+# through, so the original shape (mirroring publish/sync's socialAccountId+
+# provider) never had anything to key off of. graph-api now derives the
+# social account, provider, and external comment id from the comment row
+# itself (the single source of truth it already owns), so the caller no
+# longer needs to know or repeat any of that. `user_id` is who to attribute
+# the reply and the resulting status change to — same reasoning as
+# AuthorizationUrlRequest.user_id: the caller is a service JWT, not a user
+# JWT, so the acting user has to be named explicitly in the body.
 class CommentsReplyRequest(BaseModel):
-    social_account_id: str | None = Field(default=None, alias="socialAccountId")
-    provider: str
-    external_comment_id: str = Field(alias="externalCommentId")
+    comment_id: str = Field(alias="commentId")
+    user_id: str = Field(alias="userId")
     text: str
 
     model_config = {"populate_by_name": True}
