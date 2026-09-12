@@ -1,4 +1,6 @@
+import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -23,6 +25,7 @@ import {
 import { accountsApi } from '@/data/api';
 import { useAsync } from '@/hooks/useAsync';
 import { formatDate } from '@/lib/format';
+import { useSession } from '@/store/SessionProvider';
 import { palette, spacing } from '@/theme';
 import type { SocialAccount, SocialNetwork } from '@/types';
 
@@ -34,19 +37,46 @@ import type { SocialAccount, SocialNetwork } from '@/types';
  */
 export default function SocialAccountsScreen() {
   const router = useRouter();
+  const { brand } = useSession();
   const { confirm, toast } = useFeedback();
 
-  const request = useAsync(() => accountsApi.list(), []);
+  const request = useAsync(() => accountsApi.list(brand?.id ?? '', brand?.name ?? ''), []);
   const [busy, setBusy] = useState<{ id: string; action: 'sync' | 'reconnect' | 'disconnect' } | undefined>();
   const [connecting, setConnecting] = useState<SocialNetwork | undefined>(undefined);
   const [permissionsFor, setPermissionsFor] = useState<SocialAccount | undefined>(undefined);
 
   const accounts = request.data ?? [];
 
+  /**
+   * Opens Meta's consent screen in a managed browser tab and waits for it to
+   * redirect back to `redirectUri`. The token is exchanged and stored
+   * server-side; only a non-sensitive status ever comes back through the URL
+   * (see app/oauth/callback.tsx's typed params - no `token` field, ever).
+   */
+  const runOAuthFlow = async (authorizationUrl: string, redirectUri: string, network: SocialNetwork) => {
+    const result = await WebBrowser.openAuthSessionAsync(authorizationUrl, redirectUri);
+
+    if (result.type === 'success' && result.url) {
+      const { queryParams } = Linking.parse(result.url);
+      router.push({
+        pathname: '/oauth/callback',
+        params: {
+          status: String(queryParams?.status ?? 'error'),
+          network: String(queryParams?.network ?? network) as SocialNetwork,
+          ...(queryParams?.account ? { account: String(queryParams.account) } : {}),
+          ...(queryParams?.reason ? { reason: String(queryParams.reason) } : {}),
+        },
+      });
+    } else {
+      router.push({ pathname: '/oauth/callback', params: { status: 'cancelled', network } });
+    }
+    await request.reload();
+  };
+
   const sync = async (account: SocialAccount) => {
     setBusy({ id: account.id, action: 'sync' });
     try {
-      const updated = await accountsApi.sync(account.id);
+      const updated = await accountsApi.sync(account.id, brand?.id ?? '', brand?.name ?? '');
       request.setData((current) => current.map((item) => (item.id === updated.id ? updated : item)));
       toast('Synchronisation terminée.', 'success');
     } catch {
@@ -59,14 +89,9 @@ export default function SocialAccountsScreen() {
   const reconnect = async (account: SocialAccount) => {
     setBusy({ id: account.id, action: 'reconnect' });
     try {
-      // A real implementation opens the provider's OAuth flow in a web browser
-      // session and returns through the `/oauth/callback` deep link.
-      const updated = await accountsApi.reconnect(account.id);
-      request.setData((current) => current.map((item) => (item.id === updated.id ? updated : item)));
-      router.push({
-        pathname: '/oauth/callback',
-        params: { status: 'success', network: account.network, account: account.username },
-      });
+      const redirectUri = Linking.createURL('oauth/callback');
+      const { authorizationUrl } = await accountsApi.reconnect(account, redirectUri);
+      await runOAuthFlow(authorizationUrl, redirectUri, account.network);
     } catch {
       toast('La reconnexion a échoué. Réessayez.', 'error');
     } finally {
@@ -97,14 +122,12 @@ export default function SocialAccountsScreen() {
   };
 
   const connect = async (network: SocialNetwork) => {
+    if (!brand?.id) return;
     setConnecting(network);
     try {
-      const created = await accountsApi.connect(network);
-      request.setData((current) => [...current, created]);
-      router.push({
-        pathname: '/oauth/callback',
-        params: { status: 'success', network, account: created.username },
-      });
+      const redirectUri = Linking.createURL('oauth/callback');
+      const { authorizationUrl } = await accountsApi.connect(network, brand.id, redirectUri);
+      await runOAuthFlow(authorizationUrl, redirectUri, network);
     } catch {
       router.push({ pathname: '/oauth/callback', params: { status: 'error', network } });
     } finally {

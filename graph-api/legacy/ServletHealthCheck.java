@@ -12,13 +12,13 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-@WebServlet(name = "ServletgraphApi", urlPatterns = {"/download"})
-public class ServletgraphApi extends HttpServlet {
+@WebServlet(name = "ServletHealthCheck", urlPatterns = {"/api/health"})
+public class ServletHealthCheck extends HttpServlet {
 
-    // Configuration statique du backend externe
-    private static final String BACKEND_IP = "192.168.16.93";
+    // Legacy reference file, not part of the running app (see legacy/README.md).
+    // The original hardcoded internal IP was removed during Sprint 05 hardening.
+    private static final String BACKEND_IP = "REPLACE_WITH_BACKEND_HOST";
     private static final String BACKEND_PORT = "8000";
-    private static final String BACKEND_PATH = "/facebook/endpoint";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -27,22 +27,11 @@ public class ServletgraphApi extends HttpServlet {
         response.setCharacterEncoding("UTF-8");
 
         PrintWriter out = response.getWriter();
-        out.print("{\"status\":\"ok\",\"message\":\"Servlet active\"}");
-        out.flush();
-    }
-
-    @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        PrintWriter out = response.getWriter();
         HttpURLConnection connection = null;
-        BufferedReader reader = null;           
+        BufferedReader reader = null;
 
         try {
-            String endpoint = "http://" + BACKEND_IP + ":" + BACKEND_PORT + BACKEND_PATH;
+            String endpoint = "http://" + BACKEND_IP + ":" + BACKEND_PORT + "/health";
 
             URL url = new URL(endpoint);
             connection = (HttpURLConnection) url.openConnection();

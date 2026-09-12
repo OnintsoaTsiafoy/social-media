@@ -27,11 +27,14 @@ export type CommentStatus = 'new' | 'untreated' | 'treated' | 'ignored' | 'escal
 
 export type ResponseStatus = 'proposed' | 'edited' | 'approved' | 'rejected' | 'sent' | 'failed';
 
+// Matches the backend's SocialAccountStatus enum verbatim (lowercased on the
+// wire, like Brand.status) — one canonical vocabulary end-to-end instead of
+// a translation map (Sprint 06 Day 5).
 export type AccountStatus =
   | 'connected'
-  | 'expiring_soon'
+  | 'expiring'
   | 'expired'
-  | 'reconnect_required'
+  | 'reauth_required'
   | 'revoked'
   | 'disconnected';
 

@@ -202,7 +202,7 @@ export function ComposerForm({
             {accounts.map((account) => {
               const selected = draft.networks.includes(account.network);
               const blocked =
-                account.status !== 'connected' && account.status !== 'expiring_soon';
+                account.status !== 'connected' && account.status !== 'expiring';
               const status = accountStatusMeta[account.status];
 
               return (

@@ -5,6 +5,7 @@ export const QUEUES = {
   publishNow: 'publish-publication-now',
   retryFailed: 'retry-failed-publication',
   cleanupTemporaryMedia: 'cleanup-temporary-media',
+  refreshExpiringTokens: 'refresh-expiring-oauth-tokens',
 };
 
 export const ALL_QUEUES = Object.values(QUEUES);

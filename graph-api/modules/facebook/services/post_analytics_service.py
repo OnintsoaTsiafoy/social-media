@@ -1,11 +1,18 @@
 from datetime import datetime
 
-from modules.facebook.clients.facebook_client import facebook_client
+from core.exceptions import GraphAPIError
+from modules.facebook.clients.facebook_client import FacebookClient, facebook_client
 from modules.facebook.schemas.post_analytics import MediaItem, PostAnalyticsResponse
 
 
-async def get_post_analytics(post_id: str) -> PostAnalyticsResponse:
-    """Récupère une vue analytique complète d'une publication Facebook."""
+async def get_post_analytics(
+    post_id: str, client: FacebookClient = facebook_client
+) -> PostAnalyticsResponse:
+    """Récupère une vue analytique complète d'une publication Facebook.
+
+    ``client`` defaults to the legacy global singleton (/facebook/*); Sprint 07
+    passes a per-account client (real token) from /internal/v1 instead.
+    """
 
     # --- 1. Données du post (date, réactions, commentaires, partages, médias) ---
     post_fields = (
@@ -14,30 +21,40 @@ async def get_post_analytics(post_id: str) -> PostAnalyticsResponse:
         "reactions.summary(true),"
         "comments.summary(true),"
         "shares,"
-        "attachments{media_type,media,url}"
+        "attachments{media_type,media,url,subattachments{media_type,media,url}}"
     )
-    post_data = await facebook_client.get(post_id, params={"fields": post_fields})
+    post_data = await client.get(post_id, params={"fields": post_fields})
 
     # --- 2. Insights du post (impressions, reach, clics) ---
     # Les métriques disponibles varient selon la version de l'API et les permissions.
-    # On tente l'appel et on retourne 0 si les métriques ne sont pas accessibles.
+    # Une erreur Meta explicite (permission, rate limit, config, réseau — tout ce
+    # que le client traduit en GraphAPIError) rend les métriques indisponibles
+    # (None), distinct d'un zéro réellement retourné par Meta (Sprint 05 Day 4).
+    # Une exception inattendue, elle, n'est pas masquée et continue de se propager.
     insights_data: dict = {}
+    insights_available = True
     try:
-        insights_data = await facebook_client.get(
+        insights_data = await client.get(
             f"{post_id}/insights",
             params={
                 "metric": "post_impressions_unique,post_impressions,post_clicks_unique,post_clicks",
                 "period": "lifetime",
             },
         )
-    except Exception:
-        insights_data = {}
+    except GraphAPIError:
+        insights_available = False
 
     # --- Parsing de la date et heure ---
-    created_time = post_data.get("created_time", "")
-    dt = datetime.fromisoformat(created_time.replace("Z", "+00:00"))
-    date_str = dt.strftime("%Y-%m-%d")
-    time_str = dt.strftime("%H:%M:%S")
+    # Meta omits created_time for some post types/permission scopes: treat a
+    # missing value as "indisponible" (null) instead of crashing (Sprint 05 Day 2).
+    created_time = post_data.get("created_time") or ""
+    if created_time:
+        dt = datetime.fromisoformat(created_time.replace("Z", "+00:00"))
+        date_str: str | None = dt.strftime("%Y-%m-%d")
+        time_str: str | None = dt.strftime("%H:%M:%S")
+    else:
+        date_str = None
+        time_str = None
 
     # --- Texte de la publication ---
     message = post_data.get("message")
@@ -52,19 +69,23 @@ async def get_post_analytics(post_id: str) -> PostAnalyticsResponse:
     shares_count = post_data.get("shares", {}).get("count", 0)
 
     # --- Insights (impressions, reach & clics) ---
-    impressions = 0
-    reach = 0
-    clicks = 0
-    for metric in insights_data.get("data", []):
-        name = metric.get("name")
-        values = metric.get("values", [{}])
-        value = values[0].get("value", 0) if values else 0
-        if name == "post_impressions":
-            impressions = value
-        elif name == "post_impressions_unique":
-            reach = value
-        elif name in ("post_clicks", "post_clicks_unique"):
-            clicks = value
+    # None = indisponible (l'appel Meta a échoué) ; 0 = Meta a réellement
+    # répondu zéro pour cette métrique.
+    impressions: int | None = None
+    reach: int | None = None
+    clicks: int | None = None
+    if insights_available:
+        impressions = reach = clicks = 0
+        for metric in insights_data.get("data", []):
+            name = metric.get("name")
+            values = metric.get("values", [{}])
+            value = values[0].get("value", 0) if values else 0
+            if name == "post_impressions":
+                impressions = value
+            elif name == "post_impressions_unique":
+                reach = value
+            elif name in ("post_clicks", "post_clicks_unique"):
+                clicks = value
 
     # --- Médias (images / vidéos) ---
     media: list[MediaItem] = []

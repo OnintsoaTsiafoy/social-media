@@ -52,7 +52,7 @@ export default function EditPublicationScreen() {
   const mutation = useMutation();
 
   const request = useAsync(() => publicationsApi.get(id), [id]);
-  const accounts = useAsync(() => accountsApi.list(), []);
+  const accounts = useAsync(() => accountsApi.list(brand?.id ?? '', brand?.name ?? ''), []);
   const [errors, setErrors] = useState<ComposerErrors>({});
 
   const publication = request.data;

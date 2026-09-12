@@ -38,7 +38,14 @@ function brandIdFrom(request) {
   return request.brandId;
 }
 
-router.param('brandId', (request, _response, value, next) => {
+// Express's param-callback signature is (req, res, next, value) — next
+// third, value fourth. This was previously swapped, which meant the try
+// block below ran with the real `next` function bound to the `value`
+// parameter (crashing the *next* time it was called with an actual value),
+// and the actual string value bound to `next` (making `next(error)` in the
+// catch block throw "next is not a function"). Confirmed live: every
+// :brandId route 500'd before this fix.
+router.param('brandId', (request, _response, next, value) => {
   try {
     request.brandId = parse(brandIdSchema, value);
     next();

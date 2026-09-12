@@ -10,11 +10,23 @@ import http from 'node:http';
 
 import PgBoss from 'pg-boss';
 
+import { mockSocialProvider } from '../shared/social-provider.js';
 import { ALL_QUEUES, QUEUES } from '../shared/jobs.js';
 import { createMediaCleanup } from './src/cleanup-media.js';
 import { createDeliveryService } from './src/delivery.js';
 import { closePool, query } from './src/db.js';
-import { deleteObject, isStorageConfigured } from './src/storage.js';
+import { defaultRefreshToken } from './src/social-account-client.js';
+import { createSocialHttpProvider } from './src/social-http-provider.js';
+import { deleteObject, isStorageConfigured, signedReadUrl } from './src/storage.js';
+import { createTokenRefresh } from './src/token-refresh.js';
+
+// 'live' (default, Sprint 07): real Facebook/Instagram delivery via
+// graph-api. 'mock' stays available for a demo/staging environment with no
+// real Meta accounts configured yet — set SOCIAL_PROVIDER_MODE=mock to use
+// the deterministic connector (see services/shared/social-provider.js's
+// [[FAIL_*]]/[[TIMEOUT]] markers).
+const socialProviderMode = process.env.SOCIAL_PROVIDER_MODE?.trim().toLowerCase() || 'live';
+const socialProvider = socialProviderMode === 'mock' ? mockSocialProvider : createSocialHttpProvider();
 
 const port = Number(process.env.PORT ?? 3001);
 const state = { boss: undefined, queues: [], startedAt: undefined, lastError: undefined };
@@ -34,6 +46,10 @@ async function startBoss() {
 
   const delivery = createDeliveryService({
     query,
+    provider: socialProvider,
+    signMedia: isStorageConfigured()
+      ? (bucket, key) => signedReadUrl(bucket, key)
+      : async () => null,
     scheduleRetry: ({ publicationId, providers, attempt, requestedBy, delaySeconds }) =>
       boss.sendAfter(
         QUEUES.retryFailed,
@@ -44,6 +60,7 @@ async function startBoss() {
   });
 
   const mediaCleanup = createMediaCleanup({ query, deleteObject });
+  const tokenRefresh = createTokenRefresh({ query, refreshToken: defaultRefreshToken });
 
   await boss.work(QUEUES.publishScheduled, async (jobs) => {
     for (const job of jobs) {
@@ -77,6 +94,16 @@ async function startBoss() {
   // Nettoyage horaire des objets temporaires laissés par un composeur abandonné.
   await boss.schedule(QUEUES.cleanupTemporaryMedia, '0 * * * *', { olderThanHours: 24 });
 
+  await boss.work(QUEUES.refreshExpiringTokens, async (jobs) => {
+    for (const job of jobs) {
+      const result = await tokenRefresh.run(job.data ?? {});
+      console.log({ scope: 'token-refresh', ...result });
+    }
+  });
+
+  // Revalidation quotidienne des comptes sociaux connectés (Sprint 06 Jour 4).
+  await boss.schedule(QUEUES.refreshExpiringTokens, '0 3 * * *', {});
+
   state.boss = boss;
   state.queues = ALL_QUEUES;
   state.startedAt = new Date().toISOString();
@@ -98,6 +125,10 @@ const server = http.createServer((request, response) => {
   if (request.url === '/ready') {
     const missing = [];
     if (!process.env.DATABASE_URL?.trim()) missing.push('DATABASE_URL');
+    // Only required in 'live' mode: 'mock' never calls graph-api at all.
+    if (socialProviderMode === 'live' && !process.env.SOCIAL_SERVICE_URL?.trim()) {
+      missing.push('SOCIAL_SERVICE_URL');
+    }
     if (missing.length > 0) {
       body(503, { status: 'not_ready', service: 'worker', reason: 'database_url_missing', missing });
       return;

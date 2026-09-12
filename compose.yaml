@@ -48,6 +48,7 @@ services:
       JWT_AUDIENCE: ${JWT_AUDIENCE}
       ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS}
       REFRESH_TOKEN_TTL_SECONDS: ${REFRESH_TOKEN_TTL_SECONDS}
+      SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET}
       S3_ENDPOINT: ${S3_ENDPOINT}
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT}
       S3_REGION: ${S3_REGION}
@@ -76,11 +77,19 @@ services:
     environment:
       PORT: 3001
       DATABASE_URL: ${DATABASE_URL}
+      # Sprint 07: the worker calls graph-api directly to deliver a
+      # publication (docs/DECISIONS_ARCHITECTURE.md's Worker --> Social
+      # edge), and signs the publication's media so graph-api can fetch it.
+      SOCIAL_SERVICE_URL: ${SOCIAL_SERVICE_URL}
+      SOCIAL_PROVIDER_MODE: ${SOCIAL_PROVIDER_MODE}
       S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT}
       S3_REGION: ${S3_REGION}
       S3_ACCESS_KEY: ${MINIO_ROOT_USER}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       MEDIA_BUCKET: ${MEDIA_BUCKET}
+      MEDIA_URL_TTL_SECONDS: ${MEDIA_URL_TTL_SECONDS}
+      SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET}
     # Publié pour que `scripts/verify-readiness.ps1` interroge la sonde du worker.
     ports:
       - "3001:3001"
@@ -100,8 +109,26 @@ services:
       context: ./graph-api
     environment:
       GRAPH_API_BASE_URL: https://graph.facebook.com/v25.0
+      # Previously missing: without these, /ready always reported
+      # meta_configuration_missing under Compose regardless of the values in
+      # graph-api/.env (fixed alongside the Sprint 05 JWT wiring below).
+      FACEBOOK_APP_ID: ${FACEBOOK_APP_ID}
+      FACEBOOK_PAGE_ID: ${FACEBOOK_PAGE_ID}
+      FACEBOOK_PAGE_ACCESS_TOKEN: ${FACEBOOK_PAGE_ACCESS_TOKEN}
+      FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET}
+      PUBLIC_BASE_URL: ${SOCIAL_SERVICE_PUBLIC_URL}
+      SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET}
+      # Sprint 06: graph-api's own connection for social_accounts/oauth_tokens/
+      # social_permissions/oauth_states/service_idempotency_keys (raw SQL —
+      # Prisma still owns the migration, see services/api/prisma/schema.prisma).
+      DATABASE_URL: ${DATABASE_URL}
+      TOKEN_ENCRYPTION_KEY_CURRENT_VERSION: ${TOKEN_ENCRYPTION_KEY_CURRENT_VERSION}
+      TOKEN_ENCRYPTION_KEY_1: ${TOKEN_ENCRYPTION_KEY_1}
     ports:
       - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval: 5s

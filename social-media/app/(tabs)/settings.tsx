@@ -25,13 +25,13 @@ import { palette, spacing } from '@/theme';
  */
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, signOut } = useSession();
+  const { user, brand, signOut } = useSession();
   const { confirm, toast } = useFeedback();
 
-  const accounts = useAsync(() => accountsApi.list(), []);
+  const accounts = useAsync(() => accountsApi.list(brand?.id ?? '', brand?.name ?? ''), []);
 
   const needsReconnect = (accounts.data ?? []).filter(
-    (account) => account.status !== 'connected' && account.status !== 'expiring_soon'
+    (account) => account.status !== 'connected' && account.status !== 'expiring'
   ).length;
 
   const languageLabel =

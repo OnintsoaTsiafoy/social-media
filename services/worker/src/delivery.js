@@ -30,10 +30,20 @@ const CLAIM_PUBLICATION = `
 `;
 
 const SELECT_TARGETS = `
-  SELECT id, provider, status, adapted_content, adapted_hashtags, attempt_count
+  SELECT id, provider, social_account_id, status, adapted_content, adapted_hashtags, attempt_count
     FROM publication_targets
    WHERE publication_id = $1::uuid
    ORDER BY provider
+`;
+
+// One image per publication (ADR-08's MVP scope), shared across every
+// target — a per-network media override doesn't exist yet.
+const SELECT_PUBLICATION_MEDIA = `
+  SELECT m.bucket, m.object_key
+    FROM publication_media pm
+    JOIN media m ON m.id = pm.media_id
+   WHERE pm.publication_id = $1::uuid
+   ORDER BY pm.position
 `;
 
 const CLAIM_TARGET = `
@@ -102,9 +112,13 @@ export function createDeliveryService({
   query,
   provider = { deliver: defaultDeliver },
   scheduleRetry = async () => null,
+  // Sprint 07: signs the publication's media for a provider that actually
+  // calls Meta (graph-api needs a URL it can fetch, not a storage key). The
+  // mock ignores mediaUrls entirely, so tests can omit this dependency.
+  signMedia = async () => null,
   logger = console,
 }) {
-  async function deliverTarget(publication, target) {
+  async function deliverTarget(publication, target, mediaUrls) {
     // Verrou conditionnel : si la cible n'est plus livrable (déjà envoyée ou
     // prise par un autre worker), on ne l'envoie pas.
     const [claimed] = await query(CLAIM_TARGET, [target.id]);
@@ -126,9 +140,12 @@ export function createDeliveryService({
     try {
       const result = await provider.deliver({
         publicationId: publication.id,
+        publicationTargetId: target.id,
+        socialAccountId: target.social_account_id ?? null,
         provider: target.provider,
         content,
         attemptNumber,
+        mediaUrls: mediaUrls ?? [],
       });
 
       await query(FINISH_ATTEMPT_OK, [attempt.id, result.externalPublicationId]);
@@ -186,9 +203,16 @@ export function createDeliveryService({
     const rows = await query(SELECT_TARGETS, [publicationId]);
     const targets = selectDeliverableTargets(rows, providers);
 
+    const mediaRows = await query(SELECT_PUBLICATION_MEDIA, [publicationId]);
+    const mediaUrls = [];
+    for (const media of mediaRows) {
+      const signed = await signMedia(media.bucket, media.object_key);
+      if (signed?.url) mediaUrls.push(signed.url);
+    }
+
     const results = [];
     for (const target of targets) {
-      results.push(await deliverTarget(context, target));
+      results.push(await deliverTarget(context, target, mediaUrls));
     }
 
     const status = await refreshPublicationStatus(publicationId);

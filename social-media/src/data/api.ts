@@ -468,64 +468,112 @@ export const brandsApi = {
 };
 
 // ---------------------------------------------------------------------------
-// Social accounts
+// Social accounts (Sprint 06) - real backend, no more fixtures.
 // ---------------------------------------------------------------------------
 
+type RemoteSocialAccount = {
+  id: string;
+  provider: SocialNetwork;
+  externalAccountId: string;
+  name: string;
+  username: string | null;
+  avatarUrl: string | null;
+  status: SocialAccount['status'];
+  authMethod: 'facebook_page' | 'instagram_login';
+  connectedAt: string;
+  lastCommentsSyncAt: string | null;
+  lastMetricsSyncAt: string | null;
+  permissions: { permission: string; granted: boolean }[];
+};
+
+/** Meta's raw permission slugs, worded for someone who isn't a developer. */
+const PERMISSION_LABELS: Record<string, string> = {
+  pages_show_list: 'Lister les pages',
+  pages_read_engagement: 'Lire les statistiques d’engagement',
+  pages_manage_posts: 'Publier du contenu',
+  pages_manage_engagement: 'Répondre aux commentaires',
+  business_management: 'Gestion Business Manager',
+  instagram_business_basic: 'Profil Instagram',
+  instagram_business_content_publish: 'Publier sur Instagram',
+  instagram_business_manage_comments: 'Gérer les commentaires Instagram',
+  instagram_business_manage_insights: 'Statistiques Instagram',
+};
+
+function accountKind(remote: RemoteSocialAccount): string {
+  if (remote.provider === 'facebook') return 'Page Facebook';
+  return remote.authMethod === 'instagram_login' ? 'Compte Instagram' : 'Compte Instagram lié';
+}
+
+function mostRecent(a: string | null, b: string | null): string | null {
+  if (!a) return b;
+  if (!b) return a;
+  return a > b ? a : b;
+}
+
+function fromRemoteAccount(remote: RemoteSocialAccount, brandId: string, brandName: string): SocialAccount {
+  return {
+    id: remote.id,
+    network: remote.provider,
+    name: remote.name,
+    username: remote.username ?? remote.name,
+    externalId: remote.externalAccountId,
+    kind: accountKind(remote),
+    brandId,
+    brandName,
+    status: remote.status,
+    permissions: remote.permissions.map((permission) => ({
+      label: PERMISSION_LABELS[permission.permission] ?? permission.permission,
+      granted: permission.granted,
+    })),
+    connectedAt: remote.connectedAt,
+    // Facebook Page tokens don't expire the way a classic OAuth token does
+    // (see graph-api/modules/oauth/account_service.py); Express also never
+    // reads oauth_tokens directly (graph-api-only, even non-sensitive
+    // fields) so there is deliberately nothing to source this from yet.
+    tokenExpiresAt: null,
+    lastSyncAt: mostRecent(remote.lastCommentsSyncAt, remote.lastMetricsSyncAt),
+  };
+}
+
+export type OAuthHandoff = { authorizationUrl: string; oauthState: string };
+
 export const accountsApi = {
-  async list(): Promise<SocialAccount[]> {
-    return request(() => clone(store.accounts));
+  async list(brandId: string, brandName: string): Promise<SocialAccount[]> {
+    const remote = await fetchApi<RemoteSocialAccount[]>(
+      `/api/v1/social-accounts?brandId=${encodeURIComponent(brandId)}`,
+      {},
+      true
+    );
+    return remote.map((account) => fromRemoteAccount(account, brandId, brandName));
   },
-  async sync(id: string): Promise<SocialAccount> {
-    return request(() => {
-      const account = store.accounts.find((a) => a.id === id);
-      if (!account) throw new ApiError('not_found', errorMessages.not_found);
-      if (account.status === 'expired' || account.status === 'reconnect_required') {
-        throw new ApiError('token_expired', errorMessages.token_expired);
-      }
-      account.lastSyncAt = new Date().toISOString();
-      return clone(account);
-    }, 900);
+
+  /** Revalidates the connection against Meta (catches a silent revocation);
+   * there is no comments/metrics sync yet (Sprint 08/12). */
+  async sync(id: string, brandId: string, brandName: string): Promise<SocialAccount> {
+    const remote = await fetchApi<RemoteSocialAccount>(
+      `/api/v1/social-accounts/${id}/sync`,
+      { method: 'POST' },
+      true
+    );
+    return fromRemoteAccount(remote, brandId, brandName);
   },
-  async reconnect(id: string): Promise<SocialAccount> {
-    return request(() => {
-      const account = store.accounts.find((a) => a.id === id);
-      if (!account) throw new ApiError('not_found', errorMessages.not_found);
-      account.status = 'connected';
-      account.tokenExpiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 60).toISOString();
-      account.lastSyncAt = new Date().toISOString();
-      return clone(account);
-    }, 1200);
+
+  /** Starts (or restarts) an OAuth round-trip; the account itself only
+   * exists once the browser flow completes server-side. */
+  async connect(network: SocialNetwork, brandId: string, mobileRedirectUri: string): Promise<OAuthHandoff> {
+    return fetchApi<OAuthHandoff>(
+      `/api/v1/social-accounts/${network}/connect`,
+      { method: 'POST', body: JSON.stringify({ brandId, mobileRedirectUri }) },
+      true
+    );
   },
-  async connect(network: SocialNetwork): Promise<SocialAccount> {
-    return request(() => {
-      const account: SocialAccount = {
-        id: makeId('acc'),
-        network,
-        name: network === 'facebook' ? 'Nouvelle page' : 'nouveau.compte',
-        username: network === 'facebook' ? '@nouvellepage' : '@nouveau.compte',
-        externalId: makeId('ext'),
-        kind: network === 'facebook' ? 'Page Facebook' : 'Compte professionnel Instagram',
-        brandId: store.activeBrandId,
-        brandName: store.brands.find((b) => b.id === store.activeBrandId)?.name ?? '',
-        status: 'connected',
-        permissions: [
-          { label: 'Publier du contenu', granted: true },
-          { label: 'Lire les commentaires', granted: true },
-          { label: 'Répondre aux commentaires', granted: true },
-          { label: 'Statistiques avancées', granted: false },
-        ],
-        connectedAt: new Date().toISOString(),
-        tokenExpiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 60).toISOString(),
-        lastSyncAt: new Date().toISOString(),
-      };
-      store.accounts.push(account);
-      return clone(account);
-    }, 1400);
+
+  async reconnect(account: SocialAccount, mobileRedirectUri: string): Promise<OAuthHandoff> {
+    return accountsApi.connect(account.network, account.brandId, mobileRedirectUri);
   },
+
   async disconnect(id: string): Promise<void> {
-    return request(() => {
-      store.accounts = store.accounts.filter((a) => a.id !== id);
-    }, 700);
+    await fetchApi(`/api/v1/social-accounts/${id}`, { method: 'DELETE' }, true);
   },
 };
 
@@ -570,6 +618,8 @@ type RemoteMedia = {
 type RemotePublicationTarget = {
   provider: SocialNetwork;
   socialAccountId: string | null;
+  /** `null` until the target is linked to a real social_accounts row (Sprint 06). */
+  accountUsername: string | null;
   status: 'pending' | 'sending' | 'sent' | 'failed';
   adaptedContent: string | null;
   adaptedHashtags: string[];
@@ -645,9 +695,8 @@ function fromRemotePublication(publication: RemotePublication): Publication {
     media: publication.media[0] ? fromRemoteMedia(publication.media[0]) : null,
     targets: publication.targets.map((target) => ({
       network: target.provider,
-      // Les comptes sociaux liés arrivent au Sprint 06 (OAuth).
       accountId: target.socialAccountId ?? '',
-      accountUsername: '',
+      accountUsername: target.accountUsername ?? '',
       status: fromRemoteTargetStatus(target.status),
       sentAt: target.sentAt,
       attempts: target.attemptCount,
@@ -1035,7 +1084,7 @@ export const commentsApi = {
   async sync(): Promise<{ imported: number }> {
     return request(() => {
       const expired = store.accounts.find(
-        (a) => a.status === 'expired' || a.status === 'reconnect_required'
+        (a) => a.status === 'expired' || a.status === 'reauth_required'
       );
       if (expired) throw new ApiError('token_expired', errorMessages.token_expired);
       return { imported: 0 };
@@ -1138,7 +1187,7 @@ export const commentsApi = {
         throw new ApiError('conflict', 'Cette réponse a déjà été envoyée.');
       }
       const account = store.accounts.find((a) => a.network === comment.network);
-      if (!account || account.status === 'expired' || account.status === 'reconnect_required') {
+      if (!account || account.status === 'expired' || account.status === 'reauth_required') {
         throw new ApiError('token_expired', errorMessages.token_expired);
       }
       comment.response = {

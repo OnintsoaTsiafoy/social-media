@@ -12,10 +12,12 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-@WebServlet(name = "ServletHealthCheck", urlPatterns = {"/api/health"})
-public class ServletHealthCheck extends HttpServlet {
+@WebServlet(name = "ServletPostsStats", urlPatterns = {"/api/facebook/posts/stats/*"})
+public class ServletPostsStats extends HttpServlet {
 
-    private static final String BACKEND_IP = "192.168.16.93";
+    // Legacy reference file, not part of the running app (see legacy/README.md).
+    // The original hardcoded internal IP was removed during Sprint 05 hardening.
+    private static final String BACKEND_IP = "REPLACE_WITH_BACKEND_HOST";
     private static final String BACKEND_PORT = "8000";
 
     @Override
@@ -29,7 +31,16 @@ public class ServletHealthCheck extends HttpServlet {
         BufferedReader reader = null;
 
         try {
-            String endpoint = "http://" + BACKEND_IP + ":" + BACKEND_PORT + "/health";
+            String pathInfo = request.getPathInfo();
+            if (pathInfo == null || pathInfo.isEmpty()) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                out.print("{\"error\":\"post_id manquant\"}");
+                out.flush();
+                return;
+            }
+
+            // pathInfo format: /post_id/stats ou /post_id/analytics ou /post_id/insights
+            String endpoint = "http://" + BACKEND_IP + ":" + BACKEND_PORT + "/facebook/posts" + pathInfo;
 
             URL url = new URL(endpoint);
             connection = (HttpURLConnection) url.openConnection();

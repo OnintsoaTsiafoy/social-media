@@ -16,6 +16,7 @@ from modules.facebook.schemas.posts import (
     ScheduledPostResponse,
     ScheduledPostUpdate,
 )
+from modules.facebook.schemas.pagination import PaginatedList
 from modules.facebook.schemas.post_analytics import PostAnalyticsResponse
 from modules.facebook.schemas.post_insights import PostInsightsResponse
 from modules.facebook.schemas.stories import StoryCreateResponse, StoryResponse
@@ -43,15 +44,22 @@ from modules.facebook.services.stories_service import create_story, delete_story
 router = APIRouter(prefix="/facebook", tags=["Facebook"])
 
 
-@router.get("/posts", response_model=list[PostResponse])
-async def list_posts(since: str | None = None, until: str | None = None):
+@router.get("/posts", response_model=PaginatedList[PostResponse])
+async def list_posts(
+    since: str | None = None,
+    until: str | None = None,
+    limit: int = 25,
+    after: str | None = None,
+    before: str | None = None,
+):
     """Récupère les publications de la page Facebook.
-    
+
     Query parameters:
     - since: Date de début (format ISO: "2024-01-01")
     - until: Date de fin (format ISO: "2024-12-31")
+    - limit, after, before: pagination par curseur
     """
-    return await get_page_posts(since=since, until=until)
+    return await get_page_posts(since=since, until=until, limit=limit, after=after, before=before)
 
 
 @router.post("/posts", response_model=PostCreateResponse, status_code=201)
@@ -104,10 +112,10 @@ async def schedule_post(
     )
 
 
-@router.get("/scheduled-posts", response_model=list[ScheduledPostResponse])
-async def get_scheduled_posts():
+@router.get("/scheduled-posts", response_model=PaginatedList[ScheduledPostResponse])
+async def get_scheduled_posts(limit: int = 25, after: str | None = None, before: str | None = None):
     """Liste les publications Facebook programmees."""
-    return await list_scheduled_posts()
+    return await list_scheduled_posts(limit=limit, after=after, before=before)
 
 
 @router.put("/scheduled-posts/{post_id}", response_model=PostCreateResponse)
@@ -137,16 +145,20 @@ async def remove_scheduled_post(post_id: str):
     return await delete_scheduled_post(post_id)
 
 
-@router.get("/posts/{post_id}/comments", response_model=list[CommentResponse])
-async def list_post_comments(post_id: str):
+@router.get("/posts/{post_id}/comments", response_model=PaginatedList[CommentResponse])
+async def list_post_comments(
+    post_id: str, limit: int = 25, after: str | None = None, before: str | None = None
+):
     """Récupère les commentaires d'une publication Facebook."""
-    return await get_post_comments(post_id)
+    return await get_post_comments(post_id, limit=limit, after=after, before=before)
 
 
-@router.get("/comments/{comment_id}/replies", response_model=list[ReplyResponse])
-async def list_comment_replies(comment_id: str):
+@router.get("/comments/{comment_id}/replies", response_model=PaginatedList[ReplyResponse])
+async def list_comment_replies(
+    comment_id: str, limit: int = 25, after: str | None = None, before: str | None = None
+):
     """Récupère les réponses à un commentaire Facebook."""
-    return await get_comment_replies(comment_id)
+    return await get_comment_replies(comment_id, limit=limit, after=after, before=before)
 
 
 @router.post("/comments/{comment_id}/reply", response_model=ReplyCreateResponse, status_code=201)
@@ -191,10 +203,10 @@ async def publish_story(
     return await create_story(file=file, message=message)
 
 
-@router.get("/stories", response_model=list[StoryResponse])
-async def get_stories():
+@router.get("/stories", response_model=PaginatedList[StoryResponse])
+async def get_stories(limit: int = 25, after: str | None = None, before: str | None = None):
     """Liste les stories de la page."""
-    return await list_stories()
+    return await list_stories(limit=limit, after=after, before=before)
 
 
 @router.delete("/stories/{story_id}")

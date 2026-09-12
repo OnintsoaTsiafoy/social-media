@@ -43,6 +43,53 @@ test('scénario nominal : les deux réseaux reçoivent la publication', async ()
   assert.deepEqual(db.state.attempts.map((attempt) => attempt.status), ['SUCCEEDED', 'SUCCEEDED']);
 });
 
+test('le provider reçoit le compte social résolu et les URL de médias signées (Sprint 07)', async () => {
+  const db = createFakeDb({
+    publications: [
+      { id: PUBLICATION_ID, brand_id: 'brand-1', content: 'Une photo', hashtags: [], status: 'SCHEDULED', published_at: null },
+    ],
+    targets: [
+      {
+        id: 'target-fb',
+        publication_id: PUBLICATION_ID,
+        provider: 'FACEBOOK',
+        social_account_id: 'account-42',
+        status: 'PENDING',
+        attempt_count: 0,
+      },
+    ],
+    publicationMedia: [{ publication_id: PUBLICATION_ID, bucket: 'hootly', object_key: 'brands/b1/publications/p1/photo.jpg' }],
+  });
+
+  const commands = [];
+  const service = createDeliveryService({
+    query: db.query,
+    provider: {
+      deliver: async (command) => {
+        commands.push(command);
+        return { provider: command.provider, externalPublicationId: 'ext-1' };
+      },
+    },
+    signMedia: async (bucket, key) => ({ url: `https://cdn.example.com/${bucket}/${key}?sig=abc` }),
+    logger: { log() {} },
+  });
+
+  await service.publish({ publicationId: PUBLICATION_ID });
+
+  assert.equal(commands.length, 1);
+  assert.equal(commands[0].socialAccountId, 'account-42');
+  assert.equal(commands[0].publicationTargetId, 'target-fb');
+  assert.deepEqual(commands[0].mediaUrls, ['https://cdn.example.com/hootly/brands/b1/publications/p1/photo.jpg?sig=abc']);
+});
+
+test('sans média rattaché, mediaUrls est un tableau vide (le mock l’ignore de toute façon)', async () => {
+  const { service } = scenario({ schedule: 'PENDING' });
+
+  const result = await service.publish({ publicationId: PUBLICATION_ID, requireSchedule: true });
+
+  assert.equal(result.status, 'PUBLISHED');
+});
+
 test('échec d’un seul réseau : statut partiel et retry programmé', async () => {
   const { db, service, retries } = scenario({ content: 'Promo [[FAIL_INSTAGRAM]]' });
 

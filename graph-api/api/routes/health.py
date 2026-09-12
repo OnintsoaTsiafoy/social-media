@@ -14,10 +14,11 @@ async def health_check():
 
 @router.get("/ready")
 async def readiness_check():
-    """Readiness probe exposing whether Meta calls can be served.
+    """Readiness probe exposing whether Meta calls and /internal/v1 can be served.
 
-    The endpoint deliberately does not call Meta: a transient external outage
-    must not be confused with a missing local configuration.
+    The endpoint deliberately never calls Meta or the database: a transient
+    external outage must not be confused with missing local configuration —
+    same rule Sprint 05/06 both apply, just to one more dependency now.
     """
     if not settings.meta_configured:
         return JSONResponse(
@@ -26,6 +27,26 @@ async def readiness_check():
                 "status": "not_ready",
                 "service": "graph-api",
                 "reason": "meta_configuration_missing",
+            },
+        )
+
+    if not settings.database_configured:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "not_ready",
+                "service": "graph-api",
+                "reason": "database_configuration_missing",
+            },
+        )
+
+    if not settings.encryption_configured:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "not_ready",
+                "service": "graph-api",
+                "reason": "encryption_key_missing",
             },
         )
 

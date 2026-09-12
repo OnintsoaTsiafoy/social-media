@@ -2,7 +2,9 @@ from fastapi import HTTPException, UploadFile
 
 from core.exceptions import GraphAPIError
 from modules.facebook.clients.facebook_client import facebook_client
+from modules.facebook.schemas.pagination import PaginatedList
 from modules.facebook.schemas.stories import StoryCreateResponse, StoryResponse
+from modules.facebook.services.pagination_helpers import meta_pagination_params, paging_from_meta
 
 _IMAGE_TYPES = {
     "image/jpeg", "image/png", "image/gif",
@@ -65,11 +67,16 @@ async def create_story(file: UploadFile, message: str | None = None) -> StoryCre
     return StoryCreateResponse(id=story_id, success=success if isinstance(success, bool) else None)
 
 
-async def list_stories() -> list[StoryResponse]:
-    data = await facebook_client.get(
-        f"{facebook_client.page_id}/stories",
-        params={"fields": "id,created_time,permalink_url,status", "limit": 50},
-    )
+async def list_stories(
+    limit: int = 25,
+    after: str | None = None,
+    before: str | None = None,
+) -> PaginatedList[StoryResponse]:
+    params = {
+        "fields": "id,created_time,permalink_url,status",
+        **meta_pagination_params(limit, after, before),
+    }
+    data = await facebook_client.get(f"{facebook_client.page_id}/stories", params=params)
 
     stories: list[StoryResponse] = []
     for item in data.get("data", []):
@@ -81,7 +88,7 @@ async def list_stories() -> list[StoryResponse]:
                 status=item.get("status"),
             )
         )
-    return stories
+    return PaginatedList[StoryResponse](data=stories, paging=paging_from_meta(data.get("paging")))
 
 
 async def delete_story(story_id: str) -> dict:

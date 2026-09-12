@@ -60,6 +60,35 @@ enum SocialProvider {
   INSTAGRAM
 }
 
+enum SocialAccountStatus {
+  CONNECTED
+  EXPIRING
+  EXPIRED
+  REAUTH_REQUIRED
+  REVOKED
+  DISCONNECTED
+}
+
+// How this account was linked: via a Facebook Page (Facebook Login for
+// Business — also how a Page-linked Instagram professional account is
+// discovered) or a standalone Instagram Login (no Facebook Page required).
+// Sprint 07 needs this to pick the right token-refresh/API host per account.
+enum SocialAccountAuthMethod {
+  FACEBOOK_PAGE
+  INSTAGRAM_LOGIN
+}
+
+enum OAuthTokenStatus {
+  ACTIVE
+  SUPERSEDED
+  REVOKED
+}
+
+enum SocialPermissionStatus {
+  GRANTED
+  DECLINED
+}
+
 enum ScheduleStatus {
   PENDING
   DISPATCHED
@@ -97,6 +126,8 @@ model User {
   publications        Publication[]        @relation("PublicationAuthor")
   schedules           ScheduledPublication[] @relation("ScheduleAuthor")
   avatarMedia         Media?               @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+  connectedSocialAccounts SocialAccount[]  @relation("SocialAccountConnector")
+  oauthStates         OAuthState[]
 
   @@index([status])
   @@map("users")
@@ -118,6 +149,8 @@ model Brand {
   aiSettings      BrandAiSetting[]
   media           Media[]
   publications    Publication[]
+  socialAccounts  SocialAccount[]
+  oauthStates     OAuthState[]
 
   @@index([ownerUserId])
   @@index([deletedAt])
@@ -270,8 +303,9 @@ model Publication {
 model PublicationTarget {
   id                    String                       @id @default(uuid()) @db.Uuid
   publicationId         String                       @map("publication_id") @db.Uuid
-  // Renseigné au Sprint 06, quand les comptes sociaux liés par OAuth existeront.
-  // La contrainte de clé étrangère sera ajoutée avec la table `social_accounts`.
+  // Nullable for backward compatibility with rows created before Sprint 06
+  // (no social_accounts yet). New writes should always set it once the
+  // application-level check in publications/schemas.js requires it.
   socialAccountId       String?                      @map("social_account_id") @db.Uuid
   provider              SocialProvider
   adaptedContent        String?                      @map("adapted_content") @db.Text
@@ -285,9 +319,14 @@ model PublicationTarget {
   createdAt             DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
   publication           Publication                  @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  socialAccount         SocialAccount?               @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
   attempts              PublicationDeliveryAttempt[]
 
-  @@unique([publicationId, provider])
+  // Was @@unique([publicationId, provider]): structurally forbade two
+  // accounts of the same provider on one publication. Sprint 06 replaces it
+  // with a per-account constraint now that social_accounts exists.
+  @@unique([publicationId, socialAccountId])
+  @@index([publicationId, provider])
   @@index([status])
   @@map("publication_targets")
 }
@@ -358,4 +397,113 @@ model IdempotencyKey {
   @@unique([endpoint, key])
   @@index([expiresAt])
   @@map("idempotency_keys")
+}
+
+// --- Sprint 06 : OAuth Meta, comptes sociaux multi-comptes, tokens chiffrés ---
+//
+// Ces tables sont migrées par Prisma (source de vérité du schéma, comme pour
+// tout le reste du projet) mais sont lues/écrites en SQL brut par `graph-api`
+// (Python, pas de client Prisma) — exactement le pattern déjà en place pour
+// `services/worker`, qui lit/écrit `publications`/`publication_targets` via
+// `pg` sans passer par ce client. Express ne doit jamais lire `oauth_tokens`
+// directement : le texte est chiffré et la clé n'existe que côté graph-api.
+
+model SocialAccount {
+  id                 String                  @id @default(uuid()) @db.Uuid
+  brandId            String                  @map("brand_id") @db.Uuid
+  provider           SocialProvider
+  externalAccountId  String                  @map("external_account_id") @db.VarChar(255)
+  name               String                  @db.VarChar(255)
+  username           String?                 @db.VarChar(255)
+  avatarUrl          String?                 @map("avatar_url") @db.VarChar(1024)
+  status             SocialAccountStatus     @default(CONNECTED)
+  authMethod         SocialAccountAuthMethod @map("auth_method")
+  connectedByUserId  String                  @map("connected_by_user_id") @db.Uuid
+  lastCommentsSyncAt DateTime?               @map("last_comments_sync_at") @db.Timestamptz(6)
+  lastMetricsSyncAt  DateTime?               @map("last_metrics_sync_at") @db.Timestamptz(6)
+  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  brand              Brand                   @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  connectedByUser    User                    @relation("SocialAccountConnector", fields: [connectedByUserId], references: [id], onDelete: Restrict)
+  oauthTokens        OAuthToken[]
+  permissions        SocialPermission[]
+  publicationTargets PublicationTarget[]
+
+  // Un compte Meta donné (une Page, un compte IG) ne peut être lié qu'à une
+  // seule marque à la fois — pas de constraint par brandId, volontairement.
+  @@unique([provider, externalAccountId])
+  @@index([brandId, status])
+  @@map("social_accounts")
+}
+
+model OAuthToken {
+  id                    String           @id @default(uuid()) @db.Uuid
+  socialAccountId       String           @map("social_account_id") @db.Uuid
+  // Jamais d'UPDATE en place : chaque rafraîchissement insère une nouvelle
+  // ligne versionnée (comme BrandAiSetting), `status` marque laquelle est active.
+  version               Int              @default(1)
+  status                OAuthTokenStatus @default(ACTIVE)
+  encryptedAccessToken  Bytes            @map("encrypted_access_token")
+  encryptedRefreshToken Bytes?           @map("encrypted_refresh_token")
+  encryptionKeyVersion  Int              @default(1) @map("encryption_key_version")
+  scope                 Json             @default("[]")
+  expiresAt             DateTime?        @map("expires_at") @db.Timestamptz(6)
+  lastErrorCode         String?          @map("last_error_code") @db.VarChar(80)
+  lastErrorMessage      String?          @map("last_error_message") @db.Text
+  createdAt             DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  socialAccount         SocialAccount    @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([socialAccountId, version])
+  @@index([socialAccountId, status])
+  @@index([status, expiresAt])
+  @@map("oauth_tokens")
+}
+
+model SocialPermission {
+  id              String                 @id @default(uuid()) @db.Uuid
+  socialAccountId String                 @map("social_account_id") @db.Uuid
+  permission      String                 @db.VarChar(120)
+  status          SocialPermissionStatus @default(GRANTED)
+  checkedAt       DateTime               @default(now()) @map("checked_at") @db.Timestamptz(6)
+  socialAccount   SocialAccount          @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([socialAccountId, permission])
+  @@map("social_permissions")
+}
+
+model OAuthState {
+  id                String         @id @default(uuid()) @db.Uuid
+  // Jamais le state en clair : seul son hash est stocké (même convention que
+  // UserSession.refreshTokenHash / PasswordResetToken.tokenHash).
+  stateHash         String         @unique @map("state_hash") @db.VarChar(128)
+  userId            String         @map("user_id") @db.Uuid
+  brandId           String         @map("brand_id") @db.Uuid
+  provider          SocialProvider
+  mobileRedirectUri String         @map("mobile_redirect_uri") @db.VarChar(2048)
+  consumedAt        DateTime?      @map("consumed_at") @db.Timestamptz(6)
+  expiresAt         DateTime       @map("expires_at") @db.Timestamptz(6)
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand             Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("oauth_states")
+}
+
+// Idempotency-Key store for graph-api's own /internal/v1 routes (distinct
+// from the Express-owned IdempotencyKey above, which has no service caller
+// concept). Replaces the in-memory stopgap used in Sprint 05.
+model ServiceIdempotencyKey {
+  id             String   @id @default(uuid()) @db.Uuid
+  key            String   @db.VarChar(200)
+  endpoint       String   @db.VarChar(120)
+  requestHash    String   @map("request_hash") @db.VarChar(64)
+  responseStatus Int?     @map("response_status")
+  responseBody   Json?    @map("response_body")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(6)
+
+  @@unique([endpoint, key])
+  @@index([expiresAt])
+  @@map("service_idempotency_keys")
 }

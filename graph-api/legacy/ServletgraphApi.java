@@ -12,11 +12,15 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-@WebServlet(name = "ServletPostsStats", urlPatterns = {"/api/facebook/posts/stats/*"})
-public class ServletPostsStats extends HttpServlet {
+@WebServlet(name = "ServletgraphApi", urlPatterns = {"/download"})
+public class ServletgraphApi extends HttpServlet {
 
-    private static final String BACKEND_IP = "192.168.16.93";
+    // Configuration statique du backend externe
+    // Legacy reference file, not part of the running app (see legacy/README.md).
+    // The original hardcoded internal IP was removed during Sprint 05 hardening.
+    private static final String BACKEND_IP = "REPLACE_WITH_BACKEND_HOST";
     private static final String BACKEND_PORT = "8000";
+    private static final String BACKEND_PATH = "/facebook/endpoint";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -25,20 +29,22 @@ public class ServletPostsStats extends HttpServlet {
         response.setCharacterEncoding("UTF-8");
 
         PrintWriter out = response.getWriter();
+        out.print("{\"status\":\"ok\",\"message\":\"Servlet active\"}");
+        out.flush();
+    }
+
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+
+        PrintWriter out = response.getWriter();
         HttpURLConnection connection = null;
-        BufferedReader reader = null;
+        BufferedReader reader = null;           
 
         try {
-            String pathInfo = request.getPathInfo();
-            if (pathInfo == null || pathInfo.isEmpty()) {
-                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                out.print("{\"error\":\"post_id manquant\"}");
-                out.flush();
-                return;
-            }
-
-            // pathInfo format: /post_id/stats ou /post_id/analytics ou /post_id/insights
-            String endpoint = "http://" + BACKEND_IP + ":" + BACKEND_PORT + "/facebook/posts" + pathInfo;
+            String endpoint = "http://" + BACKEND_IP + ":" + BACKEND_PORT + BACKEND_PATH;
 
             URL url = new URL(endpoint);
             connection = (HttpURLConnection) url.openConnection();

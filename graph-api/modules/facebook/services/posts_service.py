@@ -6,6 +6,11 @@ from fastapi import HTTPException, UploadFile
 
 from core.exceptions import GraphAPIError
 from modules.facebook.clients.facebook_client import facebook_client
+from modules.facebook.schemas.pagination import PaginatedList
+from modules.facebook.services.pagination_helpers import (
+    meta_pagination_params,
+    paging_from_meta,
+)
 from modules.facebook.schemas.posts import (
     CommunityManagerStat,
     CommunityManagersStatsResponse,
@@ -71,6 +76,26 @@ def _parse_scheduled_publish_time(value: str, timezone_offset_minutes: int | Non
     return timestamp
 
 
+def _validate_date_param(name: str, value: str | None) -> None:
+    """Meta accepts a Unix timestamp or a YYYY-MM-DD date for since/until.
+
+    Anything else is rejected locally instead of being forwarded to Meta
+    unvalidated (Sprint 05 Day 2).
+    """
+    if value is None:
+        return
+    raw = value.strip()
+    if raw.isdigit():
+        return
+    try:
+        datetime.strptime(raw, "%Y-%m-%d")
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Paramètre '{name}' invalide : utilisez un timestamp Unix ou une date YYYY-MM-DD.",
+        ) from exc
+
+
 def _guess_content_type_from_bytes(sample: bytes) -> str | None:
     if not sample:
         return None
@@ -132,13 +157,22 @@ def _resolve_content_type(file: UploadFile, sample: bytes | None = None) -> str:
 async def get_page_posts(
     since: str | None = None,
     until: str | None = None,
-) -> list[PostResponse]:
+    limit: int = 25,
+    after: str | None = None,
+    before: str | None = None,
+) -> PaginatedList[PostResponse]:
     """Récupère les publications de la page Facebook, optionnellement filtrées par date.
-    
+
     Args:
         since: Date de début (format ISO: "2024-01-01")
         until: Date de fin (format ISO: "2024-12-31")
+        limit: Nombre maximal de publications par page (1 à 100)
+        after: Curseur de pagination (page suivante)
+        before: Curseur de pagination (page précédente)
     """
+    _validate_date_param("since", since)
+    _validate_date_param("until", until)
+
     reaction_types = ["LIKE", "LOVE", "WOW", "HAHA", "SAD", "ANGRY"]
     reaction_fields = ",".join(
         f"reactions.type({rtype}).limit(0).summary(total_count).as(reactions_{rtype.lower()})"
@@ -151,12 +185,12 @@ async def get_page_posts(
         + ",comments.limit(0).summary(total_count).as(comments_summary)"
     )
 
-    params = {"fields": fields}
+    params = {"fields": fields, **meta_pagination_params(limit, after, before)}
     if since:
         params["since"] = since
     if until:
         params["until"] = until
-    
+
     data = await facebook_client.get(
         f"{facebook_client.page_id}/posts",
         params=params,
@@ -193,14 +227,17 @@ async def get_page_posts(
             )
         )
 
-    return posts
+    return PaginatedList[PostResponse](data=posts, paging=paging_from_meta(data.get("paging")))
 
 
 async def get_community_managers_stats(
     since: str | None = None,
     until: str | None = None,
 ) -> CommunityManagersStatsResponse:
-    posts = await get_page_posts(since=since, until=until)
+    # Aggregate over a single (large) page: this endpoint summarizes activity,
+    # it does not expose pagination itself (out of Sprint 05 Day 3's scope).
+    posts_page = await get_page_posts(since=since, until=until, limit=100)
+    posts = posts_page.data
 
     stats_by_author: dict[str, CommunityManagerStat] = {}
     total_reactions = 0
@@ -546,11 +583,20 @@ async def create_scheduled_post(
     return PostCreateResponse(**data)
 
 
-async def list_scheduled_posts() -> list[ScheduledPostResponse]:
+async def list_scheduled_posts(
+    limit: int = 25,
+    after: str | None = None,
+    before: str | None = None,
+) -> PaginatedList[ScheduledPostResponse]:
     fields = "id,message,created_time,scheduled_publish_time,permalink_url,is_published"
+    params = {
+        "fields": fields,
+        "is_published": "false",
+        **meta_pagination_params(limit, after, before),
+    }
     data = await facebook_client.get(
         f"{facebook_client.page_id}/scheduled_posts",
-        params={"fields": fields, "is_published": "false", "limit": 100},
+        params=params,
     )
 
     posts: list[ScheduledPostResponse] = []
@@ -572,7 +618,9 @@ async def list_scheduled_posts() -> list[ScheduledPostResponse]:
     posts.sort(
         key=lambda item: item.scheduled_publish_time if item.scheduled_publish_time else 0
     )
-    return posts
+    return PaginatedList[ScheduledPostResponse](
+        data=posts, paging=paging_from_meta(data.get("paging"))
+    )
 
 
 async def _process_scheduled_post_media(
@@ -609,7 +657,7 @@ async def _process_scheduled_post_media(
                     detail="Une vidéo ne peut pas être combinée avec d'autres médias.",
                 )
             video_found = True
-            data = await facebook_client.post_form(
+            data = await facebook_client.post_multipart(
                 f"{post_id}/videos",
                 data={"published": "false"},
                 files={"source": (fname, content, ct)},
@@ -623,7 +671,7 @@ async def _process_scheduled_post_media(
                     status_code=400,
                     detail="Une vidéo ne peut pas être combinée avec d'autres médias.",
                 )
-            data = await facebook_client.post_form(
+            data = await facebook_client.post_multipart(
                 f"{post_id}/photos",
                 data={"published": "false"},
                 files={"source": (fname, content, ct)},

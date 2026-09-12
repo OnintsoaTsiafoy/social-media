@@ -16,7 +16,9 @@ import javax.servlet.http.HttpServletResponse;
 @WebServlet(name = "ServletPostsFacebook", urlPatterns = {"/api/facebook/posts"})
 public class ServletPostsFacebook extends HttpServlet {
 
-    private static final String BACKEND_IP = "192.168.16.93";
+    // Legacy reference file, not part of the running app (see legacy/README.md).
+    // The original hardcoded internal IP was removed during Sprint 05 hardening.
+    private static final String BACKEND_IP = "REPLACE_WITH_BACKEND_HOST";
     private static final String BACKEND_PORT = "8000";
 
     @Override

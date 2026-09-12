@@ -32,7 +32,7 @@ export default function NewPublicationScreen() {
   const { draft, dirty, reset } = useComposer();
   const mutation = useMutation();
 
-  const accounts = useAsync(() => accountsApi.list(), []);
+  const accounts = useAsync(() => accountsApi.list(brand?.id ?? '', brand?.name ?? ''), []);
   const [errors, setErrors] = useState<ComposerErrors>({});
 
   // Start from a clean draft bound to the active brand.

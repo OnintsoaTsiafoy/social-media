@@ -1,8 +1,13 @@
 openapi: 3.1.0
 info:
   title: Hootly Social Internal API
-  version: 0.1.0
-  description: Contrat interne, protégé par un JWT de service à partir du Sprint 05.
+  version: 0.2.0
+  description: >
+    Contrat interne, protégé par un JWT de service depuis le Sprint 05.
+    Implémenté par graph-api sous /internal/v1 (voir
+    api/routes/internal_routes.py). Sprint 05 : provider "facebook"
+    uniquement, résolu via la Page unique configurée en local — la résolution
+    par socialAccountId arrive au Sprint 06 (OAuth), Instagram au Sprint 07.
 paths:
   /health:
     get:
@@ -14,40 +19,207 @@ paths:
         '503': { description: Configuration Meta absente ou invalide }
   /internal/v1/publications/publish:
     post:
-      summary: Commander une publication vers un compte social déjà lié
+      summary: Publier une commande vers une ou plusieurs cibles
       security: [{ serviceJwt: [] }]
       parameters:
         - in: header
           name: Idempotency-Key
           required: true
           schema: { type: string, minLength: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PublishRequest' }
       responses:
-        '202': { description: Commande acceptée }
-        '401': { description: JWT de service absent ou invalide }
-        '409': { description: Idempotency-Key réutilisée avec un autre corps }
+        '200':
+          description: Un résultat par cible (succès ou échec individuel — voir errorCode)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublishResponse' }
+        '400': { description: En-tête Idempotency-Key manquant, voir ErrorEnvelope }
+        '401': { description: JWT de service absent, invalide ou expiré }
+        '403': { description: Scope social:write manquant }
   /internal/v1/comments/sync:
     post:
-      summary: Synchroniser les commentaires d'un compte social
+      summary: Synchroniser les commentaires d'un ou plusieurs posts
       security: [{ serviceJwt: [] }]
-      responses: { '202': { description: Synchronisation acceptée } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommentsSyncRequest' }
+      responses:
+        '200':
+          description: Commentaires normalisés
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommentsSyncResponse' }
+        '401': { description: JWT de service absent, invalide ou expiré }
+        '403': { description: Scope social:read manquant }
   /internal/v1/comments/reply:
     post:
-      summary: Envoyer une réponse explicitement approuvée
+      summary: Répondre à un commentaire
       security: [{ serviceJwt: [] }]
       parameters:
         - in: header
           name: Idempotency-Key
           required: true
-          schema: { type: string }
-      responses: { '202': { description: Réponse acceptée } }
+          schema: { type: string, minLength: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommentsReplyRequest' }
+      responses:
+        '200':
+          description: Réponse envoyée
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommentsReplyResponse' }
+        '400': { description: En-tête Idempotency-Key manquant }
+        '401': { description: JWT de service absent, invalide ou expiré }
+        '403': { description: Scope social:write manquant }
   /internal/v1/metrics/sync:
     post:
-      summary: Synchroniser les métriques disponibles
+      summary: Synchroniser les métriques disponibles (null si indisponible)
       security: [{ serviceJwt: [] }]
-      responses: { '202': { description: Synchronisation acceptée } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MetricsSyncRequest' }
+      responses:
+        '200':
+          description: Métriques collectées
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MetricsSyncResponse' }
+        '401': { description: JWT de service absent, invalide ou expiré }
+        '403': { description: Scope social:read manquant }
 components:
   securitySchemes:
     serviceJwt:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: >
+        Claims attendus : {sub, aud:"social-service", scope:["social:read"|"social:write"],
+        type:"service", jti, exp}. Un JWT utilisateur (mobile) est toujours refusé (401).
+  schemas:
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string, example: validation_failed }
+            message: { type: string }
+            requestId: { type: string, nullable: true }
+    PublishTarget:
+      type: object
+      required: [publicationTargetId, provider, content]
+      properties:
+        publicationTargetId: { type: string, format: uuid }
+        socialAccountId: { type: string, format: uuid, nullable: true }
+        provider: { type: string, enum: [facebook] }
+        content: { type: string }
+        mediaUrls:
+          type: array
+          items: { type: string, format: uri }
+          description: Images uniquement à ce sprint ; vidéo par URL non supportée.
+    PublishRequest:
+      type: object
+      required: [publicationId, targets]
+      properties:
+        publicationId: { type: string, format: uuid }
+        targets:
+          type: array
+          items: { $ref: '#/components/schemas/PublishTarget' }
+    PublishTargetResult:
+      type: object
+      properties:
+        provider: { type: string }
+        status: { type: string, enum: [SUCCESS, FAILED] }
+        externalPublicationId: { type: string, nullable: true }
+        errorCode: { type: string, nullable: true }
+    PublishResponse:
+      type: object
+      properties:
+        publicationId: { type: string, format: uuid }
+        results:
+          type: array
+          items: { $ref: '#/components/schemas/PublishTargetResult' }
+    CommentsSyncRequest:
+      type: object
+      required: [provider]
+      properties:
+        socialAccountId: { type: string, format: uuid, nullable: true }
+        provider: { type: string, enum: [facebook] }
+        publicationExternalIds:
+          type: array
+          items: { type: string }
+        since: { type: string, format: date-time, nullable: true }
+        cursor: { type: string, nullable: true }
+        limit: { type: integer, default: 100 }
+    CommentSyncItem:
+      type: object
+      properties:
+        externalCommentId: { type: string }
+        externalPublicationId: { type: string }
+        authorExternalId: { type: string, nullable: true }
+        authorName: { type: string, nullable: true }
+        content: { type: string, nullable: true }
+        createdAt: { type: string, nullable: true }
+        updatedAt: { type: string, nullable: true }
+        isDeleted: { type: boolean, default: false }
+    CommentsSyncResponse:
+      type: object
+      properties:
+        comments:
+          type: array
+          items: { $ref: '#/components/schemas/CommentSyncItem' }
+        nextCursor: { type: string, nullable: true }
+        hasMore: { type: boolean }
+    CommentsReplyRequest:
+      type: object
+      required: [provider, externalCommentId, text]
+      properties:
+        socialAccountId: { type: string, format: uuid, nullable: true }
+        provider: { type: string, enum: [facebook] }
+        externalCommentId: { type: string }
+        text: { type: string, minLength: 1 }
+    CommentsReplyResponse:
+      type: object
+      properties:
+        status: { type: string, enum: [SUCCESS] }
+        externalReplyId: { type: string, nullable: true }
+        sentAt: { type: string, nullable: true }
+    MetricsSyncRequest:
+      type: object
+      required: [provider]
+      properties:
+        socialAccountId: { type: string, format: uuid, nullable: true }
+        provider: { type: string, enum: [facebook] }
+        publicationExternalIds:
+          type: array
+          items: { type: string }
+        from: { type: string, format: date, nullable: true }
+        to: { type: string, format: date, nullable: true }
+    MetricItem:
+      type: object
+      description: Un champ absent/null signifie "indisponible", jamais un zéro implicite.
+      properties:
+        externalPublicationId: { type: string }
+        collectedAt: { type: string }
+        reactions: { type: integer, nullable: true }
+        comments: { type: integer, nullable: true }
+        shares: { type: integer, nullable: true }
+        reach: { type: integer, nullable: true }
+        impressions: { type: integer, nullable: true }
+    MetricsSyncResponse:
+      type: object
+      properties:
+        metrics:
+          type: array
+          items: { $ref: '#/components/schemas/MetricItem' }

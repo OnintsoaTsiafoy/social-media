@@ -6,6 +6,7 @@ import { brandRouter } from './brands/routes.js';
 import { mediaRouter } from './media/routes.js';
 import { calendarRouter, publicationRouter } from './publications/routes.js';
 import { profileRouter } from './profile/routes.js';
+import { socialAccountRouter } from './social-accounts/routes.js';
 import { addRequestContext, errorHandler, notFoundHandler } from './lib/http.js';
 import { stopBoss } from './lib/jobs.js';
 import { ensureBucket, isStorageConfigured } from './lib/storage.js';
@@ -72,6 +73,21 @@ const openApiDocument = {
       post: { summary: 'Relancer les réseaux en échec (202)' },
     },
     '/api/v1/calendar': { get: { summary: 'Publications planifiées ou publiées sur une période' } },
+    '/api/v1/social-accounts': {
+      get: { summary: 'Lister les comptes sociaux liés à une marque (?brandId=)' },
+    },
+    '/api/v1/social-accounts/{provider}/connect': {
+      post: { summary: 'Démarrer une connexion OAuth Meta (201 → authorizationUrl + oauthState)' },
+    },
+    '/api/v1/social-accounts/oauth/status': {
+      get: { summary: 'Statut d’un state OAuth (PENDING/COMPLETED/EXPIRED)' },
+    },
+    '/api/v1/social-accounts/{socialAccountId}': {
+      delete: { summary: 'Déconnecter un compte social (révoque côté Social, 204)' },
+    },
+    '/api/v1/social-accounts/{socialAccountId}/sync': {
+      post: { summary: 'Revalider la connexion auprès de Meta (409 REAUTHENTICATION_REQUIRED si expirée)' },
+    },
   },
 };
 
@@ -112,6 +128,7 @@ app.use('/api/v1/brands', brandRouter);
 app.use('/api/v1/media', mediaRouter);
 app.use('/api/v1/publications', publicationRouter);
 app.use('/api/v1/calendar', calendarRouter);
+app.use('/api/v1/social-accounts', socialAccountRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 

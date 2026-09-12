@@ -14,6 +14,8 @@ export function createFakeDb(initial = {}) {
     attempts: initial.attempts ?? [],
     schedules: initial.schedules ?? [],
     media: initial.media ?? [],
+    publicationMedia: initial.publicationMedia ?? [],
+    socialAccounts: initial.socialAccounts ?? [],
     calls: [],
   };
 
@@ -32,8 +34,17 @@ export function createFakeDb(initial = {}) {
       return [row];
     }
 
-    if (text.includes('SELECT id, provider, status')) {
+    if (text.includes('adapted_content, adapted_hashtags, attempt_count')) {
       return state.targets.filter((row) => row.publication_id === params[0]);
+    }
+
+    // NOTE: cleanup-media.js's own SELECT_ORPHANS query contains a `NOT
+    // EXISTS (SELECT 1 FROM publication_media pm WHERE pm.media_id = m.id)`
+    // subquery, so matching on the bare "FROM publication_media pm" text
+    // would incorrectly intercept it too — "ORDER BY pm.position" is unique
+    // to this query.
+    if (text.includes('ORDER BY pm.position')) {
+      return (state.publicationMedia ?? []).filter((row) => row.publication_id === params[0]);
     }
 
     if (text.includes("SET status = 'SENDING'")) {
@@ -133,6 +144,22 @@ export function createFakeDb(initial = {}) {
       const row = state.media.find((item) => item.id === params[0]);
       Object.assign(row, { status: 'DELETED', deleted_at: new Date().toISOString() });
       return [];
+    }
+
+    if (text.includes('FROM social_accounts sa')) {
+      const [expiringWithinHours, staleAfterHours, limit] = params;
+      const expiryThreshold = Date.now() + expiringWithinHours * 3600 * 1000;
+      const staleThreshold = Date.now() - staleAfterHours * 3600 * 1000;
+      return state.socialAccounts
+        .filter((row) => {
+          if (!['CONNECTED', 'EXPIRING'].includes(row.status)) return false;
+          const expiringSoon = row.expires_at && new Date(row.expires_at).getTime() < expiryThreshold;
+          const stale = new Date(row.updated_at).getTime() < staleThreshold;
+          return expiringSoon || stale;
+        })
+        .sort((a, b) => new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime())
+        .slice(0, limit)
+        .map((row) => ({ id: row.id }));
     }
 
     throw new Error(`Requête non gérée par le double de base : ${text.trim().slice(0, 60)}`);

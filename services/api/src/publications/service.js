@@ -14,7 +14,10 @@ import { attachMediaToPublication, detachMediaFromPublication, toPublicMedia } f
 const publicationInclude = {
   brand: { select: { id: true, name: true } },
   createdBy: { select: { displayName: true, firstName: true, lastName: true } },
-  targets: { orderBy: { provider: 'asc' } },
+  targets: {
+    orderBy: { provider: 'asc' },
+    include: { socialAccount: { select: { name: true, username: true } } },
+  },
   media: { include: { media: true }, orderBy: { position: 'asc' } },
   schedule: true,
 };
@@ -49,6 +52,9 @@ export async function toPublicPublication(record) {
     targets: record.targets.map((target) => ({
       provider: target.provider.toLowerCase(),
       socialAccountId: target.socialAccountId,
+      // Sprint 06: null until the target is linked to a real social_accounts
+      // row (older rows, or a provider with no account picked yet).
+      accountUsername: target.socialAccount?.username ?? target.socialAccount?.name ?? null,
       status: target.status.toLowerCase(),
       adaptedContent: target.adaptedContent,
       adaptedHashtags: asStringList(target.adaptedHashtags),
@@ -87,10 +93,36 @@ async function loadPublicPublication(publicationId) {
   return toPublicPublication(record);
 }
 
-function targetData(target) {
+// The mobile composer only lets a CM pick a provider (facebook/instagram),
+// not a specific account (Sprint 06/07 scope boundary — see ComposerForm.tsx,
+// no per-account picker UI yet). When the client omits socialAccountId, this
+// resolves it automatically as long as the brand has exactly one connected
+// account for that provider; with zero or several, it's left null (falls
+// back to the Sprint 05 legacy single-Page behavior in graph-api, or — once
+// a real picker exists — an explicit choice).
+async function resolveSocialAccountId(brandId, provider, explicitId) {
+  if (explicitId) {
+    const account = await prisma.socialAccount.findFirst({
+      where: { id: explicitId, brandId, provider: provider.toUpperCase() },
+    });
+    if (!account) {
+      throw new HttpError(400, 'validation_failed', 'Ce compte social n’appartient pas à cette marque ou ce réseau.');
+    }
+    return account.id;
+  }
+
+  const candidates = await prisma.socialAccount.findMany({
+    where: { brandId, provider: provider.toUpperCase(), status: { in: ['CONNECTED', 'EXPIRING'] } },
+    select: { id: true },
+  });
+  return candidates.length === 1 ? candidates[0].id : null;
+}
+
+async function targetData(brandId, target) {
+  const provider = target.provider.toUpperCase();
   return {
-    provider: target.provider.toUpperCase(),
-    socialAccountId: target.socialAccountId ?? null,
+    provider,
+    socialAccountId: await resolveSocialAccountId(brandId, target.provider, target.socialAccountId),
     adaptedContent: target.adaptedContent ?? null,
     adaptedHashtags: target.adaptedHashtags ?? [],
   };
@@ -113,6 +145,7 @@ function accessibleWhere(userId, filters = {}) {
 }
 
 export async function createPublication(user, payload, request) {
+  const targets = await Promise.all(payload.targets.map((target) => targetData(payload.brandId, target)));
   const publication = await prisma.publication.create({
     data: {
       brandId: payload.brandId,
@@ -121,7 +154,7 @@ export async function createPublication(user, payload, request) {
       language: payload.language,
       hashtags: payload.hashtags,
       timezone: payload.timezone,
-      targets: { create: payload.targets.map(targetData) },
+      targets: { create: targets },
     },
   });
 
@@ -234,12 +267,26 @@ export async function updatePublication(user, publication, payload, request) {
       where: { publicationId: publication.id, provider: { notIn: wanted }, status: { not: 'SENT' } },
     });
     for (const target of payload.targets) {
-      const data = targetData(target);
-      await prisma.publicationTarget.upsert({
-        where: { publicationId_provider: { publicationId: publication.id, provider: data.provider } },
-        create: { ...data, publicationId: publication.id },
-        update: { adaptedContent: data.adaptedContent, adaptedHashtags: data.adaptedHashtags },
+      const data = await targetData(publication.brandId, target);
+      // No DB-level unique constraint on (publicationId, provider) anymore
+      // (Sprint 06 moved it to (publicationId, socialAccountId) to allow two
+      // accounts of the same provider) — upsert by hand instead of relying
+      // on a compound key.
+      const existing = await prisma.publicationTarget.findFirst({
+        where: { publicationId: publication.id, provider: data.provider },
       });
+      if (existing) {
+        await prisma.publicationTarget.update({
+          where: { id: existing.id },
+          data: {
+            socialAccountId: data.socialAccountId,
+            adaptedContent: data.adaptedContent,
+            adaptedHashtags: data.adaptedHashtags,
+          },
+        });
+      } else {
+        await prisma.publicationTarget.create({ data: { ...data, publicationId: publication.id } });
+      }
     }
   }
 

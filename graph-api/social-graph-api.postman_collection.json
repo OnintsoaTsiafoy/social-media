@@ -40,6 +40,23 @@
     {
       "key": "video_file_path",
       "value": "/tmp/video.mp4"
+    },
+    {
+      "key": "scheduled_post_id",
+      "value": "1234567890123456_1111111111111111"
+    },
+    {
+      "key": "story_id",
+      "value": "1234567890123456_2222222222222222"
+    },
+    {
+      "key": "service_jwt",
+      "value": "REPLACE_WITH_A_SERVICE_JWT_SIGNED_WITH_SERVICE_JWT_SECRET",
+      "description": "aud=social-service, type=service — voir core/security.py. Ne jamais coller un JWT mobile ici."
+    },
+    {
+      "key": "idempotency_key",
+      "value": "postman-manual-test-1"
     }
   ],
   "item": [
@@ -53,6 +70,15 @@
             "header": [],
             "url": "{{base_url}}/health",
             "description": "Vérifie que l'API est disponible."
+          }
+        },
+        {
+          "name": "Readiness Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/ready",
+            "description": "503 meta_configuration_missing si FACEBOOK_APP_ID/PAGE_ID/PAGE_ACCESS_TOKEN ne sont pas tous renseignés."
           }
         }
       ]
@@ -179,6 +205,100 @@
             },
             "description": "Le backend envoie `description` à Facebook pour les vidéos à partir de ce message."
           }
+        },
+        {
+          "name": "Modifier un post",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/facebook/posts/{{post_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Message modifié\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Supprimer un post",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/facebook/posts/{{post_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Facebook Scheduled Posts",
+      "item": [
+        {
+          "name": "Programmer un post texte",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{base_url}}/facebook/scheduled-posts",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "message", "value": "{{post_message}}", "type": "text" },
+                { "key": "scheduled_publish_time", "value": "1780000000", "type": "text" }
+              ]
+            },
+            "description": "scheduled_publish_time : timestamp Unix ou ISO-8601, au moins 10 minutes dans le futur."
+          }
+        },
+        {
+          "name": "Lister les posts programmés",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/facebook/scheduled-posts?limit=25",
+              "host": ["{{base_url}}"],
+              "path": ["facebook", "scheduled-posts"],
+              "query": [
+                { "key": "limit", "value": "25" },
+                { "key": "after", "value": "", "disabled": true },
+                { "key": "before", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Modifier un post programmé (message)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{base_url}}/facebook/scheduled-posts/{{scheduled_post_id}}",
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "message", "value": "Message mis à jour", "type": "text" }]
+            }
+          }
+        },
+        {
+          "name": "Modifier un post programmé (avec image)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{base_url}}/facebook/scheduled-posts/{{scheduled_post_id}}",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "files", "type": "file", "src": "{{single_file_path}}" }
+              ]
+            },
+            "description": "Couvre le défaut critique corrigé au Sprint 05 (TypeError sur post_form avec files)."
+          }
+        },
+        {
+          "name": "Annuler un post programmé",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/facebook/scheduled-posts/{{scheduled_post_id}}"
+          }
         }
       ]
     },
@@ -254,7 +374,131 @@
             "method": "GET",
             "header": [],
             "url": "{{base_url}}/facebook/posts/{{post_id}}/analytics",
-            "description": "Récupère une vue analytique complète : date, heure, réactions totales, commentaires, partages, impressions, reach, clics, et médias attachés."
+            "description": "date/time sont null si Meta n'a pas retourné created_time ; impressions/reach/clicks sont null si les insights sont indisponibles (distinct d'un 0 réel)."
+          }
+        },
+        {
+          "name": "Statistiques par community manager",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/facebook/community-managers/stats?since=2024-01-01&until=2024-12-31",
+              "host": ["{{base_url}}"],
+              "path": ["facebook", "community-managers", "stats"],
+              "query": [
+                { "key": "since", "value": "2024-01-01" },
+                { "key": "until", "value": "2024-12-31" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Facebook Stories",
+      "item": [
+        {
+          "name": "Publier une story image",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{base_url}}/facebook/stories",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "message", "value": "{{post_message}}", "type": "text" },
+                { "key": "file", "type": "file", "src": "{{single_file_path}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Lister les stories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/facebook/stories?limit=25"
+          }
+        },
+        {
+          "name": "Supprimer une story",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/facebook/stories/{{story_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Internal v1 (JWT de service requis)",
+      "item": [
+        {
+          "name": "Publier (publications/publish)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{service_jwt}}" },
+              { "key": "Idempotency-Key", "value": "{{idempotency_key}}" }
+            ],
+            "url": "{{base_url}}/internal/v1/publications/publish",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"publicationId\": \"00000000-0000-0000-0000-000000000001\",\n  \"targets\": [\n    {\n      \"publicationTargetId\": \"00000000-0000-0000-0000-000000000002\",\n      \"socialAccountId\": null,\n      \"provider\": \"facebook\",\n      \"content\": \"Publié via /internal/v1\",\n      \"mediaUrls\": []\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Sprint 05 : résout toujours vers la Page globale configurée en .env. La résolution par socialAccountId arrive au Sprint 06."
+          }
+        },
+        {
+          "name": "Synchroniser les commentaires (comments/sync)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{service_jwt}}" }
+            ],
+            "url": "{{base_url}}/internal/v1/comments/sync",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"facebook\",\n  \"publicationExternalIds\": [\"{{post_id}}\"],\n  \"limit\": 50\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Répondre à un commentaire (comments/reply)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{service_jwt}}" },
+              { "key": "Idempotency-Key", "value": "{{idempotency_key}}" }
+            ],
+            "url": "{{base_url}}/internal/v1/comments/reply",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"facebook\",\n  \"externalCommentId\": \"{{comment_id}}\",\n  \"text\": \"{{reply_message}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Synchroniser les métriques (metrics/sync)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{service_jwt}}" }
+            ],
+            "url": "{{base_url}}/internal/v1/metrics/sync",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"facebook\",\n  \"publicationExternalIds\": [\"{{post_id}}\"],\n  \"from\": \"2024-01-01\",\n  \"to\": \"2024-12-31\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
           }
         }
       ]

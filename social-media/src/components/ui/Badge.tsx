@@ -94,9 +94,9 @@ export const intentMeta: Record<Intent, { label: string }> = {
 
 export const accountStatusMeta: Record<AccountStatus, { label: string; tone: BadgeTone }> = {
   connected: { label: 'Connecté', tone: 'success' },
-  expiring_soon: { label: 'Expire bientôt', tone: 'warning' },
+  expiring: { label: 'Expire bientôt', tone: 'warning' },
   expired: { label: 'Expiré', tone: 'warning' },
-  reconnect_required: { label: 'Reconnexion requise', tone: 'warning' },
+  reauth_required: { label: 'Reconnexion requise', tone: 'warning' },
   revoked: { label: 'Accès révoqué', tone: 'danger' },
   disconnected: { label: 'Déconnecté', tone: 'neutral' },
 };

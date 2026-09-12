@@ -48,7 +48,7 @@ export default function HomeScreen() {
   const summary = useAsync(() => dashboardApi.summary(), []);
   const priority = useAsync(() => dashboardApi.priorityComments(), []);
   const upcoming = useAsync(() => dashboardApi.upcomingPublications(), []);
-  const accounts = useAsync(() => accountsApi.list(), []);
+  const accounts = useAsync(() => accountsApi.list(brand?.id ?? '', brand?.name ?? ''), []);
   const analytics = useAsync(() => analyticsApi.overview('30d'), []);
 
   const refreshAll = useCallback(async () => {
@@ -86,7 +86,7 @@ export default function HomeScreen() {
   };
 
   const staleAccounts = (accounts.data ?? []).filter(
-    (account) => account.status !== 'connected' && account.status !== 'expiring_soon'
+    (account) => account.status !== 'connected' && account.status !== 'expiring'
   );
 
   return (

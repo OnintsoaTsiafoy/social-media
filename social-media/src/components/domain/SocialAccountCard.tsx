@@ -38,7 +38,7 @@ export function SocialAccountCard({
   const status = accountStatusMeta[account.status];
   const needsReconnect =
     account.status === 'expired' ||
-    account.status === 'reconnect_required' ||
+    account.status === 'reauth_required' ||
     account.status === 'revoked';
   const missingPermissions = account.permissions.filter((permission) => !permission.granted);
 
