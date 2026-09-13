@@ -1,2 +1,17 @@
 fastapi==0.135.1
 uvicorn==0.41.0
+pydantic==2.12.5
+pydantic-settings==2.13.1
+PyJWT>=2.9,<3.0
+slowapi>=0.1.9,<0.2
+httpx>=0.28,<1.0
+scikit-learn>=1.5,<2.0
+joblib>=1.4,<2.0
+langgraph>=0.2,<1.0
+# Sprint 10 : chemin de génération optionnel. Le service démarre et fonctionne
+# sans clé d'API — le générateur local reste le défaut (voir
+# modules/generation/provider.py).
+anthropic>=1.0,<2.0
+pytest>=8.0,<9.0
+pytest-asyncio>=0.24,<1.0
+respx>=0.21,<1.0

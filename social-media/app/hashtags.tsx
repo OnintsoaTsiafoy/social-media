@@ -36,16 +36,24 @@ export default function HashtagsScreen() {
   const [selected, setSelected] = useState<string[]>(draft.hashtags);
   const [manual, setManual] = useState('');
 
-  const keywords = useAsync(() => publicationsApi.detectKeywords(draft.text), [draft.text]);
+  const keywords = useAsync(
+    () => publicationsApi.detectKeywords(draft.text, draft.brandId),
+    [draft.text, draft.brandId]
+  );
 
   const generate = useCallback(async () => {
-    const result = await generation.run(() => publicationsApi.generateHashtags(draft.text));
+    // `selected` est transmis pour que le serveur renvoie d'abord ce que
+    // l'utilisateur a déjà retenu : une régénération ne doit jamais faire
+    // disparaître un hashtag saisi à la main.
+    const result = await generation.run(() =>
+      publicationsApi.generateHashtags(draft.text, draft.brandId, selected)
+    );
     if (!result.ok) return;
     setSuggestions(result.data);
     if (result.data.length === 0) toast('Aucun hashtag n’a pu être généré.', 'info');
     // `generation` is a stable-enough wrapper; only the draft text matters here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft.text]);
+  }, [draft.text, draft.brandId, selected]);
 
   // Generate once on open, when the draft already has text to work from.
   useEffect(() => {

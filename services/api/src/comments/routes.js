@@ -8,11 +8,11 @@ import {
   commentsCountQuerySchema,
   escalateCommentSchema,
   listCommentsQuerySchema,
-  replyCommentSchema,
   setCommentStatusSchema,
   syncCommentsSchema,
 } from './schemas.js';
 import {
+  analyzeComment,
   commentsCounts,
   getComment,
   getCommentHistory,
@@ -110,9 +110,26 @@ router.post('/:commentId/escalate', loadComment('COMMUNITY_MANAGER'), async (req
   );
 });
 
+// `analyze` et `reanalyze` partagent la même logique (analyser deux fois
+// ajoute une ligne d'historique, ça n'écrase rien) : deux routes distinctes
+// parce que l'intention du community manager diffère et que l'audit doit la
+// refléter, une seule fonction pour qu'elles ne puissent pas diverger.
+router.post('/:commentId/analyze', loadComment('COMMUNITY_MANAGER'), async (request, response) => {
+  sendSuccess(response, await analyzeComment({ userId: request.auth.user.id, comment: request.comment }, request));
+});
+
+router.post('/:commentId/reanalyze', loadComment('COMMUNITY_MANAGER'), async (request, response) => {
+  sendSuccess(
+    response,
+    await analyzeComment({ userId: request.auth.user.id, comment: request.comment, reanalysis: true }, request)
+  );
+});
+
+// Le corps ne porte plus de texte depuis le Sprint 10 : le contenu envoyé est
+// celui de la proposition approuvée (voir replyToComment). Accepter un texte
+// libre ici aurait vidé l'approbation de son sens.
 router.post('/:commentId/reply', loadComment('COMMUNITY_MANAGER'), async (request, response) => {
-  const { text } = parse(replyCommentSchema, request.body);
-  sendSuccess(response, await replyToComment({ userId: request.auth.user.id, comment: request.comment, text }, request));
+  sendSuccess(response, await replyToComment({ userId: request.auth.user.id, comment: request.comment }, request));
 });
 
 export { router as commentRouter };

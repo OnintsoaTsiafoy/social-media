@@ -181,14 +181,29 @@ export type AiAnalysis = {
   sentiment: Sentiment;
   intent: Intent;
   priority: Priority;
-  /** 0 → 1. */
+  /** 0 → 1. Le minimum des deux tâches (sentiment et intention), pas leur
+   * moyenne : une intention sûre ne compense pas un sentiment douteux. */
   confidence: number;
+  /** Vrai quand le modèle est sous son seuil, ou quand le commentaire n'est
+   * pas en français (hors du périmètre du dataset). L'écran doit alors dire
+   * « à vérifier » plutôt que d'afficher un verdict comme les autres. */
+  lowConfidence: boolean;
   urgent: boolean;
   sensitive: boolean;
   recommendedAction: string;
   explanation: string;
   analysedAt: string;
   modelVersion: string;
+};
+
+/** Résultat du contrôle de sécurité, tel que le serveur le renvoie.
+ * `blocking` interdit l'approbation ; les autres niveaux sont affichés et
+ * l'humain décide. */
+export type ResponseWarning = {
+  code: string;
+  severity: 'blocking' | 'warning' | 'info';
+  message: string;
+  matches?: string[];
 };
 
 export type AiResponse = {
@@ -202,6 +217,13 @@ export type AiResponse = {
   /** Kept so the original proposal is never lost after a human edit. */
   originalText: string;
   version: number;
+  warnings: ResponseWarning[];
+  /** Vrai quand un avertissement bloquant interdit l'envoi : le serveur
+   * refusera l'approbation tant qu'il n'est pas levé. */
+  blocked: boolean;
+  /** `local-template-x` ou `claude` : dit quelle source a produit le texte. */
+  generator?: string;
+  promptVersion?: string;
 };
 
 export type Comment = {

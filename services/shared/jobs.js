@@ -7,6 +7,7 @@ export const QUEUES = {
   cleanupTemporaryMedia: 'cleanup-temporary-media',
   refreshExpiringTokens: 'refresh-expiring-oauth-tokens',
   syncSocialComments: 'sync-social-comments',
+  analyzeSocialComments: 'analyze-social-comments',
 };
 
 export const ALL_QUEUES = Object.values(QUEUES);

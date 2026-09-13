@@ -6,4 +6,6 @@ await import('./media.test.js');
 await import('./publications.test.js');
 await import('./social-accounts.test.js');
 await import('./social-service-client.test.js');
+await import('./ai-service-client.test.js');
 await import('./comments.test.js');
+await import('./response-suggestions.test.js');

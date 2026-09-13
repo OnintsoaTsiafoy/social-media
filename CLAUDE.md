@@ -12,11 +12,11 @@ Hootly — a monorepo for a community-manager mobile app. Five deployables, one 
 | [services/api/](services/api/) | Express 5 + Prisma — the only public façade for the mobile app (`/api/v1`) | 3000 |
 | [services/worker/](services/worker/) | pg-boss consumer: publishes to social networks, retries, media cleanup | 3001 |
 | [graph-api/](graph-api/) | FastAPI gateway to Meta Graph API (Facebook today, Instagram later) | 8000 |
-| [services/ai-service/](services/ai-service/) | FastAPI NLP service (stub; real analysis lands in Sprint 09) | 8080 |
+| [services/ai-service/](services/ai-service/) | FastAPI NLP service: sentiment/intent analysis (Sprint 09) and LangGraph reply generation (Sprint 10) | 8080 |
 
 Plus PostgreSQL (5432) and MinIO (9000/9001) from [compose.yaml](compose.yaml), and [services/shared/](services/shared/) — dependency-free modules imported by both the API and the worker (publication statuses, mock social provider, image inspection, queue names). Never import an npm package there: each service keeps its own `node_modules` and the shared files would not resolve it.
 
-Work is sprint-driven: `sprint_listing/` holds the 14-sprint plan and per-sprint specs (git-ignored, local only), [docs/](docs/) holds the delivered-state documentation. Before implementing a feature, read the matching `sprint_listing/SPRINT_XX_*.md` and the corresponding `docs/SPRINT_XX_*.md`. Sprints 01–04 are delivered; the current branch is `backend-develop`.
+Work is sprint-driven: `sprint_listing/` holds the 14-sprint plan and per-sprint specs (git-ignored, local only), [docs/](docs/) holds the delivered-state documentation. Before implementing a feature, read the matching `sprint_listing/SPRINT_XX_*.md` and the corresponding `docs/SPRINT_XX_*.md`. Sprints 01–10 are delivered; the current branch is `backend-develop`.
 
 ## Commands
 
@@ -48,7 +48,9 @@ node --test test/brands.test.js
 node --test --test-name-pattern "brand roles" test/brands.test.js
 ```
 
-`graph-api` tests need a virtualenv (`python -m venv venv`, activate, `pip install -r requirements.txt`); the deps are not in the global interpreter here, so `scripts/test.ps1` fails at the pytest step without it. Then `python -m pytest -q` or `python -m pytest tests/test_health.py::test_ready_reports_missing_meta_configuration`.
+`graph-api` and `services/ai-service` tests each need their own virtualenv (`python -m venv venv`, activate, `pip install -r requirements.txt`); the deps are not in the global interpreter here, so `scripts/test.ps1` fails at those pytest steps without them. Then `python -m pytest -q` or `python -m pytest tests/test_health.py::test_ready_reports_missing_meta_configuration`.
+
+The AI models are **not** committed: run `python -m training.train` then `python -m training.evaluate` from `services/ai-service/` to produce `artifacts/` (a few seconds, fixed seed so the result is identical every time). The Docker image does this at build time. Without artifacts, `/ready` answers 503 `model_artifacts_missing` — the test suite trains its own copy in a temp directory, so it does not depend on them.
 
 Prisma migrations are applied by the API container at startup (`npx prisma migrate deploy` in [services/api/Dockerfile](services/api/Dockerfile)); after editing [schema.prisma](services/api/prisma/schema.prisma), add a migration under `prisma/migrations/` and restart the stack.
 
@@ -61,7 +63,7 @@ Both service images build from the **repo root** (`context: .` in compose) so th
 Trust boundaries (see [docs/DECISIONS_ARCHITECTURE.md](docs/DECISIONS_ARCHITECTURE.md)):
 
 - The mobile app talks **only** to the Express API. It never reaches PostgreSQL, MinIO, Meta or the AI service. Media are served as short-lived signed URLs (`S3_PUBLIC_ENDPOINT` is the host the phone can reach), never as storage keys.
-- User JWTs are accepted by Express only. Express → graph-api / ai-service will use short-lived service JWTs on `/internal/v1` (contracts stubbed in [contracts/openapi/](contracts/openapi/), enforcement from Sprint 05).
+- User JWTs are accepted by Express only. Express and the worker mint short-lived service JWTs for `/internal/v1`, signed with the shared `SERVICE_JWT_SECRET` but **scoped by audience**: `social-service` for graph-api, `ai-service` for the AI service. A token minted to publish on Meta is rejected by the AI service and vice-versa; scopes split further (`social:read`/`social:write`, `ai:analyze`/`ai:generate`).
 - Meta tokens stay server-side and are never returned to the client.
 
 HTTP contract ([docs/CONTRATS_API.md](docs/CONTRATS_API.md)), enforced by [services/api/src/lib/http.js](services/api/src/lib/http.js):

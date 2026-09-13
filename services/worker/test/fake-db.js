@@ -16,6 +16,8 @@ export function createFakeDb(initial = {}) {
     media: initial.media ?? [],
     publicationMedia: initial.publicationMedia ?? [],
     socialAccounts: initial.socialAccounts ?? [],
+    comments: initial.comments ?? [],
+    analyses: initial.analyses ?? [],
     calls: [],
   };
 
@@ -167,6 +169,43 @@ export function createFakeDb(initial = {}) {
         })
         .slice(0, limit)
         .map((row) => ({ id: row.id, provider: row.provider }));
+    }
+
+    // Sprint 09 comment-analysis.js. `latest_analysis_id IS NULL` est propre à
+    // la sélection des commentaires non analysés — même règle que plus haut :
+    // on choisit le fragment le plus spécifique, pas le nom de la table.
+    if (text.includes('latest_analysis_id IS NULL')) {
+      const [limit] = params;
+      return (state.comments ?? [])
+        .filter(
+          (row) =>
+            !row.latest_analysis_id &&
+            typeof row.content === 'string' &&
+            row.content.trim().length > 0 &&
+            !row.is_deleted_on_platform
+        )
+        .sort((a, b) => new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime())
+        .slice(0, limit)
+        .map((row) => ({ id: row.id, content: row.content }));
+    }
+
+    if (text.includes('INSERT INTO comment_analyses')) {
+      const [commentId, sentiment, intent, priority] = params;
+      const analysis = {
+        id: `analysis-${state.analyses.length + 1}`,
+        comment_id: commentId,
+        sentiment,
+        intent,
+        priority,
+        model_version: params[15],
+      };
+      state.analyses.push(analysis);
+      // Le CTE met à jour le pointeur dans le même énoncé : le double doit
+      // reproduire cet effet, sinon un commentaire déjà analysé ressortirait
+      // du balayage suivant et le test ne prouverait rien.
+      const comment = state.comments.find((row) => row.id === commentId);
+      if (comment) comment.latest_analysis_id = analysis.id;
+      return [{ id: analysis.id }];
     }
 
     if (text.includes('DISTINCT external_publication_id')) {

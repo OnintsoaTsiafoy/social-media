@@ -12,6 +12,8 @@ import PgBoss from 'pg-boss';
 
 import { mockSocialProvider } from '../shared/social-provider.js';
 import { ALL_QUEUES, QUEUES } from '../shared/jobs.js';
+import { defaultAnalyseComment } from './src/ai-client.js';
+import { createCommentAnalysis } from './src/comment-analysis.js';
 import { createCommentSync } from './src/comment-sync.js';
 import { createMediaCleanup } from './src/cleanup-media.js';
 import { createDeliveryService } from './src/delivery.js';
@@ -63,6 +65,7 @@ async function startBoss() {
   const mediaCleanup = createMediaCleanup({ query, deleteObject });
   const tokenRefresh = createTokenRefresh({ query, refreshToken: defaultRefreshToken });
   const commentSync = createCommentSync({ query, syncComments: defaultSyncComments });
+  const commentAnalysis = createCommentAnalysis({ query, analyseComment: defaultAnalyseComment });
 
   await boss.work(QUEUES.publishScheduled, async (jobs) => {
     for (const job of jobs) {
@@ -117,6 +120,19 @@ async function startBoss() {
   // couvre que les posts publiés par Hootly (voir comment-sync.js).
   await boss.schedule(QUEUES.syncSocialComments, '*/15 * * * *', {});
 
+  await boss.work(QUEUES.analyzeSocialComments, async (jobs) => {
+    for (const job of jobs) {
+      const result = await commentAnalysis.run(job.data ?? {});
+      console.log({ scope: 'comment-analysis', ...result });
+    }
+  });
+
+  // Toutes les 5 minutes : un commentaire doit être trié avant qu'un community
+  // manager n'ouvre sa boîte de réception, plus souvent donc que la
+  // synchronisation de secours. Le balayage est sans effet quand il n'y a rien
+  // à analyser (une requête indexée qui ne rend aucune ligne).
+  await boss.schedule(QUEUES.analyzeSocialComments, '*/5 * * * *', {});
+
   state.boss = boss;
   state.queues = ALL_QUEUES;
   state.startedAt = new Date().toISOString();
@@ -142,6 +158,10 @@ const server = http.createServer((request, response) => {
     if (socialProviderMode === 'live' && !process.env.SOCIAL_SERVICE_URL?.trim()) {
       missing.push('SOCIAL_SERVICE_URL');
     }
+    // Required in both modes: the comment-analysis sweep (Sprint 09) runs
+    // against locally stored comments and never touches Meta, so a mock
+    // social provider does not remove the need for the AI service.
+    if (!process.env.AI_SERVICE_URL?.trim()) missing.push('AI_SERVICE_URL');
     if (missing.length > 0) {
       body(503, { status: 'not_ready', service: 'worker', reason: 'database_url_missing', missing });
       return;

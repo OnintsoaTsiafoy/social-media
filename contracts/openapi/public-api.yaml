@@ -476,11 +476,14 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
   /api/v1/comments:
     get:
-      summary: Lister les commentaires d'une marque, paginé et filtré (Sprint 08)
+      summary: Lister les commentaires d'une marque, paginé et filtré (Sprint 08, filtres IA au Sprint 09)
       description: >
-        Les filtres liés à l'analyse IA (sentiment/priorité/intention) ne
-        sont pas exposés ici : rien ne persiste encore cette analyse
-        (Sprints 09/10).
+        Les filtres d'analyse (sentiment/intention/priorité) portent sur la
+        DERNIÈRE analyse du commentaire : un commentaire pas encore analysé
+        n'en a aucune et sort donc des résultats dès qu'un de ces filtres est
+        posé, plutôt que d'être rangé par défaut dans « neutre ».
+        sort=priority classe HIGH d'abord, puis par date, les non analysés en
+        dernier.
       security: [{ bearerAuth: [] }]
       parameters:
         - { name: brandId, in: query, required: true, schema: { type: string, format: uuid } }
@@ -488,6 +491,10 @@ paths:
         - { name: network, in: query, schema: { type: string, enum: [facebook, instagram] } }
         - { name: publicationId, in: query, schema: { type: string } }
         - { name: search, in: query, schema: { type: string, maxLength: 120 } }
+        - { name: sentiment, in: query, schema: { type: string, enum: [positive, neutral, negative, all] } }
+        - { name: intent, in: query, schema: { type: string, enum: [question, info_request, complaint, claim, other, all] } }
+        - { name: priority, in: query, schema: { type: string, enum: [low, medium, high, all] } }
+        - { name: sort, in: query, schema: { type: string, enum: [recent, priority], default: recent } }
         - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
         - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
       responses:
@@ -496,8 +503,12 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/comments/counts:
     get:
-      summary: Compteurs de commentaires par marque (Sprint 08)
-      description: highPriority/pendingAiResponses valent toujours 0 avant les Sprints 09/10 — jamais une valeur inventée.
+      summary: Compteurs de commentaires par marque (Sprint 08, highPriority réel depuis le Sprint 09)
+      description: >
+        highPriority compte les commentaires ENCORE À TRAITER dont la dernière
+        analyse est « high ». pendingAiResponses vaut toujours 0 : rien ne
+        persiste encore de proposition de réponse (Sprint 10) — ici 0 signifie
+        « aucune », jamais « inconnu ».
       security: [{ bearerAuth: [] }]
       parameters:
         - { name: brandId, in: query, required: true, schema: { type: string, format: uuid } }
@@ -534,12 +545,13 @@ paths:
     parameters:
       - { name: commentId, in: path, required: true, schema: { type: string, format: uuid } }
     get:
-      summary: Historique d'un commentaire (Sprint 08)
+      summary: Historique d'un commentaire (Sprint 08, analyses depuis le Sprint 09)
       description: >
         Union de sources : comment_received, status_changed/escalated,
-        send_failed/response_sent. Les genres liés à l'IA (ai_analysis,
-        response_proposed, response_edited) n'apparaissent pas encore
-        (Sprints 09/10) — pas une omission à corriger ici.
+        send_failed/response_sent, et ai_analysis — une entrée par passage du
+        modèle, « réanalyser » en ajoutant une sans effacer la précédente.
+        Les genres response_proposed/response_edited n'apparaissent pas
+        encore (Sprint 10) — pas une omission à corriger ici.
       security: [{ bearerAuth: [] }]
       responses:
         '200': { $ref: '#/components/responses/Success' }
@@ -578,17 +590,118 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Success' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/comments/{commentId}/analyze:
+    parameters:
+      - { name: commentId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Analyser un commentaire (Sprint 09, COMMUNITY_MANAGER ou plus)
+      description: >
+        Synchrone : le modèle est linéaire (TF-IDF + régression logistique),
+        pas un LLM, donc l'écran reçoit l'analyse directement. Renvoie le
+        commentaire complet, analyse incluse. 400 si le commentaire n'a aucun
+        texte (cas réel : un commentaire Meta réduit à une image).
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503':
+          description: Service d'analyse injoignable ou modèles non entraînés (code ai_unavailable)
+  /api/v1/comments/{commentId}/reanalyze:
+    parameters:
+      - { name: commentId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Réanalyser un commentaire (Sprint 09, COMMUNITY_MANAGER ou plus)
+      description: >
+        Même traitement que /analyze : les analyses sont empilées, jamais
+        écrasées, donc réanalyser ajoute une entrée d'historique. Route
+        distincte uniquement pour que l'audit distingue les deux intentions.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503':
+          description: Service d'analyse injoignable ou modèles non entraînés (code ai_unavailable)
   /api/v1/comments/{commentId}/reply:
     parameters:
       - { name: commentId, in: path, required: true, schema: { type: string, format: uuid } }
     post:
-      summary: Envoyer une réponse (Sprint 08, COMMUNITY_MANAGER ou plus)
+      summary: Envoyer la réponse approuvée (Sprint 08, approbation obligatoire depuis le Sprint 10)
       description: >
-        Idempotent par commentaire (une seule réponse valide, jamais plus) —
-        pas de client-supplied Idempotency-Key ici, la clé est dérivée côté
-        serveur de commentId. 409 si déjà envoyée avec succès, en cours
-        d'envoi, ou si le commentaire a été supprimé sur la plateforme ; un
-        échec précédent peut être retenté.
+        Le corps ne porte PLUS de texte depuis le Sprint 10 : le contenu publié
+        est celui de la dernière proposition, qui doit être au statut
+        `approved`. Accepter un texte libre ici viderait l'approbation de son
+        sens — n'importe quel contenu aurait pu être publié derrière elle.
+        409 si aucune proposition n'existe, si elle n'est pas approuvée, si la
+        réponse a déjà été envoyée, ou si le commentaire a été supprimé sur la
+        plateforme. Un échec marque la proposition `failed` plutôt que de la
+        laisser « approuvée » : l'écran ne doit pas laisser croire qu'elle est
+        partie. Idempotent par commentaire (clé dérivée côté serveur).
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/response-suggestions:
+    post:
+      summary: Générer ou rédiger une proposition de réponse (Sprint 10, COMMUNITY_MANAGER ou plus)
+      description: >
+        Sans `text`, la proposition est générée par le service IA à partir des
+        paramètres de marque, de la publication liée et d'un historique borné
+        à 5 échanges sur CE commentaire. Avec `text`, c'est le community
+        manager qui a rédigé : la proposition est enregistrée telle quelle mais
+        passe par le MÊME contrôle de sécurité — c'est par ce chemin qu'un
+        engagement non autorisé arrive le plus souvent.
+        Chaque appel crée une version : régénérer n'écrase jamais la
+        proposition précédente.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [commentId]
+              properties:
+                commentId: { type: string, format: uuid }
+                text: { type: string, minLength: 1, maxLength: 500 }
+                tone: { type: string, enum: [professional, friendly, empathetic, formal, custom] }
+                language: { type: string, enum: [fr, en, ar] }
+                instruction: { type: string, maxLength: 1000 }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503':
+          description: Service IA injoignable (code ai_unavailable)
+    get:
+      summary: Lister toutes les versions d'une proposition (Sprint 10)
+      description: Ordre croissant de version — l'historique complet, y compris les versions rejetées.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: commentId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/response-suggestions/{suggestionId}:
+    parameters:
+      - { name: suggestionId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Détail d'une version (Sprint 10)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Enregistrer une réécriture humaine (Sprint 10, COMMUNITY_MANAGER ou plus)
+      description: >
+        Crée une NOUVELLE version plutôt que de modifier l'existante :
+        `originalText` porte toujours la proposition d'origine de l'IA et n'est
+        jamais réécrit. La version créée est marquée `generatedByAi: false` et
+        repasse au contrôle de sécurité.
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
@@ -598,12 +711,81 @@ paths:
               type: object
               required: [text]
               properties:
-                text: { type: string, minLength: 1, maxLength: 8000 }
+                text: { type: string, minLength: 1, maxLength: 500 }
+                tone: { type: string, enum: [professional, friendly, empathetic, formal, custom] }
+                language: { type: string, enum: [fr, en, ar] }
       responses:
         '200': { $ref: '#/components/responses/Success' }
         '400': { $ref: '#/components/responses/ValidationFailed' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/response-suggestions/{suggestionId}/approve:
+    parameters:
+      - { name: suggestionId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Approuver une proposition (Sprint 10, COMMUNITY_MANAGER ou plus)
+      description: >
+        Seul chemin qui autorise ensuite un envoi. `text` permet d'approuver
+        une ultime retouche en une requête : elle est enregistrée comme une
+        version à part entière, recontrôlée, puis approuvée — le texte approuvé
+        est donc exactement celui qui partira.
+        409 quand le contrôle de sécurité signale un problème bloquant (terme
+        interdit de la marque, engagement non autorisé, donnée personnelle en
+        public, réponse trop longue), ou quand la proposition a déjà été
+        envoyée ou rejetée.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/response-suggestions/{suggestionId}/reject:
+    parameters:
+      - { name: suggestionId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Rejeter une proposition (Sprint 10, COMMUNITY_MANAGER ou plus)
+      description: La version reste dans l'historique, elle n'est pas supprimée. 409 si déjà envoyée.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { reason: { type: string, maxLength: 500 } } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/publications/generate-hashtags:
+    post:
+      summary: Proposer des hashtags pour un texte de publication (Sprint 10)
+      description: >
+        Renvoie `hashtags` et `keywords` issus de la MÊME extraction : l'encart
+        « mots-clés détectés » et les propositions de l'écran ne peuvent donc
+        pas se contredire. `preserve` (la sélection déjà faite par
+        l'utilisateur) revient en tête et n'est jamais évincée par le plafond
+        de 15.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [brandId, text]
+              properties:
+                brandId: { type: string, format: uuid }
+                text: { type: string, minLength: 1, maxLength: 10000 }
+                preserve: { type: array, maxItems: 30, items: { type: string, maxLength: 80 } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503':
+          description: Service IA injoignable (code ai_unavailable)
 components:
   securitySchemes:
     bearerAuth:

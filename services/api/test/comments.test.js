@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { authorInitials } from '../src/comments/service.js';
+import { authorInitials, toPublicAnalysis } from '../src/comments/service.js';
 import {
   commentIdSchema,
   commentsCountQuerySchema,
   escalateCommentSchema,
   listCommentsQuerySchema,
-  replyCommentSchema,
   setCommentStatusSchema,
   syncCommentsSchema,
 } from '../src/comments/schemas.js';
@@ -58,17 +57,60 @@ test('sync requires a brandId', () => {
   assert.equal(syncCommentsSchema.parse({ brandId }).brandId, brandId);
 });
 
-test('reply text must be non-empty and bounded', () => {
-  assert.equal(replyCommentSchema.parse({ text: 'Merci !' }).text, 'Merci !');
-  assert.throws(() => replyCommentSchema.parse({ text: '' }));
-  assert.throws(() => replyCommentSchema.parse({}));
-  assert.throws(() => replyCommentSchema.parse({ text: 'x'.repeat(8001) }));
-});
-
 test('authorInitials handles single word, multi-word, and missing names', () => {
   assert.equal(authorInitials('Alice Martin'), 'AM');
   assert.equal(authorInitials('Cher'), 'CH');
   assert.equal(authorInitials(null), '?');
   assert.equal(authorInitials(''), '?');
   assert.equal(authorInitials('  Bob   Dupont  '), 'BD');
+});
+
+test('list comments accepts the analysis filters added in Sprint 09', () => {
+  const brandId = '8d10e3e8-85b7-4fd3-8e6c-67d3188eecab';
+  assert.equal(listCommentsQuerySchema.parse({ brandId, sentiment: 'negative' }).sentiment, 'negative');
+  assert.equal(listCommentsQuerySchema.parse({ brandId, intent: 'info_request' }).intent, 'info_request');
+  assert.equal(listCommentsQuerySchema.parse({ brandId, priority: 'high' }).priority, 'high');
+  assert.equal(listCommentsQuerySchema.parse({ brandId, sentiment: 'all' }).sentiment, 'all');
+  assert.throws(() => listCommentsQuerySchema.parse({ brandId, sentiment: 'mitige' }));
+  assert.throws(() => listCommentsQuerySchema.parse({ brandId, intent: 'insulte' }));
+  assert.throws(() => listCommentsQuerySchema.parse({ brandId, priority: 'critique' }));
+});
+
+test('list comments defaults to the most recent first and accepts priority sorting', () => {
+  const brandId = '8d10e3e8-85b7-4fd3-8e6c-67d3188eecab';
+  assert.equal(listCommentsQuerySchema.parse({ brandId }).sort, 'recent');
+  assert.equal(listCommentsQuerySchema.parse({ brandId, sort: 'priority' }).sort, 'priority');
+  assert.throws(() => listCommentsQuerySchema.parse({ brandId, sort: 'confidence' }));
+});
+
+// Un commentaire jamais analysé doit rendre `null`, jamais une analyse neutre
+// par défaut : l'écran distingue « en attente d'analyse » de « analysé comme
+// neutre », et une valeur inventée effacerait cette distinction.
+test('an unanalysed comment exposes no analysis at all', () => {
+  assert.equal(toPublicAnalysis(null), null);
+  assert.equal(toPublicAnalysis(undefined), null);
+});
+
+test('a stored analysis is lowercased on the wire, matching the mobile vocabulary', () => {
+  const analysed = toPublicAnalysis({
+    sentiment: 'NEGATIVE',
+    intent: 'CLAIM',
+    priority: 'HIGH',
+    confidence: 0.92,
+    lowConfidence: false,
+    isUrgent: true,
+    isSensitive: false,
+    recommendedAction: 'Traiter en priorité.',
+    explanation: 'Message négatif.',
+    analysedAt: new Date('2026-09-12T10:00:00Z'),
+    modelVersion: 'fr-linear-1.0.0+v1',
+  });
+
+  assert.equal(analysed.sentiment, 'negative');
+  assert.equal(analysed.intent, 'claim');
+  assert.equal(analysed.priority, 'high');
+  assert.equal(analysed.urgent, true);
+  assert.equal(analysed.sensitive, false);
+  assert.equal(analysed.analysedAt, '2026-09-12T10:00:00.000Z');
+  assert.equal(analysed.modelVersion, 'fr-linear-1.0.0+v1');
 });

@@ -1,32 +1,381 @@
 openapi: 3.1.0
 info:
   title: Hootly AI Internal API
-  version: 0.1.0
-  description: Contrat du service FastAPI IA, implémenté fonctionnellement au Sprint 09/10.
+  version: 1.1.0
+  description: >
+    Service FastAPI d'analyse NLP (services/ai-service). Appelé uniquement par
+    Express et par le worker, jamais par le mobile
+    (docs/DECISIONS_ARCHITECTURE.md). Le service est SANS ÉTAT : il ne connaît
+    pas la base, ne persiste rien, et reçoit le texte du commentaire en clair
+    dans la requête — c'est l'appelant qui stocke le résultat.
+    Modèle : TF-IDF (mots 1-2 + caractères 3-5) puis régression logistique,
+    entraîné sur un dataset francophone annoté et versionné
+    (services/ai-service/dataset/). Urgence et sensibilité sont des règles, pas
+    des classes apprises : voir modules/nlp/rules.py pour la justification.
+    Sprint 10 : la génération de réponses est orchestrée par un graphe
+    LangGraph (validation, langue, analyse, priorité, contexte, génération,
+    contrôle de sécurité, décision). AUCUNE route de ce service n'envoie quoi
+    que ce soit : elles produisent des propositions, dont l'envoi réel reste
+    soumis à une approbation humaine côté Express puis à graph-api.
+    Le générateur par défaut est déterministe et local (aucune clé requise) ;
+    un adaptateur Claude prend le relais quand ANTHROPIC_API_KEY est
+    configurée, avec repli automatique sur le local en cas d'indisponibilité.
 paths:
   /health:
     get:
+      summary: Sonde de vivacité
       responses: { '200': { description: Processus actif } }
   /ready:
     get:
+      summary: Sonde de disponibilité
+      description: >
+        Vérifie le mode ET la présence des artefacts de modèle : un service
+        qui se déclarerait prêt sans modèle entraîné répondrait 503 à chaque
+        analyse. Motifs possibles : model_mode_unsupported,
+        model_artifacts_missing.
       responses:
-        '200': { description: Modèle ou mode local configuré }
-        '503': { description: Modèle non configuré }
+        '200': { description: Mode reconnu et modèles chargés }
+        '503': { description: Mode non supporté ou modèles absents }
   /internal/v1/comments/analyze:
     post:
       summary: Analyser un commentaire
+      description: >
+        Déterministe : le même texte donne toujours le même verdict. commentId
+        n'est utilisé que pour corréler les journaux — le service ne le
+        rapproche d'aucune donnée stockée.
+      security: [{ serviceJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                commentId: { type: string, nullable: true }
+                text: { type: string, minLength: 1 }
+            example:
+              commentId: 4f1c2b6e-9a1d-4f8b-9d2a-77f6a2c1b3e5
+              text: Commande jamais reçue, je veux un remboursement.
+      responses:
+        '200':
+          description: Analyse
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  commentId: { type: string, nullable: true }
+                  analysis: { $ref: '#/components/schemas/Analysis' }
+              example:
+                commentId: 4f1c2b6e-9a1d-4f8b-9d2a-77f6a2c1b3e5
+                analysis:
+                  sentiment: negative
+                  intent: claim
+                  priority: high
+                  confidence: 0.87
+                  sentimentConfidence: 0.93
+                  intentConfidence: 0.87
+                  lowConfidence: false
+                  urgent: true
+                  sensitive: false
+                  language: fr
+                  recommendedAction: "Traiter en priorité aujourd'hui : le délai aggrave la situation."
+                  explanation: >-
+                    Message négatif, classé comme réclamation sur un cas personnel.
+                    Termes déterminants : « remboursement », « jamais ».
+                    Signaux détectés : relance après absence de réponse.
+                  modelVersion: fr-linear-1.0.0+v1
+                  datasetVersion: v1
+                  analysedAt: '2026-09-13T08:31:04.512Z'
+                  signals: [no_answer]
+                  topTerms: [remboursement, jamais]
+        '400': { description: Texte vide (code validation_failed) }
+        '401': { description: JWT de service absent, expiré, d'une autre audience, ou de type utilisateur }
+        '403': { description: Scope ai:analyze absent }
+        '422': { description: Corps de requête invalide (code validation_failed) }
+        '429': { description: Limite de débit atteinte }
+        '503': { description: Modèles non entraînés ou JWT de service non configuré }
+  /internal/v1/models/info:
+    get:
+      summary: Carte du modèle servi
+      description: >
+        Version, dataset, graine, hyperparamètres retenus, seuils de confiance
+        et métriques de test. Permet de savoir en exploitation quel modèle a
+        produit une analyse déjà stockée, sans relire les journaux.
       security: [{ serviceJwt: [] }]
       responses:
-        '200': { description: Analyse versionnée }
-        '503': { description: Modèle indisponible }
+        '200': { description: Carte du modèle et métriques }
+        '401': { description: JWT de service invalide }
+        '503': { description: Modèles non entraînés }
   /internal/v1/responses/generate:
     post:
       summary: Générer une proposition de réponse non envoyée
+      description: >
+        Exécute le graphe complet et renvoie la proposition. Le contexte de
+        marque, la publication et l'historique sont fournis PAR L'APPELANT : le
+        service ne lit aucune table et ne peut donc pas réclamer plus
+        d'historique que ce qu'Express a décidé d'envoyer (10 entrées au
+        maximum, imposé par le schéma). Scope `ai:generate` — distinct de
+        `ai:analyze` : analyser un commentaire et rédiger au nom de la marque
+        ne sont pas la même autorisation.
       security: [{ serviceJwt: [] }]
-      responses: { '200': { description: Proposition et warnings } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssistanceRequest' }
+      responses:
+        '200':
+          description: Proposition et avertissements
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  commentId: { type: string, nullable: true }
+                  suggestion: { $ref: '#/components/schemas/Suggestion' }
+        '400': { description: Commentaire vide (code validation_failed) }
+        '401': { description: JWT de service invalide ou d'une autre audience }
+        '403': { description: Scope ai:generate absent }
+        '422': { description: Corps invalide, ou plus de 10 entrées d'historique }
+        '503': { description: Génération impossible (code ai_error) }
+  /internal/v1/workflows/comment-assistance:
+    post:
+      summary: Parcours complet d'assistance sur un commentaire
+      description: >
+        Même graphe que /responses/generate, mais l'état entier est rendu :
+        analyse, priorité, contexte réellement assemblé et proposition. Le
+        champ `context` existe pour vérifier après coup ce que le générateur
+        avait sous les yeux — notamment qu'aucun historique de trop n'y est
+        entré.
+      security: [{ serviceJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssistanceRequest' }
+      responses:
+        '200':
+          description: État final du graphe
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  commentId: { type: string, nullable: true }
+                  context: { type: string }
+                  priority: { type: string, enum: [low, medium, high] }
+                  analysis: { type: object, nullable: true }
+                  suggestion: { $ref: '#/components/schemas/Suggestion' }
+                  errors: { type: array, items: { type: object } }
+        '400': { description: Commentaire vide }
+        '401': { description: JWT de service invalide }
+        '403': { description: Scope ai:generate absent }
+  /internal/v1/responses/safety-check:
+    post:
+      summary: Contrôler un texte de réponse déjà rédigé
+      description: >
+        S'applique à n'importe quel texte, y compris réécrit à la main — c'est
+        son cas d'usage principal : la réécriture humaine est le moment où un
+        engagement non autorisé apparaît le plus souvent, et un contrôle limité
+        aux sorties du générateur passerait à côté.
+      security: [{ serviceJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string }
+                brand: { $ref: '#/components/schemas/BrandContext' }
+                language: { type: string, default: fr }
+      responses:
+        '200':
+          description: Verdict et avertissements structurés
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  blocked: { type: boolean }
+                  warnings: { type: array, items: { $ref: '#/components/schemas/Warning' } }
+        '401': { description: JWT de service invalide }
+        '403': { description: Scope ai:generate absent }
+  /internal/v1/hashtags/generate:
+    post:
+      summary: Proposer des hashtags pour une publication
+      description: >
+        Extraction déterministe à partir du texte de la publication et des
+        termes recommandés de la marque — sans modèle de langue, y compris en
+        mode `llm`. Limite assumée : les hashtags proposés sont toujours
+        pertinents mais ne font émerger aucune thématique absente du texte.
+        `preserve` (la sélection déjà faite) revient en tête et n'est jamais
+        évincée par le plafond.
+      security: [{ serviceJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1 }
+                brand: { $ref: '#/components/schemas/BrandContext' }
+                preserve: { type: array, items: { type: string } }
+                limit: { type: integer, minimum: 1, maximum: 30 }
+      responses:
+        '200':
+          description: Hashtags normalisés et mots-clés détectés
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hashtags: { type: array, items: { type: string } }
+                  keywords: { type: array, items: { type: string } }
+        '401': { description: JWT de service invalide }
+        '403': { description: Scope ai:generate absent }
+        '422': { description: Texte vide }
 components:
+  schemas:
+    BrandContext:
+      type: object
+      description: Sous-ensemble de brand_ai_settings — jamais le modèle complet.
+      properties:
+        name: { type: string, nullable: true }
+        tone: { type: string, enum: [professional, friendly, empathetic, formal, custom] }
+        customTone: { type: string, nullable: true }
+        formality: { type: string, enum: [informal, formal, adaptive] }
+        language: { type: string }
+        emojisAllowed: { type: boolean }
+        targetLength: { type: string }
+        greeting: { type: string, nullable: true }
+        closing: { type: string, nullable: true }
+        forbiddenTerms: { type: array, items: { type: string } }
+        recommendedTerms: { type: array, items: { type: string } }
+        instructions: { type: string, nullable: true }
+        complaintInstructions: { type: string, nullable: true }
+        urgencyInstructions: { type: string, nullable: true }
+        supportInstructions: { type: string, nullable: true }
+    AssistanceRequest:
+      type: object
+      required: [commentText]
+      properties:
+        commentId: { type: string, nullable: true }
+        commentText: { type: string }
+        authorName: { type: string, nullable: true }
+        brand: { $ref: '#/components/schemas/BrandContext' }
+        publication:
+          type: object
+          nullable: true
+          properties:
+            content: { type: string }
+            hashtags: { type: array, items: { type: string } }
+        history:
+          type: array
+          maxItems: 10
+          description: Échanges sur CE commentaire uniquement, déjà tronqués par Express.
+          items:
+            type: object
+            properties:
+              author: { type: string, nullable: true }
+              text: { type: string }
+        instruction: { type: string, nullable: true, maxLength: 1000 }
+        tone: { type: string, nullable: true }
+        language: { type: string, nullable: true }
+    Warning:
+      type: object
+      required: [code, severity, message]
+      properties:
+        code: { type: string }
+        severity:
+          type: string
+          enum: [blocking, warning, info]
+          description: >
+            `blocking` interdit l'approbation côté Express ; les autres niveaux
+            sont affichés et l'humain décide. Un contrôle qui bloquerait trop
+            serait contourné.
+        message: { type: string }
+        matches: { type: array, items: { type: string } }
+    Suggestion:
+      type: object
+      required: [text, language, tone, generator, promptVersion, blocked, action, warnings]
+      properties:
+        text: { type: string }
+        language: { type: string }
+        tone: { type: string }
+        generator:
+          type: string
+          description: '« local-template-x.y.z » ou « claude » — dit quelle source a produit le texte.'
+        promptVersion:
+          type: string
+          description: >
+            Stocké avec la proposition côté Express : sans lui, impossible de
+            rattacher un texte aux consignes qui l'ont produit.
+        blocked: { type: boolean }
+        action:
+          type: string
+          enum: [propose, escalate, blocked, failed]
+          description: >
+            Recommandation d'affichage, jamais un envoi. Aucune valeur ne
+            déclenche de publication.
+        warnings: { type: array, items: { $ref: '#/components/schemas/Warning' } }
+    Analysis:
+      type: object
+      required:
+        [sentiment, intent, priority, confidence, sentimentConfidence, intentConfidence,
+         lowConfidence, urgent, sensitive, language, recommendedAction, explanation,
+         modelVersion, datasetVersion, analysedAt, signals, topTerms]
+      properties:
+        sentiment: { type: string, enum: [positive, neutral, negative] }
+        intent: { type: string, enum: [question, info_request, complaint, claim, other] }
+        priority:
+          type: string
+          enum: [low, medium, high]
+          description: Dérivée du sentiment, de l'intention et des règles — jamais prédite directement.
+        confidence:
+          type: number
+          description: Minimum des deux tâches, pas leur moyenne — une intention sûre ne compense pas un sentiment douteux.
+        sentimentConfidence: { type: number }
+        intentConfidence: { type: number }
+        lowConfidence:
+          type: boolean
+          description: >
+            Vrai sous le seuil de l'une des deux tâches (seuil choisi sur la
+            validation, voir models/info) ou si le texte n'est pas en français.
+        urgent: { type: boolean, description: Règle — le délai aggrave la situation. }
+        sensitive: { type: boolean, description: Règle — relecture humaine imposée. }
+        language:
+          type: string
+          enum: [fr, other]
+          description: >
+            « other » n'est pas une langue identifiée : le dataset étant
+            uniquement francophone, le service se contente de signaler qu'il
+            sort de son périmètre.
+        recommendedAction: { type: string }
+        explanation:
+          type: string
+          description: Cite les termes réellement issus des coefficients du modèle, pas une justification reconstruite.
+        modelVersion: { type: string }
+        datasetVersion: { type: string }
+        analysedAt: { type: string, format: date-time }
+        signals:
+          type: array
+          items: { type: string }
+          description: Règles déclenchées (legal, no_answer, outage, health_incident, …) — conservées pour justifier une escalade a posteriori.
+        topTerms:
+          type: array
+          items: { type: string }
   securitySchemes:
     serviceJwt:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: >
+        HS256, secret partagé, audience « ai-service » (distincte de
+        « social-service » : un jeton émis pour graph-api ne doit pas ouvrir
+        l'analyse). Claim type=service obligatoire, scope ai:analyze requis.

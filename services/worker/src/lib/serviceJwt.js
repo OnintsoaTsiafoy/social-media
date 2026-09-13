@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 
 import jwt from 'jsonwebtoken';
 
-const SERVICE_JWT_AUDIENCE = 'social-service';
+// Une audience par service interne : graph-api et ai-service partagent le
+// secret de signature mais pas le périmètre (voir la note identique dans
+// services/api/src/lib/serviceJwt.js).
+export const SOCIAL_SERVICE_AUDIENCE = 'social-service';
+export const AI_SERVICE_AUDIENCE = 'ai-service';
 const SERVICE_JWT_TTL_SECONDS = 120;
 
 function requiredSecret() {
@@ -20,14 +24,14 @@ function requiredSecret() {
 // is its own edge, not proxied through Express); it already holds
 // DATABASE_URL and S3 credentials directly, so minting its own short-lived
 // service JWT doesn't raise its trust class.
-export function mintServiceJwt(scope) {
+export function mintServiceJwt(scope, audience = SOCIAL_SERVICE_AUDIENCE) {
   return jwt.sign(
     { scope, type: 'service', jti: randomUUID() },
     requiredSecret(),
     {
       algorithm: 'HS256',
       subject: 'hootly-worker',
-      audience: SERVICE_JWT_AUDIENCE,
+      audience,
       expiresIn: SERVICE_JWT_TTL_SECONDS,
     }
   );

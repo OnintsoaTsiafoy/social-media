@@ -72,7 +72,9 @@ export default function CommentDetailScreen() {
 
   const analyse = async () => {
     if (!comment) return;
-    const result = await mutation.run(() => commentsApi.analyse(comment.id));
+    const result = await mutation.run(() =>
+      commentsApi.analyse(comment.id, { reanalysis: Boolean(comment.analysis) })
+    );
     if (!result.ok) return;
     request.setData(result.data);
     toast('Analyse IA terminée.', 'success');
@@ -192,6 +194,16 @@ export default function CommentDetailScreen() {
                   confiance {Math.round(analysis.confidence * 100)} %
                 </Text>
               </View>
+
+              {/* Le seuil vient du modèle lui-même (voir le model card du
+                  service d'analyse) : sous ce seuil, le verdict ne doit pas
+                  être présenté avec la même assurance que les autres. */}
+              {analysis.lowConfidence ? (
+                <Callout tone="warning" icon="priority" title="Analyse peu fiable">
+                  Le modèle n’est pas sûr de lui sur ce commentaire. Vérifiez le sentiment et
+                  l’intention avant de vous appuyer dessus.
+                </Callout>
+              ) : null}
 
               <View style={styles.badges}>
                 <Badge

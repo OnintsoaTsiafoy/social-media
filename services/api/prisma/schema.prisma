@@ -108,6 +108,43 @@ enum WebhookEventStatus {
   FAILED
 }
 
+// Taxonomie d'analyse du Sprint 09. Les valeurs sont celles du dataset annoté
+// (services/ai-service/dataset/ANNOTATION_GUIDE.md) et du type `AiAnalysis`
+// déjà défini côté mobile : une seule vocabulaire de bout en bout, pas de
+// table de correspondance. Changer ces listes impose une nouvelle version du
+// dataset ET une migration.
+enum CommentSentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+enum CommentIntent {
+  QUESTION
+  INFO_REQUEST
+  COMPLAINT
+  CLAIM
+  OTHER
+}
+
+enum CommentPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// Cycle de vie d'une proposition de réponse (Sprint 10). Identique au type
+// `ResponseStatus` du mobile. SENT n'est posé que lorsque graph-api confirme
+// l'envoi réel chez Meta — jamais à l'approbation.
+enum ResponseSuggestionStatus {
+  PROPOSED
+  EDITED
+  APPROVED
+  REJECTED
+  SENT
+  FAILED
+}
+
 enum ScheduleStatus {
   PENDING
   DISPATCHED
@@ -149,6 +186,9 @@ model User {
   oauthStates             OAuthState[]
   commentStatusChanges    CommentStatusHistory[]
   sentResponses           SentResponse[]         @relation("SentResponseAuthor")
+  commentAnalyses         CommentAnalysis[]      @relation("AnalysisRequester")
+  responseSuggestions     ResponseSuggestion[]   @relation("SuggestionAuthor")
+  approvedSuggestions     ResponseSuggestion[]   @relation("SuggestionApprover")
 
   @@index([status])
   @@map("users")
@@ -547,17 +587,123 @@ model SocialComment {
   isDeletedOnPlatform   Boolean                @default(false) @map("is_deleted_on_platform")
   metaCreatedAt         DateTime?              @map("meta_created_at") @db.Timestamptz(6)
   metaUpdatedAt         DateTime?              @map("meta_updated_at") @db.Timestamptz(6)
+  // Pointeur de cache vers la dernière ligne de `comment_analyses` (Sprint 09).
+  // Aucune valeur d'analyse n'est recopiée ici : seule l'identité de la
+  // dernière est dénormalisée, pour que filtrer une boîte de réception par
+  // sentiment/priorité reste une jointure sur une ligne unique au lieu d'une
+  // sous-requête « la plus récente par commentaire ». Écrit dans la MÊME
+  // transaction que l'insertion de l'analyse — jamais séparément.
+  latestAnalysisId      String?                @unique @map("latest_analysis_id") @db.Uuid
   createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
   socialAccount         SocialAccount          @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
   statusHistory         CommentStatusHistory[]
   sentResponse          SentResponse?
+  suggestions           ResponseSuggestion[]
+  analyses              CommentAnalysis[]      @relation("CommentAnalyses")
+  latestAnalysis        CommentAnalysis?       @relation("LatestCommentAnalysis", fields: [latestAnalysisId], references: [id], onDelete: SetNull)
 
   // Clé d'upsert (webhook et synchronisation de secours) — dédup naturelle en
   // plus du hash de webhook_events.
   @@unique([socialAccountId, externalCommentId])
   @@index([socialAccountId, status])
   @@map("social_comments")
+}
+
+// Append-only : « réanalyser » crée une ligne, n'en modifie aucune. C'est ce
+// qui permet à l'historique du commentaire d'afficher chaque passage du
+// modèle (genre `ai_analysis`, prévu côté mobile depuis le Sprint 01 mais
+// sans source jusqu'ici) et de savoir, après un réentraînement, quelle
+// version du modèle avait produit un verdict donné.
+//
+// Deux écrivains, comme `PublicationTarget.status` : Express (action
+// « Analyser » de l'écran commentaire) et le worker (passe automatique sur
+// les commentaires reçus). Le service IA, lui, n'écrit jamais : il est sans
+// état et ne connaît pas la base.
+model CommentAnalysis {
+  id                  String           @id @default(uuid()) @db.Uuid
+  commentId           String           @map("comment_id") @db.Uuid
+  sentiment           CommentSentiment
+  intent              CommentIntent
+  priority            CommentPriority
+  confidence          Float
+  sentimentConfidence Float            @map("sentiment_confidence")
+  intentConfidence    Float            @map("intent_confidence")
+  // Vrai quand une des deux tâches passe sous son seuil, ou quand le texte
+  // n'est pas en français : l'écran doit pouvoir dire « à vérifier » plutôt
+  // que d'afficher un verdict avec la même assurance que les autres.
+  lowConfidence       Boolean          @default(false) @map("low_confidence")
+  isUrgent            Boolean          @default(false) @map("is_urgent")
+  isSensitive         Boolean          @default(false) @map("is_sensitive")
+  language            String           @default("fr") @db.VarChar(8)
+  recommendedAction   String           @map("recommended_action") @db.Text
+  explanation         String           @db.Text
+  // Signaux de règles déclenchés et termes les plus contributifs du modèle
+  // linéaire : conservés pour pouvoir justifier une escalade a posteriori.
+  signals             Json             @default("[]")
+  topTerms            Json             @default("[]") @map("top_terms")
+  modelVersion        String           @map("model_version") @db.VarChar(64)
+  datasetVersion      String           @map("dataset_version") @db.VarChar(32)
+  // Null quand l'analyse vient de la passe automatique du worker, renseigné
+  // quand un community manager a cliqué « Analyser ».
+  requestedByUserId   String?          @map("requested_by_user_id") @db.Uuid
+  analysedAt          DateTime         @default(now()) @map("analysed_at") @db.Timestamptz(6)
+  comment             SocialComment    @relation("CommentAnalyses", fields: [commentId], references: [id], onDelete: Cascade)
+  requestedByUser     User?            @relation("AnalysisRequester", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  latestForComment    SocialComment?   @relation("LatestCommentAnalysis")
+
+  @@index([commentId, analysedAt])
+  @@index([priority])
+  @@index([sentiment])
+  @@map("comment_analyses")
+}
+
+// Append-only, versionné par commentaire. Générer, modifier ou régénérer crée
+// une ligne ; approuver ou rejeter met à jour la dernière. C'est ce qui répond
+// à « conserver texte original et final » : `originalText` porte la
+// proposition telle que l'IA l'a produite et n'est jamais réécrit, `text`
+// porte la version courante.
+//
+// Pas de pointeur `latest_suggestion_id` sur social_comments, contrairement
+// aux analyses : une proposition est seulement AFFICHÉE, jamais filtrée ni
+// triée dessus. Une lecture groupée par page (même idiome que
+// `resolvePublicationRefs`) suffit, et évite d'ajouter un second invariant à
+// maintenir.
+model ResponseSuggestion {
+  id               String                   @id @default(uuid()) @db.Uuid
+  commentId        String                   @map("comment_id") @db.Uuid
+  version          Int
+  text             String                   @db.Text
+  originalText     String                   @map("original_text") @db.Text
+  language         String                   @default("fr") @db.VarChar(8)
+  tone             AiTone                   @default(PROFESSIONAL)
+  status           ResponseSuggestionStatus @default(PROPOSED)
+  // Faux dès qu'un humain a réécrit le texte : l'écran affiche « Généré par
+  // l'IA » et cette mention doit cesser d'être vraie après une édition.
+  generatedByAi    Boolean                  @default(true) @map("generated_by_ai")
+  // « local-template-1.0.0 » ou « claude » : sans ça, impossible de savoir
+  // après coup si une proposition venait du modèle ou du repli local.
+  generator        String                   @db.VarChar(64)
+  promptVersion    String                   @map("prompt_version") @db.VarChar(64)
+  // Avertissements du contrôle de sécurité, tels qu'ils étaient au moment de
+  // l'enregistrement — y compris ceux que le community manager a choisi
+  // d'ignorer, ce qui est précisément ce qu'un audit veut pouvoir relire.
+  warnings         Json                     @default("[]")
+  blocked          Boolean                  @default(false)
+  instruction      String?                  @db.Text
+  createdByUserId  String                   @map("created_by_user_id") @db.Uuid
+  approvedByUserId String?                  @map("approved_by_user_id") @db.Uuid
+  approvedAt       DateTime?                @map("approved_at") @db.Timestamptz(6)
+  createdAt        DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  comment          SocialComment            @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  createdByUser    User                     @relation("SuggestionAuthor", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  approvedByUser   User?                    @relation("SuggestionApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([commentId, version])
+  @@index([commentId, createdAt])
+  @@index([status])
+  @@map("response_suggestions")
 }
 
 // Append-only. Écrit par Express (actions manuelles : ignorer/escalader/

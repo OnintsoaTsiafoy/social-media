@@ -109,7 +109,12 @@ export default function ResponseEditorScreen() {
   const save = async () => {
     if (!comment || !validate()) return;
     const result = await saving.run(() =>
-      commentsApi.saveResponse(comment.id, text.trim(), { tone, language: language as 'fr' | 'en' })
+      commentsApi.saveResponse(
+        comment.id,
+        text.trim(),
+        { tone, language: language as 'fr' | 'en' },
+        response?.id
+      )
     );
     if (!result.ok) return;
     request.setData({ ...comment, response: result.data });
@@ -117,7 +122,7 @@ export default function ResponseEditorScreen() {
   };
 
   const reject = async () => {
-    if (!comment) return;
+    if (!comment || !response) return;
     const confirmed = await confirm({
       title: 'Rejeter cette proposition ?',
       message: 'La proposition sera archivée dans l’historique et ne sera pas envoyée.',
@@ -126,7 +131,7 @@ export default function ResponseEditorScreen() {
     });
     if (!confirmed) return;
 
-    const result = await saving.run(() => commentsApi.rejectResponse(comment.id));
+    const result = await saving.run(() => commentsApi.rejectResponse(response.id));
     if (!result.ok) return;
     toast('Proposition rejetée.', 'info');
     router.back();
@@ -134,6 +139,15 @@ export default function ResponseEditorScreen() {
 
   const approveAndSend = async () => {
     if (!comment || !validate()) return;
+
+    // Le serveur refuse d'approuver une proposition bloquée ; on le dit ici
+    // plutôt que de laisser partir une requête vouée au 409. Si le texte a été
+    // modifié depuis, on laisse faire : l'approbation recontrôle la nouvelle
+    // version, et la correction a peut-être levé le blocage.
+    if (response?.blocked && text.trim() === response.text) {
+      setError('Corrigez les points signalés avant d’approuver cette réponse.');
+      return;
+    }
 
     if (bannedHit) {
       const proceed = await confirm({
@@ -152,7 +166,9 @@ export default function ResponseEditorScreen() {
     });
     if (!confirmed) return;
 
-    const result = await sending.run(() => commentsApi.approveAndSend(comment.id, text.trim()));
+    const result = await sending.run(() =>
+      commentsApi.approveAndSend(comment.id, text.trim(), response?.id)
+    );
     if (!result.ok) return;
 
     toast('Réponse envoyée.', 'success');
@@ -264,6 +280,19 @@ export default function ResponseEditorScreen() {
               marque.
             </Callout>
           ) : null}
+
+          {/* Contrôle de sécurité du serveur, recalculé à chaque version
+              enregistrée — y compris sur un texte réécrit à la main. Un
+              avertissement « blocking » empêche l'approbation. */}
+          {(response?.warnings ?? []).map((warning) => (
+            <Callout
+              key={warning.code}
+              tone={warning.severity === 'blocking' ? 'danger' : warning.severity === 'warning' ? 'warning' : 'neutral'}
+              icon={warning.severity === 'info' ? 'info' : 'priority'}
+            >
+              {warning.message}
+            </Callout>
+          ))}
 
           <View style={styles.row}>
             <SelectField

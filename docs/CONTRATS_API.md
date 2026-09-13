@@ -62,6 +62,13 @@ Codes métier ajoutés au Sprint 04 :
 | 422 | `media_not_ready` | média introuvable, supprimé ou pas encore disponible |
 | 503 | `storage_unavailable` | stockage objet non configuré ou injoignable |
 
+Codes métier ajoutés aux Sprints 09 et 10 :
+
+| HTTP | Code | Usage |
+|---:|---|---|
+| 503 | `ai_unavailable` | service d'analyse ou de génération injoignable, modèles non entraînés, ou mode de modèle non supporté. Distinct de `provider_unavailable`, réservé aux dépendances sociales : le mobile a un message propre à l'IA (« saisissez le texte manuellement »). Traduit par `lib/aiServiceClient.js` à partir des codes internes `ai_error` et `provider_unavailable`. |
+| 409 | `conflict` | proposition de réponse bloquée par le contrôle de sécurité, déjà envoyée ou rejetée ; envoi demandé sans approbation préalable |
+
 ## Authentification à figer au Sprint 02
 
 - `POST /api/v1/auth/register`, `login`, `refresh`, `logout`, `forgot-password`, `reset-password`, `change-password` ; `GET /api/v1/auth/me`.

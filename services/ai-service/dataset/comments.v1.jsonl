@@ -1,0 +1,535 @@
+{"id": "c0001", "text": "Commande passée le 3, toujours rien reçu et le suivi n'a pas bougé depuis une semaine. Je veux un remboursement.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0002", "text": "Bonjour, est-ce que le modèle noir est encore disponible en 42 ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0003", "text": "J'adore vraiment cette collection ❤️ bravo à toute l'équipe", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0004", "text": "Franchement déçue de la qualité, le tissu a bouloché au premier lavage.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0005", "text": "Quels sont vos horaires le dimanche ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0006", "text": "Ça fait trois fois que je relance par message privé et personne ne répond. C'est quoi ce service client ?", "sentiment": "negative", "intent": "complaint", "urgent": true, "sensitive": false}
+{"id": "c0007", "text": "Merci pour la livraison ultra rapide, reçu en 24h 👏", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0008", "text": "Le produit m'a provoqué une réaction allergique sur tout le bras, j'ai dû aller aux urgences.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0009", "text": "Vous fabriquez où exactement ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0010", "text": "Superbe photo 😍", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0011", "text": "Article reçu cassé, la boîte était en miettes. Je fais comment pour l'échange ?", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0012", "text": "Il est à combien le grand format ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0013", "text": "Vos prix ont explosé cette année, c'est devenu inabordable pour une famille.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0014", "text": "Commande #A-4471 jamais livrée. Sans réponse d'ici lundi je saisis la répression des fraudes.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0015", "text": "Magnifique 👌", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0016", "text": "Est-ce que vous livrez en Belgique ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0017", "text": "J'ai été débitée deux fois pour la même commande. Merci de régulariser rapidement.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0018", "text": "Ce parfum tient toute la journée, je recommande à 100%", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0019", "text": "@marie regarde ça c'est exactement ce que tu cherchais", "sentiment": "neutral", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0020", "text": "La nouvelle recette est beaucoup moins bonne que l'ancienne, dommage.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0021", "text": "Bonjour, la boutique de Lyon est ouverte demain ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0022", "text": "Service irréprochable, la vendeuse a pris le temps de tout m'expliquer. Merci !", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0023", "text": "toujours pas de nouvelles de mon colis parti depuis 12 jours", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0024", "text": "Vous comptez sortir cette gamme en version sans sucre ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0025", "text": "Franchement c'est de l'arnaque, vous encaissez et vous n'envoyez rien.", "sentiment": "negative", "intent": "complaint", "urgent": true, "sensitive": true}
+{"id": "c0026", "text": "Est-ce que c'est compatible avec l'ancien modèle ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0027", "text": "Trop hâte de le tester 🤩", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0028", "text": "Bravo pour le service client 👏 3 semaines sans réponse, c'est du grand art.", "sentiment": "negative", "intent": "complaint", "urgent": true, "sensitive": false}
+{"id": "c0029", "text": "Le colis doit arriver avant samedi pour un mariage, c'est possible de l'accélérer ?", "sentiment": "neutral", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0030", "text": "Quel est le délai de livraison en général ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0031", "text": "Produit conforme à la description, très satisfait de mon achat.", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0032", "text": "Pourquoi avoir changé le packaging ? L'ancien était tellement mieux.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0033", "text": "Vous avez une boutique sur Marseille ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0034", "text": "Mon fils de 6 ans s'est coupé avec la pièce cassée du jouet, c'est inadmissible.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0035", "text": "❤️❤️❤️", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0036", "text": "Bonjour, je cherche la référence exacte du coussin sur la photo de gauche.", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0037", "text": "Livraison en retard de 10 jours, aucune explication, aucun geste. Je ne commanderai plus.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0038", "text": "Est-ce que la garantie couvre la batterie ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0039", "text": "Meilleure boulangerie du quartier, sans hésiter 🥐", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0040", "text": "J'ai renvoyé l'article il y a 3 semaines et je n'ai toujours pas été remboursée.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0041", "text": "vous vendez aussi les pièces détachées ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0042", "text": "Rien à redire, parfait du début à la fin 🙏", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0043", "text": "Votre publicité est franchement sexiste, vous devriez la retirer.", "sentiment": "negative", "intent": "complaint", "urgent": true, "sensitive": true}
+{"id": "c0044", "text": "Il reste des places pour l'atelier de samedi ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0045", "text": "Commande annulée sans prévenir et remboursement toujours pas arrivé. Mon numéro : 06 12 34 56 78, rappelez-moi.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0046", "text": "C'est quoi la composition exacte ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0047", "text": "Très bon rapport qualité prix, je suis agréablement surprise.", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0048", "text": "Site en panne depuis ce matin, impossible de finaliser ma commande.", "sentiment": "negative", "intent": "complaint", "urgent": true, "sensitive": false}
+{"id": "c0049", "text": "Vous proposez la carte cadeau en magasin aussi ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0050", "text": "Chapeau pour l'emballage, tout était impeccable 📦", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0051", "text": "SCANDALEUX. Deux mois d'attente pour un produit défectueux. Je contacte mon avocat.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0052", "text": "Le code promo ne fonctionne pas, il est encore valable ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0053", "text": "Vraiment top cette initiative, ça fait plaisir de voir une marque engagée.", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0054", "text": "Je trouve dommage de ne plus proposer la version rechargeable.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0055", "text": "Bonjour, quel est le prix de la livraison express ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0056", "text": "Ma commande est marquée livrée mais je n'ai rien reçu. Que faire ?", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0057", "text": "Vous travaillez avec des producteurs locaux ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0058", "text": "Génial ! 😻", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0059", "text": "Le goût est vraiment quelconque pour ce prix là.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0060", "text": "Est-ce que la taille correspond bien ou il faut prendre au dessus ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0061", "text": "Toujours aussi satisfaite après 2 ans d'utilisation, du solide.", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0062", "text": "Je relance pour la 4e fois au sujet du dossier 88312, personne ne me répond.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0063", "text": "Vous reprenez les anciens appareils ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0064", "text": "Le concept est intéressant mais le prix reste un frein.", "sentiment": "neutral", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0065", "text": "Merci beaucoup pour votre réactivité hier au téléphone 😊", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0066", "text": "quelqu'un sait si ça passe au lave vaisselle", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0067", "text": "Produit reçu périmé depuis 4 mois. Comment vous faites vos contrôles ?", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0068", "text": "Une tuerie ce dessert 🤤", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0069", "text": "Vos vendeurs en magasin sont désagréables, j'ai été très mal reçue.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0070", "text": "Il y a une date de sortie prévue pour le coloris bleu ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0071", "text": "Je suis client depuis 10 ans et c'est la première fois que je suis déçu.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0072", "text": "Vous comptez ouvrir dans le sud-ouest un jour ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0073", "text": "Livré en avance et bien emballé, que du positif !", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0074", "text": "Facture erronée de 45 euros en trop, merci de corriger.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0075", "text": "Ça existe en version gaucher ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0076", "text": "Honteux de traiter vos clients comme ça, je poste mon expérience partout.", "sentiment": "negative", "intent": "complaint", "urgent": true, "sensitive": false}
+{"id": "c0077", "text": "Je recommande les yeux fermés, rien à redire.", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0078", "text": "Est ce que les frais de retour sont à ma charge ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0079", "text": "Produit sympa mais la notice est incompréhensible.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0080", "text": "Bonjour, j'aimerais connaître la contenance du flacon.", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0081", "text": "Commande n°77120 partie à la mauvaise adresse, j'ai besoin qu'on la redirige avant demain.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0082", "text": "Quel bonheur de retrouver ce goût d'enfance ❤️", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0083", "text": "Ça fait deux ans que je demande cette couleur, toujours rien.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0084", "text": "Les soldes commencent quand chez vous ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0085", "text": "Excellent accueil à la boutique de Nantes 👍", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0086", "text": "J'ai reçu le mauvais article, je voudrais l'échanger contre celui que j'avais commandé.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0087", "text": "Vous utilisez de l'huile de palme ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0088", "text": "Nul. Rien d'autre à ajouter.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0089", "text": "Sublime travail sur cette vidéo 🎥", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0090", "text": "Le paiement en 3 fois est disponible dès combien ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0091", "text": "3 semaines que j'attends un retour du SAV, mon congélateur est toujours en panne.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0092", "text": "Vous avez une newsletter ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0093", "text": "Bravo pour cette belle campagne, ça change !", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0094", "text": "Franchement la qualité s'est dégradée depuis le rachat.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0095", "text": "C'est fabriqué en France ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0096", "text": "J'ai commandé pour l'anniversaire de ma fille demain et le colis est bloqué, aidez-moi svp", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0097", "text": "Simple, efficace, exactement ce que je cherchais.", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0098", "text": "Le lien de la story ne marche pas chez moi.", "sentiment": "neutral", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0099", "text": "Quelle est la durée de conservation après ouverture ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0100", "text": "Vous m'avez fait perdre une journée de congé pour une livraison qui n'est jamais arrivée.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0101", "text": "Y a t il un minimum de commande pour la livraison gratuite ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0102", "text": "Un vrai coup de cœur, merci pour ce produit 🥰", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0103", "text": "Je veux être remboursé intégralement, sinon je saisis le médiateur de la consommation.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0104", "text": "Il est encore temps de commander pour recevoir avant Noël ?", "sentiment": "neutral", "intent": "info_request", "urgent": true, "sensitive": false}
+{"id": "c0105", "text": "Toujours au top ! 💪", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0106", "text": "La housse est vendue séparément ou incluse ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0107", "text": "Aucune considération pour les clients fidèles, c'est décevant.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0108", "text": "Vous faites des ateliers pour les enfants ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0109", "text": "Mon colis a été volé pendant la livraison, le transporteur dit que c'est à vous de gérer.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0110", "text": "Superbe boutique, on s'y sent bien 🌿", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0111", "text": "Pourquoi ne pas proposer des tailles plus grandes ? C'est excluant.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": true}
+{"id": "c0112", "text": "Combien de temps dure la charge complète ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0113", "text": "Livraison nickel, produit conforme, merci !", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0114", "text": "Impossible de joindre le service client, la ligne raccroche automatiquement.", "sentiment": "negative", "intent": "complaint", "urgent": true, "sensitive": false}
+{"id": "c0115", "text": "Vous acceptez les chèques vacances ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0116", "text": "Je ne comprends pas la nouvelle politique de retour, elle est beaucoup moins avantageuse.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0117", "text": "Enfin une marque qui écoute ses clients 🙌", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0118", "text": "Bonjour, le produit est-il testé sur les animaux ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0119", "text": "Reçu un article contrefait visiblement, je demande un remboursement immédiat.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0120", "text": "très bon produit rien a dire", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0121", "text": "Vous livrez en point relais ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0122", "text": "Le nouveau site est une catastrophe à utiliser sur mobile.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0123", "text": "J'ai adoré l'événement d'hier soir, merci pour l'organisation !", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0124", "text": "Quelle est la différence entre la version classique et la premium ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0125", "text": "On m'a refusé l'entrée à cause de mon voile, j'attends des explications.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0126", "text": "Vous pouvez me dire si c'est sans gluten ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": true}
+{"id": "c0127", "text": "Parfait pour offrir, ma mère a adoré 🎁", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0128", "text": "La commande est arrivée incomplète, il manque deux articles sur cinq.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0129", "text": "Il faut réserver à l'avance ou on peut venir directement ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0130", "text": "Aucun intérêt ce produit, marketing pur.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0131", "text": "Belle initiative écologique, continuez comme ça 🌱", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0132", "text": "Le service après-vente m'a raccroché au nez trois fois. Inacceptable.", "sentiment": "negative", "intent": "complaint", "urgent": true, "sensitive": false}
+{"id": "c0133", "text": "Bonjour, est-ce que vous faites la retouche sur place ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0134", "text": "Commande #B-9034 : produit défectueux reçu hier, je souhaite un échange ou un remboursement.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0135", "text": "Un grand merci à Julie en boutique, service au top 🌟", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0136", "text": "Vous avez arrêté la référence verte ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0137", "text": "C'est du vol pur et simple, vous devriez avoir honte.", "sentiment": "negative", "intent": "complaint", "urgent": true, "sensitive": true}
+{"id": "c0138", "text": "Trop beau 😭❤️", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0139", "text": "Est-ce qu'il y a une application mobile ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0140", "text": "Le produit ne correspond pas du tout aux photos, couleur complètement différente.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0141", "text": "Vous recrutez en ce moment ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0142", "text": "Rapport qualité prix imbattable, bravo 👏", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0143", "text": "Depuis la mise à jour l'appareil ne s'allume plus, que faire ?", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0144", "text": "Quelles sont les conditions de la garantie 2 ans ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0145", "text": "Vraiment pas fan de la nouvelle direction artistique.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0146", "text": "Service impeccable comme toujours 🙏", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0147", "text": "Mon abonnement a été prélevé alors que je l'avais résilié il y a 2 mois.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0148", "text": "Bonjour, vous expédiez à l'international ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0149", "text": "Petite déception sur la contenance, plus petit que prévu.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0150", "text": "Extra !! Je vais en reprendre 😁", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0151", "text": "Est-ce que le tarif étudiant existe toujours ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0152", "text": "Ça fait 6 semaines que j'attends mon remboursement, je vais porter plainte.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0153", "text": "Merci pour vos conseils par message, très pro 💯", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0154", "text": "Vous faites des devis pour les entreprises ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0155", "text": "La publicité ment sur les performances réelles du produit.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": true}
+{"id": "c0156", "text": "coup de coeur total ❤️‍🔥", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0157", "text": "Il y a du stock en magasin ou seulement en ligne ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0158", "text": "Je n'ai jamais reçu ma facture, pouvez-vous me l'envoyer à contact@exemple.fr ?", "sentiment": "neutral", "intent": "claim", "urgent": false, "sensitive": true}
+{"id": "c0159", "text": "Ambiance géniale, on reviendra c'est sûr !", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0160", "text": "Le café était froid et le serveur désagréable, très mauvaise expérience.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0161", "text": "Bonjour, quelle est la puissance du moteur ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0162", "text": "Vous êtes les meilleurs, merci pour tout ce que vous faites 🥇", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0163", "text": "Article en rupture depuis des mois, vous comptez le réapprovisionner ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0164", "text": "Ma fille de 9 ans a reçu des messages déplacés depuis votre compte, je veux une explication.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0165", "text": "Franchement au top cette nouveauté 🔥", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0166", "text": "Comment on fait pour changer l'adresse de livraison après commande ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0167", "text": "Trois produits commandés, trois produits abîmés. Sérieusement ?", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0168", "text": "Vous organisez des visites de l'atelier ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0169", "text": "Une merveille, merci pour ce moment 😌", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0170", "text": "Prix affiché différent du prix en caisse, c'est de la publicité mensongère.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": true}
+{"id": "c0171", "text": "Est-ce que je peux retirer ma commande en magasin le jour même ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0172", "text": "Chaque fois un plaisir 😍 merci", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0173", "text": "Mon compte a été piraté et des commandes ont été passées à mon nom.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0174", "text": "Vous avez les dimensions exactes du meuble ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0175", "text": "Décevant pour une marque de cette réputation.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0176", "text": "Hâte de découvrir la suite 👀", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0177", "text": "Il y a une différence entre le modèle 2024 et 2025 ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0178", "text": "Commande payée, jamais expédiée, et vous ne répondez à aucun message depuis 3 semaines.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0179", "text": "Très belle qualité, je suis conquise 💖", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0180", "text": "Pourquoi le prix a augmenté de 20% en six mois ?", "sentiment": "negative", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0181", "text": "Bonjour, la carte de fidélité est-elle valable dans tous les magasins ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0182", "text": "Je ne remettrai plus les pieds chez vous après ce que j'ai vécu.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0183", "text": "Merci pour le petit mot dans le colis, c'est adorable 💌", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0184", "text": "Vous proposez un service d'installation à domicile ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0185", "text": "Produit dangereux, le verre a explosé en le remplissant. Je me suis blessée à la main.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0186", "text": "Impec 👍", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0187", "text": "Quelle est la politique de confidentialité concernant mes données ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": true}
+{"id": "c0188", "text": "Emballage beaucoup trop volumineux pour un si petit objet, c'est du gâchis.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0189", "text": "Bonjour, quel délai pour une commande personnalisée ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0190", "text": "Rien de tel après une longue journée ☕ merci !", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0191", "text": "Article renvoyé selon vos instructions, aucun accusé de réception, aucune nouvelle.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0192", "text": "Est ce que vous faites des remises pour les associations ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0193", "text": "Toujours un plaisir de commander chez vous 😊", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0194", "text": "La livraison annoncée en 48h a pris 3 semaines. Aucune information entre temps.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0195", "text": "Vous avez un catalogue papier ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0196", "text": "Je suis diabétique, est-ce que ce produit contient du sucre ajouté ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": true}
+{"id": "c0197", "text": "Magnifique travail d'artisan, ça se voit 👏", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0198", "text": "Le produit fuit, ma table est tachée. Je demande un dédommagement.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0199", "text": "Vous pensez rouvrir la boutique du centre-ville ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0200", "text": "Rien que du bonheur ce weekend, merci 🌞", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0201", "text": "Commande #C-1180 : je n'ai reçu ni le colis ni le remboursement. Mise en demeure envoyée.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0202", "text": "Les frais de port sont offerts à partir de quel montant ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0203", "text": "Vous êtes une équipe formidable, merci 🙏", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0204", "text": "Le goût a changé et pas en bien, vous avez modifié la recette ?", "sentiment": "negative", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0205", "text": "Bonjour, où trouver la notice en PDF ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0206", "text": "Toujours aussi bon, jamais déçu depuis des années 😋", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0207", "text": "Vos conditions générales ont changé sans nous prévenir, c'est illégal.", "sentiment": "negative", "intent": "complaint", "urgent": true, "sensitive": true}
+{"id": "c0208", "text": "Il faut compter combien de temps pour le montage ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0209", "text": "Le meilleur achat de l'année sans hésiter !", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0210", "text": "Trois relances, zéro réponse. Je passe par mon avocat demain matin.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0211", "text": "Vous vendez sur d'autres plateformes ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0212", "text": "Les couleurs sont splendides en vrai 🎨", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0213", "text": "Je trouve que la communication manque cruellement de transparence.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0214", "text": "Bonjour, est-ce que le service est accessible aux personnes à mobilité réduite ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": true}
+{"id": "c0215", "text": "Nickel, livré plus vite que prévu 🚀", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0216", "text": "Le SAV me renvoie vers le magasin et le magasin vers le SAV. Je fais quoi ?", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0217", "text": "Une question : vous reprenez les emballages vides ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0218", "text": "Quel talent 😮 bravo à l'équipe créative", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0219", "text": "Produit reçu avec 15 jours de retard et sans le cadeau promis.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0220", "text": "Vous avez des références pour peaux sensibles ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": true}
+{"id": "c0221", "text": "Je suis fan depuis le début, ne changez rien ❤️", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0222", "text": "Pas normal de payer la livraison quand c'est vous qui vous êtes trompés d'article.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0223", "text": "C'est ouvert les jours fériés ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0224", "text": "Wow 🤩 j'achète les yeux fermés", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0225", "text": "Votre application plante à chaque paiement, impossible de commander.", "sentiment": "negative", "intent": "complaint", "urgent": true, "sensitive": false}
+{"id": "c0226", "text": "Bonjour, quelle est la garantie sur les pièces d'usure ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0227", "text": "Un service client humain et efficace, ça devient rare, merci !", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0228", "text": "Depuis 3 mois je paie un abonnement que je n'utilise pas car le service est HS.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0229", "text": "On peut essayer avant d'acheter ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0230", "text": "Superbe surprise, merci infiniment 🎉", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0231", "text": "Franchement pour ce prix on s'attend à mieux fini.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0232", "text": "Vous avez prévu une version pour professionnels ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0233", "text": "Que du bon, je recommande vivement 👌", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0234", "text": "Colis ouvert et article manquant à l'arrivée. J'ai fait des photos.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0235", "text": "C'est quoi le numéro du service client ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0236", "text": "Trop contente de ma commande, tout est parfait 💕", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0237", "text": "Vous ignorez complètement les remarques des clients dans les commentaires.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0238", "text": "Bonjour, est-ce compatible avec une prise européenne standard ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0239", "text": "Du grand art, chapeau bas 🎩", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0240", "text": "Facture de 300 euros pour une réparation sous garantie, je conteste.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0241", "text": "jadore votre marque mais la commande 5567 est jamais arrivé vous pouvez verifier svp", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0242", "text": "Sympa mais bon rien d'exceptionnel non plus.", "sentiment": "neutral", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0243", "text": "MERCI MERCI MERCI 🙌🙌", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0244", "text": "bjr c'est combien svp", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0245", "text": "J'ai commandé il y a 2 mois. Deux mois. Et on me dit encore d'attendre. Vous vous moquez du monde.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0246", "text": "👍", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0247", "text": "😡", "sentiment": "negative", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0248", "text": "🤔", "sentiment": "neutral", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0249", "text": "Les produits sont bien mais votre politique de retour est vraiment trop rigide comparée à la concurrence.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0250", "text": "Ce sera dispo quand en ligne ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0251", "text": "Excellent produit, livraison rapide, service client réactif. Que demander de plus ?", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0252", "text": "Je n'ai pas reçu le code de suivi malgré la confirmation d'expédition d'il y a 5 jours.", "sentiment": "neutral", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0253", "text": "Pourriez-vous préciser si le prix inclut la pose ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0254", "text": "Magnifique 😍 c'est dispo en quelle taille ?", "sentiment": "positive", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0255", "text": "J'adore ce que vous faites ! Vous livrez à la Réunion ?", "sentiment": "positive", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0256", "text": "Superbe collection mais les prix sont vraiment excessifs.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0257", "text": "Bonjour, suite à mon retour du 12, quand puis-je espérer le remboursement ?", "sentiment": "neutral", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0258", "text": "Aucun problème avec ma commande, tout est arrivé en parfait état.", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0259", "text": "je trouve ça cher mais la qualité est la", "sentiment": "neutral", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0260", "text": "Vous êtes sérieux ? Le produit est en promo 3 jours après mon achat au prix fort.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0261", "text": "Est-ce que la crème convient aux femmes enceintes ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": true}
+{"id": "c0262", "text": "Bravo, vraiment. Continuez comme ça, on vous suit 💪", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0263", "text": "Ma grand-mère a eu un malaise après avoir consommé votre produit, elle est hospitalisée.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0264", "text": "Quelqu'un a déjà testé la version XL ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0265", "text": "Alors là bravo, un colis vide. Du jamais vu.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0266", "text": "Bonne continuation à toute l'équipe 😊", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0267", "text": "Il n'y a plus aucune référence bio dans le rayon, c'est voulu ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0268", "text": "Livraison prévue lundi, toujours rien vendredi, et le chat en ligne ne répond pas.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0269", "text": "Vraiment déçu du service, mais le produit en lui-même est correct.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0270", "text": "À quelle heure ferme la boutique ce soir ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0271", "text": "Merci d'avoir remplacé l'article défectueux aussi vite, service impeccable 🙏", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0272", "text": "Vous avez ma carte bancaire enregistrée sans mon accord, je veux que ce soit supprimé.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0273", "text": "Une question bête : ça se lave comment ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0274", "text": "Petit bémol sur la finition mais globalement content.", "sentiment": "neutral", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0275", "text": "Y'a t'il un magasin près de Toulouse ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0276", "text": "Commande reçue hier, emballage soigné, produit conforme. Rien à signaler, merci.", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0277", "text": "vs livrez le samedi ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0278", "text": "Depuis deux semaines je n'arrive plus à me connecter à mon compte client.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0279", "text": "Quel dommage d'avoir supprimé le format familial.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0280", "text": "Vous acceptez les paiements en plusieurs fois sans frais ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0281", "text": "Franchement je m'attendais à pire vu les commentaires, très bonne surprise.", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0282", "text": "Le vendeur m'a tenu des propos racistes en boutique. J'attends une réaction de votre part.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0283", "text": "Quelle matière pour le modèle beige ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0284", "text": "Toujours aussi fan 🥰 vous gérez", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0285", "text": "C'est la troisième fois que le même problème se reproduit sur mon appareil.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0286", "text": "Pas convaincu par cette nouveauté personnellement.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0287", "text": "Les avis parlent d'un bruit au démarrage, c'est corrigé sur les nouveaux modèles ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0288", "text": "Service au top, équipe adorable, produit délicieux. Merci pour tout ✨", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0289", "text": "Je pars en voyage jeudi, mon colis peut-il arriver avant ?", "sentiment": "neutral", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0290", "text": "Votre transporteur a laissé le colis sous la pluie, tout est trempé.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0291", "text": "Est-ce que vous reprenez les invendus ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0292", "text": "Ravi de mon achat, exactement comme décrit 👌", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0293", "text": "Le montant prélevé ne correspond pas au panier validé, écart de 18 euros.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0294", "text": "Vous avez un programme de parrainage ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0295", "text": "Que de bons souvenirs avec cette marque ❤️ merci pour tout", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0296", "text": "Trop de plastique dans vos emballages pour une marque qui se dit responsable.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0297", "text": "Bonjour, le service est-il disponible en anglais également ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0298", "text": "Mon compte a été suspendu sans explication, je demande sa réactivation immédiate.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0299", "text": "Belle découverte, je vais en parler autour de moi 😃", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0300", "text": "Combien de personnes maximum pour la réservation de groupe ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0301", "text": "Produit correct mais le délai annoncé n'était pas du tout respecté.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0302", "text": "Vous avez une idée de la date de réassort ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0303", "text": "Alors ça c'est du service 👏 problème réglé en 10 minutes, merci !", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0304", "text": "Depuis que j'ai laissé un avis négatif mes messages ne sont plus lus. C'est de la censure.", "sentiment": "negative", "intent": "complaint", "urgent": true, "sensitive": false}
+{"id": "c0305", "text": "Quel est le poids du colis à la réception ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0306", "text": "Un régal comme toujours 😋 bravo au chef", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0307", "text": "Article vendu comme neuf mais visiblement reconditionné, je demande un remboursement.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": true}
+{"id": "c0308", "text": "Bonjour, vous ouvrez à quelle heure le lundi ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0309", "text": "Vraiment top, merci pour la qualité constante 🙌", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0310", "text": "Le produit est arrivé mais il manque la vis de fixation, impossible de l'installer.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0311", "text": "C'est quoi la différence de prix avec le pack duo ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0312", "text": "Aucune réponse à mes 5 messages. Je vais contacter une association de consommateurs.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0313", "text": "Merci pour la transparence sur l'origine des ingrédients, c'est appréciable.", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0314", "text": "Vous proposez une extension de garantie ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0315", "text": "Trop tard j'ai déjà commandé ailleurs, vous avez mis trop de temps à répondre.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0316", "text": "Le rendu est encore plus beau en vrai qu'en photo 😍", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0317", "text": "Comment activer la garantie constructeur ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0318", "text": "Vos horaires affichés sont faux, je me suis déplacé pour rien.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0319", "text": "Toujours un accueil chaleureux, ça fait plaisir 🌸", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0320", "text": "Est-ce que le modèle est garanti contre l'eau ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0321", "text": "Commande passée en double par erreur du site, je veux annuler la seconde.", "sentiment": "neutral", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0322", "text": "Rien à dire, parfait 💯", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0323", "text": "Franchement pour un produit haut de gamme la finition laisse à désirer.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0324", "text": "Le magasin fait-il l'entretien annuel sur place ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0325", "text": "Un immense merci pour le geste commercial, c'est très classe de votre part 🙏", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0326", "text": "Vous vous fichez de nous avec ces ruptures permanentes.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0327", "text": "Il y a un espace pour les poussettes dans le magasin ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0328", "text": "Article défectueux reçu pour la deuxième fois. Cette fois je veux un remboursement, pas un échange.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0329", "text": "Vous m'avez sauvé la mise pour l'anniversaire, mille mercis 🎂", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0330", "text": "Quelle est la fréquence des livraisons pour l'abonnement mensuel ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0331", "text": "Ce n'est plus ce que c'était, vraiment dommage.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0332", "text": "Comment obtenir une facture avec TVA pour ma société ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0333", "text": "Bravo pour le recrutement local, c'est important 👏", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0334", "text": "Mon adresse e-mail a été utilisée pour du spam depuis que j'ai commandé chez vous.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0335", "text": "Il y a un parking à proximité ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0336", "text": "Simplement parfait 🤍", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0337", "text": "Je patiente depuis 40 minutes au téléphone et personne ne décroche.", "sentiment": "negative", "intent": "complaint", "urgent": true, "sensitive": false}
+{"id": "c0338", "text": "Vous faites de la personnalisation avec logo d'entreprise ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0339", "text": "Découverte au top, je reviendrai c'est certain !", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0340", "text": "Vous promettez du 100% naturel mais la liste d'ingrédients dit le contraire.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": true}
+{"id": "c0341", "text": "Quelle est la durée de la formation proposée ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0342", "text": "Vraiment à la hauteur de la réputation, bravo 🌟", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0343", "text": "Colis annoncé livré alors que je suis chez moi toute la journée. Personne n'est passé.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0344", "text": "Le produit existe en recharge ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0345", "text": "Quelle belle énergie dans cette équipe 💫", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0346", "text": "Deux mois pour traiter un retour simple, c'est beaucoup trop long.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0347", "text": "Vous avez des créneaux disponibles la semaine prochaine ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0348", "text": "Article superbe, emballage soigné, livraison rapide. Bravo 🎯", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0349", "text": "Je suis allergique aux fruits à coque, y en a-t-il des traces dans ce produit ?", "sentiment": "neutral", "intent": "info_request", "urgent": true, "sensitive": true}
+{"id": "c0350", "text": "Votre chatbot ne sert strictement à rien, je veux parler à un humain.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0351", "text": "Est-ce que le produit est éligible au bonus écologique ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0352", "text": "Merci pour le remplacement rapide, dossier clos de mon côté 👍", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0353", "text": "Vous annoncez -50% mais le prix de référence a été gonflé avant. C'est trompeur.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": true}
+{"id": "c0354", "text": "Il faut un compte pour commander ou on peut le faire en invité ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0355", "text": "Petite équipe, grand cœur ❤️ merci pour votre accueil", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0356", "text": "Livraison à 3 jours annoncée, 3 semaines en réalité, et aucun geste commercial proposé.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0357", "text": "Bonjour, avez-vous la référence en stock à Bordeaux ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0358", "text": "Franchement bluffé par la qualité pour ce prix.", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0359", "text": "Mon numéro de téléphone 07 88 99 00 11 a été communiqué à un partenaire sans mon accord.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0360", "text": "Est-ce que ça tient au lave-linge à 40 degrés ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0361", "text": "Superbe 🔥🔥", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0362", "text": "Aucune réponse depuis 3 semaines sur un produit dangereux. J'alerte la DGCCRF.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0363", "text": "Vous pouvez m'indiquer la référence exacte du modèle en vitrine ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0364", "text": "La qualité du tissu est vraiment agréable, bon achat 👌", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0365", "text": "Je n'ai jamais vu un site aussi lent, c'est insupportable.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0366", "text": "Vous proposez des échantillons ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0367", "text": "Commande urgente pour un événement demain soir, est-ce possible en express ?", "sentiment": "neutral", "intent": "info_request", "urgent": true, "sensitive": false}
+{"id": "c0368", "text": "Bravo pour votre engagement solidaire, ça mérite d'être souligné 🤝", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0369", "text": "Ma commande est bloquée en douane, que dois-je faire de mon côté ?", "sentiment": "neutral", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0370", "text": "C'est franchement décevant pour une marque qui se prétend premium.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0371", "text": "La boutique accepte les animaux ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0372", "text": "Chaque détail est soigné, on sent le travail 👏", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0373", "text": "Livraison offerte annoncée puis facturée au moment du paiement. Je veux le remboursement des frais.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0374", "text": "Vous avez des références pour peaux grasses ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0375", "text": "Le meilleur service client que j'ai eu cette année, sincèrement.", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0376", "text": "Pourquoi vos produits ne sont plus fabriqués en Europe ?", "sentiment": "negative", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0377", "text": "Il est possible de modifier ma commande avant expédition ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0378", "text": "Sublime 🌹 merci pour ce partage", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0379", "text": "Le produit a pris feu pendant la charge. Je veux une réponse aujourd'hui.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0380", "text": "Il faut combien de temps pour recevoir la carte de fidélité ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0381", "text": "Jamais déçue en 5 ans de commandes 💕", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0382", "text": "Votre nouveau système de points est incompréhensible et moins avantageux.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0383", "text": "Bonjour, le service traiteur existe pour les petits événements ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0384", "text": "Merci pour la réponse rapide en message privé, problème résolu ✅", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0385", "text": "Produit reçu sale, avec des traces de doigts partout. Inacceptable pour du neuf.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0386", "text": "On peut venir sans rendez-vous ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0387", "text": "Belle collaboration, très réussie 🙌", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0388", "text": "Deux ans que je suis client et aucun avantage fidélité, contrairement aux nouveaux.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0389", "text": "C'est livré monté ou en kit ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0390", "text": "Un plaisir à chaque fois, merci pour votre constance 😊", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0391", "text": "Remboursement promis sous 14 jours, on est à 45 jours. Je saisis la justice.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0392", "text": "Vous avez une politique de reprise des anciens modèles ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0393", "text": "Vraiment agréable de voir une marque aussi à l'écoute 💙", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0394", "text": "Je n'arrive pas à appliquer le bon de réduction reçu par mail.", "sentiment": "neutral", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0395", "text": "Les portions ont diminué mais pas le prix, vous croyez qu'on ne voit rien ?", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0396", "text": "Quel est le poids maximum supporté ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0397", "text": "Franchement rien à redire, du très bon travail 🏆", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0398", "text": "Article commandé pour un cadeau de Noël, toujours pas expédié le 22 décembre.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0399", "text": "Vous proposez la gravure personnalisée ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0400", "text": "Tellement heureuse de cette trouvaille 🥹", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0401", "text": "Le produit ne correspond absolument pas, je veux le renvoyer et être remboursé intégralement.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0402", "text": "Bonjour, la réservation en ligne est-elle obligatoire ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0403", "text": "Que de qualité, bravo pour ce travail minutieux ✨", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0404", "text": "Trop de pub sur votre page, on ne voit plus que ça.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0405", "text": "Est-ce que la pile est incluse ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0406", "text": "Bravo pour la réactivité pendant les fêtes, chapeau 🎄", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0407", "text": "Mon dossier SAV 44120 est ouvert depuis le 2 mars, aucune avancée depuis.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0408", "text": "Vous prévoyez une version pour gaucher un jour ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0409", "text": "Très pratique au quotidien, adopté 👍", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0410", "text": "Publicité mensongère sur l'autonomie annoncée, je vais signaler.", "sentiment": "negative", "intent": "complaint", "urgent": true, "sensitive": true}
+{"id": "c0411", "text": "Les tailles taillent grand ou petit ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0412", "text": "Merci pour votre patience avec ma commande compliquée 😅 vous êtes des pros", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0413", "text": "Aucune information sur l'expédition depuis le paiement il y a 9 jours.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0414", "text": "Vous faites des cartes cadeaux dématérialisées ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0415", "text": "Que du bonheur cette nouvelle gamme 🤗", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0416", "text": "Le produit s'est cassé après 3 utilisations, la qualité n'est pas au rendez-vous.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0417", "text": "Il y a une liste d'attente pour la prochaine session ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0418", "text": "Service rapide et souriant, rien à dire 😊", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0419", "text": "Vous ne respectez pas le droit de rétractation de 14 jours prévu par la loi.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0420", "text": "La livraison se fait par quel transporteur ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0421", "text": "Coup de cœur absolu pour ce modèle 😻", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0422", "text": "Encore une rupture de stock le jour du lancement, c'est systématique chez vous.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0423", "text": "Quelles sont les modalités d'annulation d'une réservation ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0424", "text": "Bravo, très beau travail de refonte du site 👏", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0425", "text": "J'ai été facturé pour un abonnement que je n'ai jamais souscrit. Je demande l'annulation et le remboursement.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0426", "text": "Bonjour, quelle est la hauteur totale une fois monté ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0427", "text": "Toujours de bons produits et de bons conseils, merci 🌻", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0428", "text": "Je trouve regrettable de ne plus avoir de contact téléphonique direct.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0429", "text": "Vous livrez en Suisse et quels sont les frais de douane ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0430", "text": "Merveilleux moment passé chez vous, on recommande 🥂", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0431", "text": "Le colis est arrivé chez mon voisin qui a déménagé, comment le récupérer ?", "sentiment": "neutral", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0432", "text": "C'est quand même dommage de devoir payer pour un service qui était gratuit avant.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0433", "text": "Est-ce que vous avez ce modèle en location ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0434", "text": "Un sans faute du début à la fin, félicitations 🏅", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0435", "text": "Vos livreurs sonnent et repartent sans attendre, 3 fois de suite maintenant.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0436", "text": "Le paiement par virement est possible ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0437", "text": "Toujours aussi bon accueil, merci à l'équipe 💐", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0438", "text": "Produit reçu avec une notice uniquement en anglais, c'est illégal en France.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": true}
+{"id": "c0439", "text": "Avez-vous un showroom visitable ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0440", "text": "Je suis conquise, tout est parfait 🤍 merci", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0441", "text": "Vous m'avez livré un produit périmé à ma fille de 4 ans, elle a été malade toute la nuit.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0442", "text": "Combien coûte la mise en service ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0443", "text": "Incroyable rapport qualité prix, je valide totalement 👌", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0444", "text": "Aucune considération pour les petits clients, seuls les gros comptes vous intéressent.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0445", "text": "Il y a une garantie satisfait ou remboursé ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0446", "text": "Magnifique découverte, merci pour la recommandation 🌼", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0447", "text": "Je constate que les commentaires négatifs sont supprimés de votre page.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": true}
+{"id": "c0448", "text": "Bonjour, le tarif groupe s'applique à partir de combien de personnes ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0449", "text": "Encore une réussite, vous ne décevez jamais 🙌", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0450", "text": "Mon remboursement a été fait en bon d'achat alors que j'ai payé en carte. Je veux un vrai remboursement.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0451", "text": "Vous avez un service de retouche pour les vêtements achetés en ligne ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0452", "text": "Très satisfait, produit conforme et livraison dans les temps.", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0453", "text": "Ça fait 4 mois que j'attends une pièce détachée, le produit est inutilisable depuis.", "sentiment": "negative", "intent": "claim", "urgent": true, "sensitive": false}
+{"id": "c0454", "text": "Le programme de fidélité est cumulable avec les promotions ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0455", "text": "Génial, exactement ce qu'il me fallait 🎯", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0456", "text": "Votre enseigne se dégrade d'année en année, c'est triste à voir.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0457", "text": "Est-ce que le service inclut la reprise de l'ancien appareil ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0458", "text": "Un accueil formidable et des conseils précieux, merci beaucoup 🌟", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0459", "text": "Le technicien n'est jamais venu au rendez-vous et je me suis absentée du travail pour rien.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0460", "text": "Quelle est la consommation électrique du modèle ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0461", "text": "Tellement bien pensé, bravo aux concepteurs 👏", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0462", "text": "Vous supprimez les avis clients qui dérangent, je le vois depuis des semaines.", "sentiment": "negative", "intent": "complaint", "urgent": true, "sensitive": true}
+{"id": "c0463", "text": "Existe-t-il une version pour les professionnels de santé ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": true}
+{"id": "c0464", "text": "Parfait du premier au dernier moment, merci 💫", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0465", "text": "Commande urgente pour une intervention médicale, j'ai besoin du produit avant vendredi.", "sentiment": "neutral", "intent": "claim", "urgent": true, "sensitive": true}
+{"id": "c0466", "text": "Le service de click and collect fonctionne dans quels magasins ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0467", "text": "Quelle déception, je m'attendais à tellement mieux au vu du prix.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0468", "text": "Merci d'avoir pris en compte mon retour précédent, ça se voit 🙏", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0469", "text": "Article annoncé en stock, commandé, puis annulé par vos soins 4 jours plus tard.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0470", "text": "Vous avez une adresse e-mail de contact direct ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0471", "text": "Superbe expérience du début à la fin, bravo à toute l'équipe 🌈", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0472", "text": "Ce genre de pratique commerciale devrait être interdit, je vais témoigner publiquement.", "sentiment": "negative", "intent": "complaint", "urgent": true, "sensitive": true}
+{"id": "c0473", "text": "Le produit est-il réparable ou faut-il tout racheter en cas de panne ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0474", "text": "Toujours au rendez-vous, merci pour la qualité 🧡", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0475", "text": "Mon colis a été renvoyé à l'expéditeur sans que personne ne m'ait contactée.", "sentiment": "negative", "intent": "claim", "urgent": false, "sensitive": false}
+{"id": "c0476", "text": "Quelles couleurs sont encore disponibles ?", "sentiment": "neutral", "intent": "info_request", "urgent": false, "sensitive": false}
+{"id": "c0477", "text": "Une équipe au petit soin, merci pour tout ce que vous faites 💛", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0478", "text": "C'est la dernière fois que je commande, service catastrophique de bout en bout.", "sentiment": "negative", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0479", "text": "Bonjour, est-ce que la garantie est transférable si je revends le produit ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0480", "text": "Produit reçu conforme et en avance, très bonne expérience 👍", "sentiment": "positive", "intent": "other", "urgent": false, "sensitive": false}
+{"id": "c0481", "text": "Comment vous est venue l'idée de cette collection ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0482", "text": "Vous pensez quoi de la tendance du seconde main dans votre secteur ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0483", "text": "C'est fabriqué comment exactement, à la main ou en série ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0484", "text": "Pourquoi avoir choisi ce nom pour la marque ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0485", "text": "Qui est derrière les illustrations ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0486", "text": "Vous comptez vous développer à l'étranger dans les prochaines années ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0487", "text": "Quelle est votre position sur l'intelligence artificielle dans la création ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0488", "text": "Vos équipes sont formées en interne ou vous recrutez des profils déjà expérimentés ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0489", "text": "Il y a une raison particulière au changement de logo ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0490", "text": "Comment vous choisissez vos fournisseurs ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0491", "text": "Vous avez combien de salariés aujourd'hui ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0492", "text": "Ça représente quoi le motif sur l'étiquette ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0493", "text": "Vous vous inspirez de quoi pour vos nouveautés ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0494", "text": "Est-ce que le métier a beaucoup changé depuis vos débuts ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0495", "text": "Pourquoi certaines marques abandonnent le verre et pas vous ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0496", "text": "Vous faites quoi des invendus en fin de saison ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0497", "text": "C'est vous qui gérez ce compte ou une agence ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0498", "text": "Quelle est la différence entre votre approche et celle des industriels ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0499", "text": "Vous avez des projets de collaboration avec des artistes locaux ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0500", "text": "Comment se passe le contrôle qualité chez vous ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0501", "text": "Pourquoi votre gamme ne propose aucune option végane ?", "sentiment": "negative", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0502", "text": "Pourquoi supprimer un produit qui marchait aussi bien ?", "sentiment": "negative", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0503", "text": "Comment justifiez-vous une telle différence de prix avec vos concurrents ?", "sentiment": "negative", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0504", "text": "Pourquoi vos réponses en commentaire sont toutes identiques ?", "sentiment": "negative", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0505", "text": "Vous comptez faire quelque chose pour les délais ou on continue comme ça ?", "sentiment": "negative", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0506", "text": "Curieuse de savoir comment vous avez démarré l'aventure, une interview quelque part ?", "sentiment": "positive", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0507", "text": "J'adore votre univers, vous vous inspirez d'un pays en particulier ?", "sentiment": "positive", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0508", "text": "Très beau projet ! Vous êtes une entreprise familiale ?", "sentiment": "positive", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0509", "text": "Bravo pour la démarche 👏 vous documentez ça quelque part ?", "sentiment": "positive", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0510", "text": "Vous avez un blog ou un podcast pour en savoir plus ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0511", "text": "Quelqu'un sait si la marque appartient à un grand groupe ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0512", "text": "Comment vous gérez les pics d'activité pendant les fêtes ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0513", "text": "Vous envisagez de rendre les recettes publiques un jour ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0514", "text": "C'est quoi votre plus grande fierté depuis la création ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0515", "text": "Vous travaillez encore avec le même atelier qu'au début ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0516", "text": "Une question de curieux : pourquoi cette couleur pour l'emballage ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0517", "text": "Vous êtes certifiés par un organisme indépendant ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0518", "text": "Vous prévoyez de communiquer sur votre bilan carbone ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0519", "text": "Comment se passe la formation des nouveaux vendeurs ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0520", "text": "Vous pensez que ce format va remplacer l'ancien à terme ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0521", "text": "Pourquoi ne pas communiquer davantage sur ce sujet ?", "sentiment": "negative", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0522", "text": "Vous avez prévu quoi pour les clients lésés par la panne de la semaine dernière ?", "sentiment": "negative", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0523", "text": "Est-ce que quelqu'un lit vraiment ces commentaires ?", "sentiment": "negative", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0524", "text": "Les produits se ressemblent tous maintenant, c'est une stratégie assumée ?", "sentiment": "negative", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0525", "text": "Comment expliquez-vous autant d'avis négatifs récemment ?", "sentiment": "negative", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0526", "text": "Vous avez une idée de pourquoi ça sent différemment d'un lot à l'autre ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0527", "text": "Est-ce que le packaging est recyclable dans le bac jaune ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0528", "text": "Vous participez à des salons professionnels cette année ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0529", "text": "La photo est retouchée ou c'est le rendu réel ?", "sentiment": "neutral", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0530", "text": "Question sincère : pourquoi ce produit coûte plus cher en France qu'en Allemagne ?", "sentiment": "negative", "intent": "question", "urgent": false, "sensitive": false}
+{"id": "c0531", "text": "Le produit n'est pas mauvais mais le rapport qualité prix reste discutable.", "sentiment": "neutral", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0532", "text": "À noter que la notice comporte une erreur à l'étape 4, ça mériterait une correction.", "sentiment": "neutral", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0533", "text": "Signalement : le lien de votre bio renvoie vers une page d'erreur depuis hier.", "sentiment": "neutral", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0534", "text": "Pour information, les horaires sur Google Maps ne correspondent pas à ceux de votre site.", "sentiment": "neutral", "intent": "complaint", "urgent": false, "sensitive": false}
+{"id": "c0535", "text": "Remarque constructive : la police d'écriture du site est difficile à lire sur petit écran.", "sentiment": "neutral", "intent": "complaint", "urgent": false, "sensitive": false}

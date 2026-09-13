@@ -1,0 +1,17 @@
+# L'environnement virtuel de développement pèse plusieurs centaines de Mo et
+# contient des binaires compilés pour l'OS de la machine, pas pour l'image.
+venv/
+.venv/
+
+# Reconstruits par `python -m training.train` pendant le build (voir Dockerfile) :
+# copier ceux de la machine masquerait un entraînement raté dans l'image.
+artifacts/
+
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+
+# Les tests ne servent pas à l'exécution ; `dataset/` et `training/`, si :
+# l'image entraîne ses propres modèles au build.
+tests/

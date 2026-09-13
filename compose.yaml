@@ -82,6 +82,9 @@ services:
       # edge), and signs the publication's media so graph-api can fetch it.
       SOCIAL_SERVICE_URL: ${SOCIAL_SERVICE_URL}
       SOCIAL_PROVIDER_MODE: ${SOCIAL_PROVIDER_MODE}
+      # Sprint 09: the worker sweeps unanalysed comments and calls the AI
+      # service directly, the same way it already calls graph-api.
+      AI_SERVICE_URL: ${AI_SERVICE_URL}
       S3_ENDPOINT: ${S3_ENDPOINT}
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT}
       S3_REGION: ${S3_REGION}
@@ -151,7 +154,20 @@ services:
       context: ./services/ai-service
     environment:
       PORT: 8080
-      AI_MODEL_MODE: stub
+      # Sprint 09: `local` = the scikit-learn models trained at image build
+      # time from services/ai-service/dataset/. This replaces the Sprint 01
+      # placeholder value `stub`, which no longer corresponds to any code path.
+      AI_MODEL_MODE: local
+      # Sprint 10: `local` (default) generates replies from the brand settings
+      # with no network call and no key. `llm` routes generation through Claude
+      # when ANTHROPIC_API_KEY is set, and falls back to the local generator
+      # whenever the model is unavailable — the service never stops working
+      # for want of a key.
+      AI_GENERATION_MODE: ${AI_GENERATION_MODE}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # Same shared secret as graph-api, different audience: ai-service only
+      # accepts tokens minted for it (see its core/security.py).
+      SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET}
     ports:
       - "8080:8080"
     healthcheck:

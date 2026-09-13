@@ -271,9 +271,6 @@ const store = {
   sessions: clone(fixtures.sessions),
 };
 
-let nextId = 1000;
-const makeId = (prefix: string) => `${prefix}_${++nextId}`;
-
 // ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
@@ -891,17 +888,31 @@ export const publicationsApi = {
     await fetchApi<void>(`/api/v1/publications/${id}`, { method: 'DELETE' }, true);
   },
 
-  // Hashtags et mots-clés restent simulés : ils arrivent avec LangGraph au Sprint 10.
-  async generateHashtags(text: string): Promise<string[]> {
-    return request(() => {
-      if (simulation.aiUnavailable) throw new ApiError('ai_unavailable', errorMessages.ai_unavailable);
-      if (!text.trim()) return [];
-      return [...fixtures.suggestedHashtags];
-    }, 1100);
+  /** Hashtags réels (Sprint 10). `preserve` renvoie en tête ce que
+   * l'utilisateur a déjà sélectionné : une régénération ne doit jamais faire
+   * disparaître ses ajouts manuels. Les hashtags sont extraits du texte de la
+   * publication, donc toujours pertinents mais jamais inventés. */
+  async generateHashtags(text: string, brandId: string, preserve: string[] = []): Promise<string[]> {
+    if (!text.trim()) return [];
+    const result = await fetchApi<{ hashtags: string[]; keywords: string[] }>(
+      '/api/v1/publications/generate-hashtags',
+      { method: 'POST', body: JSON.stringify({ brandId, text, preserve }) },
+      true
+    );
+    return result.hashtags;
   },
 
-  async detectKeywords(text: string): Promise<string[]> {
-    return request(() => (text.trim() ? [...fixtures.detectedKeywords] : []), 400);
+  /** Même appel que `generateHashtags` côté serveur — l'encart « mots-clés
+   * détectés » et les propositions viennent de la même extraction, ils ne
+   * peuvent donc pas se contredire. */
+  async detectKeywords(text: string, brandId: string): Promise<string[]> {
+    if (!text.trim()) return [];
+    const result = await fetchApi<{ hashtags: string[]; keywords: string[] }>(
+      '/api/v1/publications/generate-hashtags',
+      { method: 'POST', body: JSON.stringify({ brandId, text }) },
+      true
+    );
+    return result.keywords;
   },
 };
 
@@ -1015,17 +1026,20 @@ export type CommentFilters = {
 export const commentsApi = {
   /** `list`/`counts`/`sync` are brand-scoped server-side (Sprint 08) —
    * `get`/`history`/`setStatus` resolve their brand from the comment's own
-   * social account instead, so they don't need it. AI-pipeline filters
-   * (sentiment/priority/intent) aren't sent: nothing persists that analysis
-   * yet (Sprint 09/10), so the server wouldn't know what to do with them —
-   * sending them would silently do nothing, so they're dropped here instead
-   * of pretending to filter. */
+   * social account instead, so they don't need it. Depuis le Sprint 09 les
+   * filtres d'analyse (sentiment/intention/priorité) sont réellement envoyés :
+   * ils portent sur la dernière analyse, donc un commentaire pas encore
+   * analysé sort des résultats dès qu'un de ces filtres est posé. */
   async list(filters: CommentFilters = {}, page = 0, brandId = '') {
     const query = new URLSearchParams({ brandId, page: String(page + 1), pageSize: String(PAGE_SIZE) });
     if (filters.status && filters.status !== 'all') query.set('status', filters.status);
     if (filters.network && filters.network !== 'all') query.set('network', filters.network);
     if (filters.publicationId) query.set('publicationId', filters.publicationId);
     if (filters.search?.trim()) query.set('search', filters.search.trim());
+    if (filters.sentiment && filters.sentiment !== 'all') query.set('sentiment', filters.sentiment);
+    if (filters.intent && filters.intent !== 'all') query.set('intent', filters.intent);
+    if (filters.priority && filters.priority !== 'all') query.set('priority', filters.priority);
+    if (filters.sort) query.set('sort', filters.sort);
 
     const result = await fetchApi<{ items: Comment[]; page: number; pageSize: number; total: number }>(
       `/api/v1/comments?${query.toString()}`,
@@ -1066,112 +1080,99 @@ export const commentsApi = {
     );
   },
 
-  async analyse(id: string): Promise<Comment> {
-    return request(() => {
-      if (simulation.aiUnavailable) throw new ApiError('ai_unavailable', errorMessages.ai_unavailable);
-      const comment = store.comments.find((c) => c.id === id);
-      if (!comment) throw new ApiError('not_found', errorMessages.not_found);
-      comment.analysis = {
-        sentiment: 'neutral',
-        intent: 'question',
-        priority: 'medium',
-        confidence: 0.84,
-        urgent: false,
-        sensitive: false,
-        recommendedAction: 'Répondre avec l’information demandée.',
-        explanation: 'Demande d’information sans marqueur d’insatisfaction.',
-        analysedAt: new Date().toISOString(),
-        modelVersion: 'v2.1',
-      };
-      return clone(comment);
-    }, 1300);
+  /** Analyse réelle (Sprint 09) : synchrone côté serveur — le modèle est
+   * linéaire, pas un LLM, donc la réponse revient assez vite pour que l'écran
+   * l'affiche directement. `reanalysis` ne change pas le résultat mais
+   * distingue les deux intentions dans l'audit et l'historique. */
+  async analyse(id: string, options: { reanalysis?: boolean } = {}): Promise<Comment> {
+    return fetchApi<Comment>(
+      `/api/v1/comments/${id}/${options.reanalysis ? 'reanalyze' : 'analyze'}`,
+      { method: 'POST' },
+      true
+    );
   },
 
+  /** Génère une proposition (Sprint 10). Chaque appel crée une nouvelle
+   * version côté serveur : régénérer n'écrase jamais la proposition
+   * précédente, elle reste dans l'historique du commentaire. */
   async generateResponse(
-    id: string,
+    commentId: string,
     options: { tone: string; language: string; instruction?: string }
   ): Promise<AiResponse> {
-    return request(() => {
-      if (simulation.aiUnavailable) throw new ApiError('ai_unavailable', errorMessages.ai_unavailable);
-      const comment = store.comments.find((c) => c.id === id);
-      if (!comment) throw new ApiError('not_found', errorMessages.not_found);
-
-      const previous = comment.response;
-      const response: AiResponse = {
-        id: makeId('rsp'),
-        text:
-          options.instruction?.trim()
-            ? `Bonjour ${comment.authorName.split(' ')[0]}, merci de votre retour. ${options.instruction.trim()} Nous revenons vers vous très vite.`
-            : `Bonjour ${comment.authorName.split(' ')[0]}, merci pour votre message. Nous regardons cela et revenons vers vous rapidement.`,
-        language: options.language === 'en' ? 'en' : 'fr',
-        tone: options.tone as AiResponse['tone'],
-        status: 'proposed',
-        createdAt: new Date().toISOString(),
-        generatedByAi: true,
-        originalText: previous?.originalText ?? '',
-        version: (previous?.version ?? 0) + 1,
-      };
-      if (!response.originalText) response.originalText = response.text;
-      comment.response = response;
-      return clone(response);
-    }, 1500);
+    return fetchApi<AiResponse>(
+      '/api/v1/response-suggestions',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          commentId,
+          tone: options.tone,
+          language: options.language,
+          instruction: options.instruction?.trim() || undefined,
+        }),
+      },
+      true
+    );
   },
 
-  /** Saves a human edit without losing the original proposal. */
-  async saveResponse(id: string, text: string, patch: Partial<AiResponse> = {}): Promise<AiResponse> {
-    return request(() => {
-      const comment = store.comments.find((c) => c.id === id);
-      if (!comment?.response) throw new ApiError('not_found', errorMessages.not_found);
-      comment.response = {
-        ...comment.response,
-        ...patch,
-        text,
-        status: 'edited',
-        version: comment.response.version + 1,
-      };
-      return clone(comment.response);
-    }, 700);
+  /** Enregistre une réécriture humaine. Le serveur crée une version et
+   * repasse le texte au contrôle de sécurité — c'est précisément dans une
+   * réécriture qu'un engagement non autorisé apparaît le plus souvent.
+   * Sans proposition existante, la saisie du community manager en devient
+   * une (marquée comme non générée par l'IA). */
+  async saveResponse(
+    commentId: string,
+    text: string,
+    patch: Partial<AiResponse> = {},
+    suggestionId?: string
+  ): Promise<AiResponse> {
+    if (!suggestionId) {
+      return fetchApi<AiResponse>(
+        '/api/v1/response-suggestions',
+        {
+          method: 'POST',
+          body: JSON.stringify({ commentId, text, tone: patch.tone, language: patch.language }),
+        },
+        true
+      );
+    }
+    return fetchApi<AiResponse>(
+      `/api/v1/response-suggestions/${suggestionId}`,
+      { method: 'PATCH', body: JSON.stringify({ text, tone: patch.tone, language: patch.language }) },
+      true
+    );
   },
 
-  async rejectResponse(id: string): Promise<void> {
-    return request(() => {
-      const comment = store.comments.find((c) => c.id === id);
-      if (comment?.response) comment.response.status = 'rejected';
-    }, 600);
+  async rejectResponse(suggestionId: string): Promise<void> {
+    await fetchApi<AiResponse>(`/api/v1/response-suggestions/${suggestionId}/reject`, { method: 'POST' }, true);
   },
 
-  /** Human validation is mandatory: nothing is ever sent automatically.
-   * Real send (Sprint 08 Day 5) — the server rejects an already-sent or
-   * deleted-on-platform comment with 409, and a token_expired account with
-   * 409 as well, both surfaced via the standard error mapping.
+  /** La validation humaine est obligatoire et vérifiée côté serveur : l'envoi
+   * refuse toute proposition qui n'a pas été explicitement approuvée, et
+   * publie le texte de la version approuvée — pas un texte libre passé à
+   * l'envoi, sinon l'approbation ne porterait que sur un brouillon.
    *
-   * Sprint 08 tracks sent replies in its own audit table (`sent_responses`),
-   * not yet the AI response-history table Sprint 09/10 owns, so the real
-   * `Comment` the server returns always has `response: null`. This screen's
-   * "already sent" check needs `response.status === 'sent'` to keep working
-   * without a rewrite, so it's synthesized here from data the send call
-   * itself confirms is true (the text that was actually sent) — not
-   * fabricated, just represented in a shape the AI table doesn't back yet. */
-  async approveAndSend(id: string, text: string): Promise<Comment> {
-    const comment = await fetchApi<Comment>(
-      `/api/v1/comments/${id}/reply`,
+   * Deux requêtes, pas une : approuver et envoyer sont deux actes distincts
+   * côté serveur (et deux entrées d'audit distinctes). Une ultime retouche
+   * est transmise à l'approbation, qui l'enregistre comme une version avant
+   * de la valider. */
+  async approveAndSend(commentId: string, text: string, suggestionId?: string): Promise<Comment> {
+    let target = suggestionId;
+    if (!target) {
+      const created = await fetchApi<AiResponse>(
+        '/api/v1/response-suggestions',
+        { method: 'POST', body: JSON.stringify({ commentId, text }) },
+        true
+      );
+      target = created.id;
+    }
+
+    await fetchApi<AiResponse>(
+      `/api/v1/response-suggestions/${target}/approve`,
       { method: 'POST', body: JSON.stringify({ text }) },
       true
     );
-    return {
-      ...comment,
-      response: {
-        id: `sent-${comment.id}`,
-        text,
-        language: 'fr',
-        tone: 'friendly',
-        status: 'sent',
-        createdAt: new Date().toISOString(),
-        generatedByAi: false,
-        originalText: comment.response?.originalText ?? text,
-        version: (comment.response?.version ?? 0) + 1,
-      },
-    };
+
+    return fetchApi<Comment>(`/api/v1/comments/${commentId}/reply`, { method: 'POST' }, true);
   },
 };
 

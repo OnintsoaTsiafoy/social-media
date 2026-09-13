@@ -7,6 +7,7 @@ import { commentRouter } from './comments/routes.js';
 import { mediaRouter } from './media/routes.js';
 import { calendarRouter, publicationRouter } from './publications/routes.js';
 import { profileRouter } from './profile/routes.js';
+import { hashtagRouter, responseSuggestionRouter } from './response-suggestions/routes.js';
 import { socialAccountRouter } from './social-accounts/routes.js';
 import { addRequestContext, errorHandler, notFoundHandler } from './lib/http.js';
 import { stopBoss } from './lib/jobs.js';
@@ -151,10 +152,15 @@ app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/profile', profileRouter);
 app.use('/api/v1/brands', brandRouter);
 app.use('/api/v1/media', mediaRouter);
+// Monté AVANT publicationRouter : celui-ci expose des routes en
+// `/:publicationId`, qui captureraient « generate-hashtags » comme un
+// identifiant et répondraient 400 avant que cette route ne soit consultée.
+app.use('/api/v1/publications', hashtagRouter);
 app.use('/api/v1/publications', publicationRouter);
 app.use('/api/v1/calendar', calendarRouter);
 app.use('/api/v1/social-accounts', socialAccountRouter);
 app.use('/api/v1/comments', commentRouter);
+app.use('/api/v1/response-suggestions', responseSuggestionRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 

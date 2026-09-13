@@ -1,0 +1,10 @@
+/venv
+.env
+
+# Produits par `python -m training.train` / `training.evaluate` — reconstruits
+# à l'identique par la graine fixe, et reconstruits à chaque build d'image.
+/artifacts
+
+__pycache__/
+*.pyc
+.pytest_cache/

@@ -1,6 +1,13 @@
 import { prisma } from '../db/prisma.js';
+import { callAiService } from '../lib/aiServiceClient.js';
 import { writeAuditLog } from '../lib/audit.js';
+import { HttpError } from '../lib/http.js';
 import { callSocialService } from '../lib/socialServiceClient.js';
+import {
+  latestSuggestion,
+  latestSuggestionsFor,
+  toPublicSuggestion,
+} from '../response-suggestions/service.js';
 
 // graph-api owns comment CONTENT (always sourced from Meta, via webhook or
 // backfill sync — see graph-api/db/social_comments_repository.py). Express
@@ -39,7 +46,28 @@ async function resolvePublicationRefs(comments) {
   return map;
 }
 
-function toPublicComment(comment, publicationRefs) {
+// `latestAnalysis` est le pointeur de cache porté par social_comments (voir
+// schema.prisma) : toujours la dernière ligne de comment_analyses, jamais une
+// valeur recopiée. Un commentaire jamais analysé le laisse à null, ce que le
+// mobile affiche comme « analyse en attente » — jamais une analyse inventée.
+export function toPublicAnalysis(analysis) {
+  if (!analysis) return null;
+  return {
+    sentiment: analysis.sentiment.toLowerCase(),
+    intent: analysis.intent.toLowerCase(),
+    priority: analysis.priority.toLowerCase(),
+    confidence: analysis.confidence,
+    lowConfidence: analysis.lowConfidence,
+    urgent: analysis.isUrgent,
+    sensitive: analysis.isSensitive,
+    recommendedAction: analysis.recommendedAction,
+    explanation: analysis.explanation,
+    analysedAt: analysis.analysedAt.toISOString(),
+    modelVersion: analysis.modelVersion,
+  };
+}
+
+function toPublicComment(comment, publicationRefs, suggestions = new Map()) {
   const publication = comment.externalPublicationId
     ? publicationRefs.get(`${comment.socialAccountId}:${comment.externalPublicationId}`)
     : null;
@@ -56,13 +84,31 @@ function toPublicComment(comment, publicationRefs) {
     status: comment.status.toLowerCase(),
     isNew: comment.status === 'NEW',
     deletedOnPlatform: comment.isDeletedOnPlatform,
-    // Sprint 09/10 scope — no analysis/response pipeline exists yet.
-    analysis: null,
-    response: null,
+    analysis: toPublicAnalysis(comment.latestAnalysis),
+    response: toPublicSuggestion(suggestions.get(comment.id) ?? null),
   };
 }
 
+// Une seule définition des `include` : chaque lecture de commentaire doit
+// ramener le compte social ET la dernière analyse, sinon `toPublicComment`
+// renverrait silencieusement `analysis: null` sur un commentaire analysé.
+const COMMENT_INCLUDE = {
+  socialAccount: { select: { provider: true } },
+  latestAnalysis: true,
+};
+
 function accessibleWhere(brandId, filters) {
+  // Les filtres IA portent sur la dernière analyse. Un commentaire jamais
+  // analysé n'a pas de `latestAnalysis` et sort donc naturellement des
+  // résultats dès qu'un de ces filtres est actif — c'est le comportement
+  // voulu : « montre-moi les négatifs » ne peut pas inclure des
+  // commentaires dont on ignore le sentiment.
+  const analysisFilters = {
+    ...(filters.sentiment && filters.sentiment !== 'all' ? { sentiment: filters.sentiment.toUpperCase() } : {}),
+    ...(filters.priority && filters.priority !== 'all' ? { priority: filters.priority.toUpperCase() } : {}),
+    ...(filters.intent && filters.intent !== 'all' ? { intent: filters.intent.toUpperCase() } : {}),
+  };
+
   return {
     socialAccount: {
       brandId,
@@ -71,7 +117,19 @@ function accessibleWhere(brandId, filters) {
     ...(filters.status && filters.status !== 'all' ? { status: filters.status.toUpperCase() } : {}),
     ...(filters.publicationId ? { externalPublicationId: filters.publicationId } : {}),
     ...(filters.search ? { content: { contains: filters.search, mode: 'insensitive' } } : {}),
+    ...(Object.keys(analysisFilters).length > 0 ? { latestAnalysis: { is: analysisFilters } } : {}),
   };
+}
+
+// `CommentPriority` est déclaré LOW, MEDIUM, HIGH : l'ordre d'un type enum
+// PostgreSQL suit sa déclaration, donc `desc` remonte bien HIGH en premier.
+// `nulls: 'last'` garde les commentaires non analysés après ceux qui le sont
+// plutôt qu'en tête (comportement par défaut de PostgreSQL en tri décroissant).
+function orderFor(sort) {
+  if (sort === 'priority') {
+    return [{ latestAnalysis: { priority: { sort: 'desc', nulls: 'last' } } }, { createdAt: 'desc' }];
+  }
+  return [{ createdAt: 'desc' }];
 }
 
 export async function listComments(brandId, filters) {
@@ -80,57 +138,104 @@ export async function listComments(brandId, filters) {
     prisma.socialComment.count({ where }),
     prisma.socialComment.findMany({
       where,
-      include: { socialAccount: { select: { provider: true } } },
-      orderBy: [{ createdAt: 'desc' }],
+      include: COMMENT_INCLUDE,
+      orderBy: orderFor(filters.sort),
       skip: (filters.page - 1) * filters.pageSize,
       take: filters.pageSize,
     }),
   ]);
 
-  const publicationRefs = await resolvePublicationRefs(records);
+  // Deux lectures groupées pour toute la page, jamais une par commentaire.
+  const [publicationRefs, suggestions] = await Promise.all([
+    resolvePublicationRefs(records),
+    latestSuggestionsFor(records.map((record) => record.id)),
+  ]);
   return {
-    items: records.map((record) => toPublicComment(record, publicationRefs)),
+    items: records.map((record) => toPublicComment(record, publicationRefs, suggestions)),
     page: filters.page,
     pageSize: filters.pageSize,
     total,
   };
 }
 
-// Sprint 09/10 fields (pendingAiResponses) always report 0 until that
-// pipeline exists — never a fabricated non-zero count.
 export async function commentsCounts(brandId) {
-  const grouped = await prisma.socialComment.groupBy({
-    by: ['status'],
-    where: { socialAccount: { brandId } },
-    _count: { _all: true },
-  });
+  const [grouped, highPriority, pendingAiResponses] = await prisma.$transaction([
+    prisma.socialComment.groupBy({
+      by: ['status'],
+      where: { socialAccount: { brandId } },
+      _count: { _all: true },
+    }),
+    // Seuls les commentaires encore à traiter comptent comme prioritaires :
+    // un commentaire déjà traité ou ignoré n'a plus à figurer dans un
+    // compteur d'alerte, même si son analyse était « high ».
+    prisma.socialComment.count({
+      where: {
+        socialAccount: { brandId },
+        status: 'NEW',
+        latestAnalysis: { is: { priority: 'HIGH' } },
+      },
+    }),
+    // Propositions en attente d'une décision humaine. `distinct` sur le
+    // commentaire : plusieurs versions d'une même proposition ne comptent que
+    // pour une seule réponse à traiter.
+    prisma.responseSuggestion.findMany({
+      where: {
+        status: { in: ['PROPOSED', 'EDITED', 'APPROVED'] },
+        comment: { socialAccount: { brandId } },
+      },
+      select: { commentId: true },
+      distinct: ['commentId'],
+    }),
+  ]);
   const byStatus = Object.fromEntries(grouped.map((row) => [row.status, row._count._all]));
 
   return {
     untreated: byStatus.NEW ?? 0,
-    highPriority: 0,
-    pendingAiResponses: 0,
+    highPriority,
+    pendingAiResponses: pendingAiResponses.length,
   };
 }
 
 export async function getComment(comment) {
-  const publicationRefs = await resolvePublicationRefs([comment]);
-  return toPublicComment(comment, publicationRefs);
+  const [publicationRefs, suggestions] = await Promise.all([
+    resolvePublicationRefs([comment]),
+    latestSuggestionsFor([comment.id]),
+  ]);
+  return toPublicComment(comment, publicationRefs, suggestions);
 }
 
-// Union of every source this sprint owns (comment_received, status_changed/
-// escalated, send_failed/response_sent) — Sprint 09/10 kinds (ai_analysis,
-// response_proposed, response_edited) simply never appear yet, by design,
-// not as a placeholder to retrofit later (see the sprint doc).
+// Union de toutes les sources : réception (Sprint 08), changements de statut,
+// envoi, analyses (Sprint 09) et versions de proposition (Sprint 10). Les huit
+// genres prévus côté mobile depuis le Sprint 01 ont désormais tous une source
+// réelle.
 export async function getCommentHistory(comment) {
-  const [statusHistory, sentResponse] = await Promise.all([
+  const [statusHistory, sentResponse, analyses, suggestions] = await Promise.all([
     prisma.commentStatusHistory.findMany({
       where: { commentId: comment.id },
       include: { changedByUser: { select: { displayName: true } } },
       orderBy: { changedAt: 'asc' },
     }),
     prisma.sentResponse.findUnique({ where: { commentId: comment.id } }),
+    prisma.commentAnalysis.findMany({
+      where: { commentId: comment.id },
+      include: { requestedByUser: { select: { displayName: true } } },
+      orderBy: { analysedAt: 'asc' },
+    }),
+    prisma.responseSuggestion.findMany({
+      where: { commentId: comment.id },
+      include: { createdByUser: { select: { displayName: true } } },
+      orderBy: { version: 'asc' },
+    }),
   ]);
+
+  const SUGGESTION_TITLES = {
+    PROPOSED: 'Réponse proposée',
+    EDITED: 'Réponse modifiée',
+    APPROVED: 'Réponse approuvée',
+    REJECTED: 'Proposition rejetée',
+    SENT: 'Réponse envoyée',
+    FAILED: 'Échec de l’envoi',
+  };
 
   const events = [
     {
@@ -146,6 +251,28 @@ export async function getCommentHistory(comment) {
       title: entry.toStatus === 'ESCALATED' ? 'Commentaire escaladé' : `Statut changé : ${entry.toStatus.toLowerCase()}`,
       detail: entry.note ?? undefined,
       actor: entry.changedByUser?.displayName,
+    })),
+    ...analyses.map((entry) => ({
+      id: entry.id,
+      kind: 'ai_analysis',
+      at: entry.analysedAt.toISOString(),
+      title: `Analyse IA : ${entry.sentiment.toLowerCase()} · priorité ${entry.priority.toLowerCase()}`,
+      detail: entry.explanation,
+      // Absent quand l'analyse vient de la passe automatique du worker : le
+      // mobile n'affiche alors simplement pas d'auteur.
+      actor: entry.requestedByUser?.displayName,
+      modelVersion: entry.modelVersion,
+    })),
+    ...suggestions.map((entry) => ({
+      id: entry.id,
+      // Le genre distingue la proposition initiale de ses reprises : c'est ce
+      // que l'écran d'historique utilise pour afficher un diff.
+      kind: entry.version === 1 && entry.generatedByAi ? 'response_proposed' : 'response_edited',
+      at: entry.createdAt.toISOString(),
+      title: SUGGESTION_TITLES[entry.status] ?? 'Proposition mise à jour',
+      body: entry.text,
+      actor: entry.createdByUser?.displayName,
+      version: entry.version,
     })),
   ];
 
@@ -184,7 +311,7 @@ export async function setCommentStatus({ userId, comment, toStatus, note }, requ
     const fresh = await tx.socialComment.update({
       where: { id: comment.id },
       data: { status: upper },
-      include: { socialAccount: { select: { provider: true } } },
+      include: COMMENT_INCLUDE,
     });
     await tx.commentStatusHistory.create({
       data: { commentId: comment.id, fromStatus: comment.status, toStatus: upper, changedByUserId: userId, note },
@@ -250,11 +377,56 @@ export async function syncBrandComments(brandId) {
 // reserved before it ever calls Meta) — this key only lets a legitimate
 // Express-side retry (e.g. a dropped connection) replay the same response
 // instead of asking graph-api to check its own claim table twice.
-export async function replyToComment({ userId, comment, text }, request) {
-  const result = await callSocialService('/internal/v1/comments/reply', {
-    scope: 'social:write',
-    idempotencyKey: `comment-reply:${comment.id}`,
-    body: { commentId: comment.id, userId, text },
+export async function replyToComment({ userId, comment }, request) {
+  // Le garde-fou central du Sprint 10 : rien ne part sans une proposition
+  // explicitement approuvée par un humain. Le texte envoyé est celui de la
+  // version approuvée, jamais un texte libre venu de la requête — sinon
+  // l'approbation ne porterait que sur un brouillon et n'importe quel autre
+  // contenu pourrait être publié derrière elle.
+  const suggestion = await latestSuggestion(comment.id);
+  if (!suggestion) {
+    throw new HttpError(
+      409,
+      'conflict',
+      'Aucune réponse à envoyer : rédigez ou générez une proposition, puis approuvez-la.'
+    );
+  }
+  if (suggestion.status !== 'APPROVED') {
+    throw new HttpError(
+      409,
+      'conflict',
+      'Cette réponse doit être approuvée avant d’être envoyée.'
+    );
+  }
+
+  let result;
+  try {
+    result = await callSocialService('/internal/v1/comments/reply', {
+      scope: 'social:write',
+      idempotencyKey: `comment-reply:${comment.id}`,
+      body: { commentId: comment.id, userId, text: suggestion.text },
+    });
+  } catch (error) {
+    // L'échec est enregistré sur la proposition : sans ça, une réponse
+    // refusée par Meta resterait « approuvée » et l'écran laisserait croire
+    // qu'elle est partie.
+    //
+    // Sauf sur un 409 : graph-api le renvoie quand la réponse est DÉJÀ partie
+    // (rejeu de la clé d'idempotence, ou commentaire supprimé entre-temps).
+    // Marquer « échec » un envoi réussi serait un mensonge plus grave que
+    // l'erreur affichée.
+    if (error?.status !== 409) {
+      await prisma.responseSuggestion.update({
+        where: { id: suggestion.id },
+        data: { status: 'FAILED' },
+      });
+    }
+    throw error;
+  }
+
+  await prisma.responseSuggestion.update({
+    where: { id: suggestion.id },
+    data: { status: 'SENT' },
   });
 
   await writeAuditLog(prisma, {
@@ -263,7 +435,12 @@ export async function replyToComment({ userId, comment, text }, request) {
     resourceType: 'social_comment',
     resourceId: comment.id,
     requestId: request.requestId,
-    metadata: { externalReplyId: result.externalReplyId },
+    metadata: {
+      externalReplyId: result.externalReplyId,
+      suggestionId: suggestion.id,
+      suggestionVersion: suggestion.version,
+      approvedByUserId: suggestion.approvedByUserId,
+    },
   });
 
   // graph-api already moved the comment to PROCESSED as part of the same
@@ -271,7 +448,84 @@ export async function replyToComment({ userId, comment, text }, request) {
   // in Postgres, not through this process.
   const fresh = await prisma.socialComment.findUniqueOrThrow({
     where: { id: comment.id },
-    include: { socialAccount: { select: { provider: true } } },
+    include: COMMENT_INCLUDE,
   });
   return getComment(fresh);
+}
+
+// Analyse à la demande (bouton « Analyser » / « Réanalyser » de l'écran 18).
+// Synchrone, contrairement à la publication : l'écran attend l'analyse en
+// retour pour l'afficher immédiatement, et le calcul est un modèle linéaire
+// sur quelques centaines de caractères — quelques millisecondes, pas un appel
+// réseau vers Meta.
+//
+// « Réanalyser » n'est pas une route distincte côté service : analyser deux
+// fois ajoute simplement une deuxième ligne dans l'historique. Le sprint
+// prévoyait `/analyze` et `/reanalyze` ; les garder séparées côté HTTP a du
+// sens (l'intention de l'utilisateur diffère, et l'audit le note), mais elles
+// ne pouvaient pas diverger dans la logique sans créer deux chemins à tester.
+export async function analyzeComment({ userId, comment, reanalysis = false }, request) {
+  const text = comment.content?.trim();
+  if (!text) {
+    throw new HttpError(400, 'validation_failed', 'Ce commentaire ne contient aucun texte à analyser.');
+  }
+
+  const result = await callAiService('/internal/v1/comments/analyze', {
+    body: { commentId: comment.id, text },
+  });
+  const analysis = result?.analysis;
+  if (!analysis) {
+    throw new HttpError(503, 'ai_unavailable', 'Le service d’analyse a renvoyé une réponse vide.');
+  }
+
+  // L'insertion et la mise à jour du pointeur `latestAnalysisId` sont dans la
+  // même transaction : c'est l'invariant qui rend le pointeur fiable comme
+  // cache (voir schema.prisma). Deux analyses concurrentes du même
+  // commentaire écrivent chacune leur ligne ; la dernière transaction validée
+  // fixe le pointeur, ce qui est exactement le comportement voulu.
+  const updated = await prisma.$transaction(async (tx) => {
+    const created = await tx.commentAnalysis.create({
+      data: {
+        commentId: comment.id,
+        sentiment: analysis.sentiment.toUpperCase(),
+        intent: analysis.intent.toUpperCase(),
+        priority: analysis.priority.toUpperCase(),
+        confidence: analysis.confidence,
+        sentimentConfidence: analysis.sentimentConfidence,
+        intentConfidence: analysis.intentConfidence,
+        lowConfidence: analysis.lowConfidence,
+        isUrgent: analysis.urgent,
+        isSensitive: analysis.sensitive,
+        language: analysis.language,
+        recommendedAction: analysis.recommendedAction,
+        explanation: analysis.explanation,
+        signals: analysis.signals ?? [],
+        topTerms: analysis.topTerms ?? [],
+        modelVersion: analysis.modelVersion,
+        datasetVersion: analysis.datasetVersion,
+        requestedByUserId: userId,
+      },
+    });
+    return tx.socialComment.update({
+      where: { id: comment.id },
+      data: { latestAnalysisId: created.id },
+      include: COMMENT_INCLUDE,
+    });
+  });
+
+  await writeAuditLog(prisma, {
+    userId,
+    action: reanalysis ? 'comment.reanalyzed' : 'comment.analyzed',
+    resourceType: 'social_comment',
+    resourceId: comment.id,
+    requestId: request.requestId,
+    metadata: {
+      sentiment: analysis.sentiment,
+      intent: analysis.intent,
+      priority: analysis.priority,
+      modelVersion: analysis.modelVersion,
+    },
+  });
+
+  return getComment(updated);
 }

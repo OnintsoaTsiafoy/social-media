@@ -42,9 +42,17 @@ export async function callSocialService(path, { method = 'POST', scope, body, id
   };
   if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
 
+  // Résolu avant le try : `baseUrl()` lève quand SOCIAL_SERVICE_URL est
+  // absent, et le `catch` ci-dessous remplaçait ce message de configuration
+  // par « le service social est injoignable » — trompeur pour qui diagnostique
+  // un déploiement. Les deux cas partagent le même code, donc rien ne le
+  // signalait ; trouvé en écrivant aiServiceClient.js, où les deux codes
+  // diffèrent.
+  const target = `${baseUrl()}${path}`;
+
   let response;
   try {
-    response = await fetch(`${baseUrl()}${path}`, {
+    response = await fetch(target, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,

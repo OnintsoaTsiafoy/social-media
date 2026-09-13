@@ -16,7 +16,13 @@ export function loadComment(minimumRole = 'VIEWER') {
 
       const comment = await prisma.socialComment.findUnique({
         where: { id: parsed.data },
-        include: { socialAccount: { select: { id: true, brandId: true, name: true, username: true, provider: true } } },
+        include: {
+          socialAccount: { select: { id: true, brandId: true, name: true, username: true, provider: true } },
+          // Chargée ici parce que toute route qui passe par ce middleware finit
+          // par sérialiser le commentaire via `toPublicComment`, qui lit la
+          // dernière analyse (Sprint 09).
+          latestAnalysis: true,
+        },
       });
       if (!comment) throw new HttpError(404, 'not_found', 'Commentaire introuvable.');
 
