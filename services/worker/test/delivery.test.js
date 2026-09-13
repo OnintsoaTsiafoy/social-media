@@ -6,10 +6,18 @@ import { createFakeDb } from './fake-db.js';
 
 const PUBLICATION_ID = 'b3f1c6b0-0000-4000-8000-000000000001';
 
-function scenario({ content = 'Nouvelle collection', status = 'SCHEDULED', targets, schedule } = {}) {
+function scenario({ content = 'Nouvelle collection', status = 'SCHEDULED', targets, schedule, notifyUser } = {}) {
   const db = createFakeDb({
     publications: [
-      { id: PUBLICATION_ID, brand_id: 'brand-1', content, hashtags: ['automne'], status, published_at: null },
+      {
+        id: PUBLICATION_ID,
+        brand_id: 'brand-1',
+        created_by_user_id: 'author-1',
+        content,
+        hashtags: ['automne'],
+        status,
+        published_at: null,
+      },
     ],
     targets: targets ?? [
       { id: 'target-fb', publication_id: PUBLICATION_ID, provider: 'FACEBOOK', status: 'PENDING', attempt_count: 0 },
@@ -25,7 +33,8 @@ function scenario({ content = 'Nouvelle collection', status = 'SCHEDULED', targe
       retries.push(command);
       return 'job-retry';
     },
-    logger: { log() {} },
+    notifyUser,
+    logger: { log() {}, warn() {} },
   });
 
   return { db, service, retries };
@@ -125,6 +134,68 @@ test('erreur permanente : aucun retry automatique', async () => {
 
   assert.equal(result.status, 'FAILED');
   assert.equal(retries.length, 0);
+});
+
+// Sprint 11 Jour 3 — notifie l'AUTEUR de la publication (pas toute la
+// marque : c'est sa publication), une fois le statut agrégé recalculé.
+test('une publication réussie notifie son auteur avec une priorité basse', async () => {
+  const notified = [];
+  const { service } = scenario({ schedule: 'PENDING', notifyUser: async (payload) => notified.push(payload) });
+
+  await service.publish({ publicationId: PUBLICATION_ID, requireSchedule: true });
+
+  assert.equal(notified.length, 1);
+  assert.deepEqual(notified[0], {
+    userId: 'author-1',
+    brandId: 'brand-1',
+    type: 'PUBLICATION_PUBLISHED',
+    priority: 'LOW',
+    title: 'Publication publiée',
+    message: '« Nouvelle collection » a été publiée avec succès.',
+    resourceType: 'PUBLICATION',
+    resourceId: PUBLICATION_ID,
+    eventId: `publication:${PUBLICATION_ID}:PUBLISHED`,
+  });
+});
+
+test('une publication en échec total notifie son auteur avec une priorité haute', async () => {
+  const notified = [];
+  const { service } = scenario({ content: 'Alerte [[TIMEOUT]]', notifyUser: async (payload) => notified.push(payload) });
+
+  await service.publish({ publicationId: PUBLICATION_ID });
+
+  assert.equal(notified.length, 1);
+  assert.equal(notified[0].type, 'PUBLICATION_FAILED');
+  assert.equal(notified[0].priority, 'HIGH');
+  assert.equal(notified[0].eventId, `publication:${PUBLICATION_ID}:FAILED`);
+});
+
+test('un échec partiel (un seul réseau en échec) notifie PUBLICATION_PARTIAL', async () => {
+  const notified = [];
+  const { service } = scenario({
+    content: 'Promo [[FAIL_INSTAGRAM]]',
+    notifyUser: async (payload) => notified.push(payload),
+  });
+
+  await service.publish({ publicationId: PUBLICATION_ID });
+
+  assert.equal(notified.length, 1);
+  assert.equal(notified[0].type, 'PUBLICATION_PARTIAL');
+});
+
+// Un échec de notification (Express/Firebase indisponible) ne doit jamais
+// remettre en cause le résultat de la publication elle-même, déjà livrée.
+test('un échec de notification ne fait pas échouer publish()', async () => {
+  const { service } = scenario({
+    schedule: 'PENDING',
+    notifyUser: async () => {
+      throw new Error('api_unavailable');
+    },
+  });
+
+  const result = await service.publish({ publicationId: PUBLICATION_ID, requireSchedule: true });
+
+  assert.equal(result.status, 'PUBLISHED');
 });
 
 test('un job rejoué après un envoi complet ne renvoie rien', async () => {

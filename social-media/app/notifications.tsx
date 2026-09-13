@@ -127,7 +127,7 @@ export default function NotificationsScreen() {
           </View>
 
           <Callout tone="neutral" icon="info">
-            Temps réel par WebSocket · le compteur se met à jour sans rechargement.
+            Notifications push par Firebase · l’historique reste disponible même hors ligne.
           </Callout>
         </>
       )}

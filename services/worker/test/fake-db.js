@@ -18,6 +18,7 @@ export function createFakeDb(initial = {}) {
     socialAccounts: initial.socialAccounts ?? [],
     comments: initial.comments ?? [],
     analyses: initial.analyses ?? [],
+    brandMembers: initial.brandMembers ?? [],
     calls: [],
   };
 
@@ -174,6 +175,9 @@ export function createFakeDb(initial = {}) {
     // Sprint 09 comment-analysis.js. `latest_analysis_id IS NULL` est propre à
     // la sélection des commentaires non analysés — même règle que plus haut :
     // on choisit le fragment le plus spécifique, pas le nom de la table.
+    // Sprint 11 Jour 3 : la vraie requête joint social_accounts pour
+    // brand_id/provider — les fixtures portent ces champs directement sur la
+    // ligne de commentaire plutôt que de faire faire un vrai join à ce double.
     if (text.includes('latest_analysis_id IS NULL')) {
       const [limit] = params;
       return (state.comments ?? [])
@@ -186,7 +190,24 @@ export function createFakeDb(initial = {}) {
         )
         .sort((a, b) => new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime())
         .slice(0, limit)
-        .map((row) => ({ id: row.id, content: row.content }));
+        .map((row) => ({
+          id: row.id,
+          content: row.content,
+          author_name: row.author_name ?? null,
+          brand_id: row.brand_id ?? null,
+          provider: row.provider ?? null,
+        }));
+    }
+
+    // Sprint 11 Jour 3 — résolution des destinataires d'une notification de
+    // portée marque (comment-analysis.js). Fragment unique à cette requête
+    // dans ce double : aucune autre ne sélectionne `brand_members`.
+    if (text.includes('FROM brand_members')) {
+      const [brandId] = params;
+      const eligible = ['COMMUNITY_MANAGER', 'ADMIN', 'OWNER'];
+      return (state.brandMembers ?? [])
+        .filter((row) => row.brand_id === brandId && eligible.includes(row.role))
+        .map((row) => ({ user_id: row.user_id }));
     }
 
     if (text.includes('INSERT INTO comment_analyses')) {
@@ -227,7 +248,23 @@ export function createFakeDb(initial = {}) {
         })
         .sort((a, b) => new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime())
         .slice(0, limit)
-        .map((row) => ({ id: row.id }));
+        .map((row) => ({
+          id: row.id,
+          status: row.status,
+          brand_id: row.brand_id ?? null,
+          connected_by_user_id: row.connected_by_user_id ?? null,
+          provider: row.provider ?? null,
+          name: row.name ?? null,
+        }));
+    }
+
+    // Sprint 11 Jour 3 — relit le statut courant après une tentative de
+    // rafraîchissement, pour détecter une dégradation (token-refresh.js).
+    // Fragment unique : aucune autre requête de ce double n'utilise
+    // exactement `SELECT status FROM social_accounts WHERE id`.
+    if (text.includes('SELECT status FROM social_accounts WHERE id')) {
+      const account = (state.socialAccounts ?? []).find((row) => row.id === params[0]);
+      return account ? [{ status: account.status }] : [];
     }
 
     throw new Error(`Requête non gérée par le double de base : ${text.trim().slice(0, 60)}`);

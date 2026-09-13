@@ -5,6 +5,7 @@ import bcrypt from 'bcrypt';
 import { prisma } from '../db/prisma.js';
 import { activeBrandForUser } from '../brands/service.js';
 import { HttpError } from '../lib/http.js';
+import { unreadCount } from '../notifications/service.js';
 import { accessTokenTtlSeconds, createAccessToken, refreshTokenTtlSeconds } from './tokens.js';
 
 const BCRYPT_ROUNDS = 12;
@@ -200,8 +201,17 @@ export async function logout(auth, request) {
   });
 }
 
+// Sprint 11 Jour 5 : c'est par ce chemin (l'écran de démarrage, voir
+// SessionProvider::restore côté mobile) que l'app rattrape le compteur non
+// lu après une absence — jamais par le push seul, qui peut avoir été
+// manqué (app fermée sans FCM, appareil hors ligne). `unreadCount` était un
+// placeholder à 0 avant que la table `notifications` n'existe.
 export async function currentUser(auth) {
-  return { user: toPublicUser(auth.user), brand: await activeBrandForUser(auth.user.id), unreadCount: 0 };
+  return {
+    user: toPublicUser(auth.user),
+    brand: await activeBrandForUser(auth.user.id),
+    unreadCount: await unreadCount(auth.user.id),
+  };
 }
 
 export async function requestPasswordReset(email, request) {

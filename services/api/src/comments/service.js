@@ -3,6 +3,7 @@ import { callAiService } from '../lib/aiServiceClient.js';
 import { writeAuditLog } from '../lib/audit.js';
 import { HttpError } from '../lib/http.js';
 import { callSocialService } from '../lib/socialServiceClient.js';
+import { createNotification, notifiableBrandMembers } from '../notifications/service.js';
 import {
   latestSuggestion,
   latestSuggestionsFor,
@@ -527,5 +528,74 @@ export async function analyzeComment({ userId, comment, reanalysis = false }, re
     },
   });
 
+  await notifyAnalysisResult({
+    brandId: comment.socialAccount.brandId,
+    network: comment.socialAccount.provider,
+    commentId: comment.id,
+    authorName: comment.authorName,
+    analysisId: updated.latestAnalysis?.id ?? updated.latestAnalysisId,
+    analysis,
+    // L'analyse à la demande a un acteur qui voit déjà le résultat dans la
+    // réponse de cette requête — pas de raison de le notifier lui-même.
+    excludeUserId: userId,
+  });
+
   return getComment(updated);
+}
+
+// Types de notification dérivés d'une analyse (Jour 3) — un commentaire
+// « générique » n'a pas son propre type (voir schema.prisma::NotificationType) :
+// seuls les signaux qu'une équipe doit effectivement trier en déclenchent
+// un, sans quoi chaque commentaire neutre pousserait une alerte. Un même
+// commentaire peut déclencher plusieurs types à la fois (urgent ET négatif,
+// par exemple) : ce sont deux alertes distinctes, chacune avec son propre
+// réglage de préférence côté utilisateur.
+export function notificationTypesForAnalysis(analysis) {
+  // `analysis` ici est la réponse brute d'ai-service (minuscules — voir
+  // callAiService plus haut dans analyzeComment), pas la ligne Prisma déjà
+  // mise en majuscules : comparer en minuscules, pas la même convention que
+  // `comment_analyses.priority` en base.
+  const types = [];
+  if (analysis.priority === 'high') types.push('PRIORITY_COMMENT');
+  if (analysis.sentiment === 'negative') types.push('NEGATIVE_COMMENT');
+  if (analysis.urgent) types.push('URGENT_COMMENT');
+  return types;
+}
+
+const ANALYSIS_NOTIFICATION_TITLES = {
+  PRIORITY_COMMENT: 'Commentaire prioritaire',
+  NEGATIVE_COMMENT: 'Commentaire négatif',
+  URGENT_COMMENT: 'Commentaire urgent',
+};
+
+// N'est appelée qu'ici (analyse à la demande, dans ce process Express). Le
+// balayage automatique du worker (services/worker/src/comment-analysis.js)
+// tourne dans un AUTRE service et atteint la même destination par
+// `POST /internal/v1/notifications` — pas cette fonction directement — mais
+// avec le même vocabulaire de type/titre et le même schéma de `eventId`
+// (`comment-analysis:{analysisId}:{type}`), pour qu'un commentaire signalé
+// se lise pareil qu'il ait été analysé manuellement ou par le balayage.
+async function notifyAnalysisResult({ brandId, network, commentId, authorName, analysisId, analysis, excludeUserId }) {
+  const types = notificationTypesForAnalysis(analysis);
+  if (types.length === 0 || !analysisId) return;
+
+  const recipients = await notifiableBrandMembers(brandId, { excludeUserId });
+  for (const type of types) {
+    for (const recipientId of recipients) {
+      await createNotification({
+        userId: recipientId,
+        brandId,
+        type,
+        priority: analysis.priority.toUpperCase(),
+        title: ANALYSIS_NOTIFICATION_TITLES[type],
+        message: authorName
+          ? `${authorName} — ${analysis.explanation}`
+          : analysis.explanation,
+        network,
+        resourceType: 'COMMENT',
+        resourceId: commentId,
+        eventId: `comment-analysis:${analysisId}:${type}`,
+      });
+    }
+  }
 }

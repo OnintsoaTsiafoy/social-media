@@ -7,6 +7,12 @@ import jwt from 'jsonwebtoken';
 // services/api/src/lib/serviceJwt.js).
 export const SOCIAL_SERVICE_AUDIENCE = 'social-service';
 export const AI_SERVICE_AUDIENCE = 'ai-service';
+// Sprint 11 Jour 3 : Firebase Admin ne vit que dans Express (Jour 2), donc le
+// worker lui demande de créer/pousser une notification via
+// POST /internal/v1/notifications (voir services/api/src/lib/serviceAuth.js,
+// qui vérifie cette même audience — Express n'a jamais eu besoin d'émettre
+// pour elle-même, seul le worker mint ce jeton).
+export const API_SERVICE_AUDIENCE = 'api-service';
 const SERVICE_JWT_TTL_SECONDS = 120;
 
 function requiredSecret() {

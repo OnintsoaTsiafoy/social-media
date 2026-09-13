@@ -18,6 +18,7 @@ import { createCommentSync } from './src/comment-sync.js';
 import { createMediaCleanup } from './src/cleanup-media.js';
 import { createDeliveryService } from './src/delivery.js';
 import { closePool, query } from './src/db.js';
+import { defaultNotifyUser } from './src/notifications-client.js';
 import { defaultRefreshToken, defaultSyncComments } from './src/social-account-client.js';
 import { createSocialHttpProvider } from './src/social-http-provider.js';
 import { deleteObject, isStorageConfigured, signedReadUrl } from './src/storage.js';
@@ -60,12 +61,18 @@ async function startBoss() {
         { singletonKey: `publication:${publicationId}`, retryLimit: 0 },
         new Date(Date.now() + delaySeconds * 1000)
       ),
+    // Sprint 11 Jour 3: notifie l'auteur une fois le statut agrégé recalculé.
+    notifyUser: defaultNotifyUser,
   });
 
   const mediaCleanup = createMediaCleanup({ query, deleteObject });
-  const tokenRefresh = createTokenRefresh({ query, refreshToken: defaultRefreshToken });
+  const tokenRefresh = createTokenRefresh({ query, refreshToken: defaultRefreshToken, notifyUser: defaultNotifyUser });
   const commentSync = createCommentSync({ query, syncComments: defaultSyncComments });
-  const commentAnalysis = createCommentAnalysis({ query, analyseComment: defaultAnalyseComment });
+  const commentAnalysis = createCommentAnalysis({
+    query,
+    analyseComment: defaultAnalyseComment,
+    notifyUser: defaultNotifyUser,
+  });
 
   await boss.work(QUEUES.publishScheduled, async (jobs) => {
     for (const job of jobs) {

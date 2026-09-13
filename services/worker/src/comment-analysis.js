@@ -20,14 +20,27 @@
  */
 
 const SELECT_UNANALYSED_COMMENTS = `
-  SELECT id, content
-    FROM social_comments
-   WHERE latest_analysis_id IS NULL
-     AND content IS NOT NULL
-     AND length(btrim(content)) > 0
-     AND is_deleted_on_platform = false
-   ORDER BY created_at ASC
+  SELECT sc.id, sc.content, sc.author_name, sa.brand_id, sa.provider
+    FROM social_comments sc
+    JOIN social_accounts sa ON sa.id = sc.social_account_id
+   WHERE sc.latest_analysis_id IS NULL
+     AND sc.content IS NOT NULL
+     AND length(btrim(sc.content)) > 0
+     AND sc.is_deleted_on_platform = false
+   ORDER BY sc.created_at ASC
    LIMIT $1::int
+`;
+
+// Jour 3 : qui doit être alerté d'un commentaire signalé sur cette marque.
+// Un VIEWER ne peut rien faire d'une alerte de modération, donc il n'est pas
+// destinataire — même filtre que notifications/service.js::notifiableBrandMembers
+// côté Express, dupliqué ici en SQL brut puisque le worker n'a pas Prisma
+// (voir db.js).
+const SELECT_NOTIFIABLE_MEMBERS = `
+  SELECT user_id
+    FROM brand_members
+   WHERE brand_id = $1::uuid
+     AND role IN ('COMMUNITY_MANAGER', 'ADMIN', 'OWNER')
 `;
 
 // Insertion et mise à jour du pointeur en UN SEUL énoncé : le CTE rend
@@ -58,7 +71,60 @@ const INSERT_ANALYSIS = `
   RETURNING inserted.id
 `;
 
-export function createCommentAnalysis({ query, analyseComment, logger = console }) {
+// Mêmes trois signaux que comments/service.js::notificationTypesForAnalysis
+// côté Express (analyse à la demande) — un commentaire neutre et non urgent
+// ne déclenche jamais rien, sinon chaque commentaire reçu pousserait une
+// alerte.
+function notificationTypesForAnalysis(analysis) {
+  const types = [];
+  if (analysis.priority === 'high') types.push('PRIORITY_COMMENT');
+  if (analysis.sentiment === 'negative') types.push('NEGATIVE_COMMENT');
+  if (analysis.urgent) types.push('URGENT_COMMENT');
+  return types;
+}
+
+const ANALYSIS_NOTIFICATION_TITLES = {
+  PRIORITY_COMMENT: 'Commentaire prioritaire',
+  NEGATIVE_COMMENT: 'Commentaire négatif',
+  URGENT_COMMENT: 'Commentaire urgent',
+};
+
+export function createCommentAnalysis({ query, analyseComment, notifyUser, logger = console }) {
+  // Un commentaire signalé notifie TOUS les membres éligibles de la marque :
+  // aucun acteur humain n'a déclenché cette passe (contrairement à l'analyse
+  // à la demande d'Express), donc personne à exclure.
+  async function notifyIfFlagged({ comment, analysisId, analysis }) {
+    const types = notificationTypesForAnalysis(analysis);
+    if (types.length === 0) return;
+
+    const members = await query(SELECT_NOTIFIABLE_MEMBERS, [comment.brand_id]);
+    for (const type of types) {
+      for (const member of members) {
+        try {
+          await notifyUser({
+            userId: member.user_id,
+            brandId: comment.brand_id,
+            type,
+            priority: analysis.priority.toUpperCase(),
+            title: ANALYSIS_NOTIFICATION_TITLES[type],
+            message: comment.author_name
+              ? `${comment.author_name} — ${analysis.explanation}`
+              : analysis.explanation,
+            network: comment.provider,
+            resourceType: 'COMMENT',
+            resourceId: comment.id,
+            eventId: `comment-analysis:${analysisId}:${type}`,
+          });
+        } catch (error) {
+          // Une notification en échec (Express ou Firebase indisponible) ne
+          // doit ni interrompre les autres destinataires ni faire échouer
+          // l'analyse elle-même, déjà persistée avec succès.
+          logger.warn?.({ scope: 'comment-analysis', action: 'notify', commentId: comment.id, type, error: error?.message });
+        }
+      }
+    }
+  }
+
   async function run({ limit = 50 } = {}) {
     const comments = await query(SELECT_UNANALYSED_COMMENTS, [limit]);
 
@@ -67,7 +133,7 @@ export function createCommentAnalysis({ query, analyseComment, logger = console 
     for (const comment of comments) {
       try {
         const analysis = await analyseComment(comment.id, comment.content);
-        await query(INSERT_ANALYSIS, [
+        const [inserted] = await query(INSERT_ANALYSIS, [
           comment.id,
           analysis.sentiment.toUpperCase(),
           analysis.intent.toUpperCase(),
@@ -87,6 +153,8 @@ export function createCommentAnalysis({ query, analyseComment, logger = console 
           analysis.datasetVersion,
         ]);
         analysed += 1;
+
+        if (notifyUser) await notifyIfFlagged({ comment, analysisId: inserted.id, analysis });
       } catch (error) {
         // Un commentaire en échec ne doit pas interrompre le lot : il reste
         // sans analyse et sera repris au balayage suivant, ce qui rend aussi

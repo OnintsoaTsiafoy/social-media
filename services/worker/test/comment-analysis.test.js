@@ -121,6 +121,116 @@ test('les valeurs sont écrites en majuscules, comme les énumérations Prisma',
   assert.equal(stored.priority, 'LOW');
 });
 
+// Sprint 11 Jour 3 : un commentaire signalé (priorité haute, négatif ou
+// urgent) notifie tous les membres éligibles (COMMUNITY_MANAGER/ADMIN/OWNER)
+// de la marque — jamais les VIEWER, qui ne peuvent rien faire d'une alerte
+// de modération.
+test('a flagged comment notifies every eligible brand member, excluding viewers', async () => {
+  const db = createFakeDb({
+    comments: [
+      {
+        id: 'c1',
+        content: 'Remboursez-moi immédiatement !',
+        latest_analysis_id: null,
+        created_at: '2026-09-01T10:00:00Z',
+        author_name: 'Karim B.',
+        brand_id: 'brand-1',
+        provider: 'INSTAGRAM',
+      },
+    ],
+    brandMembers: [
+      { brand_id: 'brand-1', user_id: 'cm-1', role: 'COMMUNITY_MANAGER' },
+      { brand_id: 'brand-1', user_id: 'admin-1', role: 'ADMIN' },
+      { brand_id: 'brand-1', user_id: 'viewer-1', role: 'VIEWER' },
+      { brand_id: 'brand-2', user_id: 'other-brand', role: 'OWNER' },
+    ],
+  });
+  const notified = [];
+  const { run } = createCommentAnalysis({
+    query: db.query,
+    analyseComment: async () => analysis({ priority: 'high', sentiment: 'negative', urgent: true }),
+    notifyUser: async (payload) => notified.push(payload),
+  });
+
+  await run({});
+
+  const recipients = notified.map((n) => n.userId).sort();
+  assert.deepEqual(recipients, ['admin-1', 'admin-1', 'admin-1', 'cm-1', 'cm-1', 'cm-1']);
+  assert.equal(notified.every((n) => n.brandId === 'brand-1'), true);
+  // Trois types déclenchés (priorité haute + négatif + urgent) × 2 membres éligibles.
+  assert.equal(notified.length, 6);
+  assert.deepEqual(
+    new Set(notified.map((n) => n.type)),
+    new Set(['PRIORITY_COMMENT', 'NEGATIVE_COMMENT', 'URGENT_COMMENT'])
+  );
+  assert.equal(notified[0].resourceType, 'COMMENT');
+  assert.equal(notified[0].resourceId, 'c1');
+  assert.equal(notified[0].network, 'INSTAGRAM');
+  assert.ok(notified[0].eventId.startsWith('comment-analysis:analysis-1:'));
+});
+
+test('a neutral low-priority analysis notifies no one', async () => {
+  const db = createFakeDb({
+    comments: [{ id: 'c1', content: 'Merci beaucoup', latest_analysis_id: null, created_at: '2026-09-01T10:00:00Z', brand_id: 'brand-1' }],
+    brandMembers: [{ brand_id: 'brand-1', user_id: 'cm-1', role: 'COMMUNITY_MANAGER' }],
+  });
+  const notified = [];
+  const { run } = createCommentAnalysis({
+    query: db.query,
+    analyseComment: async () => analysis({ priority: 'low', sentiment: 'neutral', urgent: false }),
+    notifyUser: async (payload) => notified.push(payload),
+  });
+
+  await run({});
+
+  assert.equal(notified.length, 0);
+});
+
+// Un échec de notification (Express/Firebase indisponible) ne doit ni
+// interrompre les autres destinataires, ni faire régresser l'analyse
+// elle-même, déjà persistée avec succès.
+test('a failing notification for one member does not affect other members or the analysis result', async () => {
+  const db = createFakeDb({
+    comments: [{ id: 'c1', content: 'Urgent !', latest_analysis_id: null, created_at: '2026-09-01T10:00:00Z', brand_id: 'brand-1' }],
+    brandMembers: [
+      { brand_id: 'brand-1', user_id: 'cm-1', role: 'COMMUNITY_MANAGER' },
+      { brand_id: 'brand-1', user_id: 'cm-2', role: 'COMMUNITY_MANAGER' },
+    ],
+  });
+  const notified = [];
+  const { run } = createCommentAnalysis({
+    query: db.query,
+    analyseComment: async () => analysis({ priority: 'high', sentiment: 'neutral', urgent: false }),
+    notifyUser: async (payload) => {
+      if (payload.userId === 'cm-1') throw new Error('api_unavailable');
+      notified.push(payload);
+    },
+    logger: { warn() {} },
+  });
+
+  const result = await run({});
+
+  assert.deepEqual(result, { inspected: 1, analysed: 1, failed: 0 });
+  assert.equal(notified.length, 1);
+  assert.equal(notified[0].userId, 'cm-2');
+});
+
+// `notifyUser` est optionnel : un appelant qui ne le fournit pas (aucun test
+// existant avant ce sprint) ne doit pas voir le balayage planter.
+test('omitting notifyUser does not throw, even for a flagged comment', async () => {
+  const db = createFakeDb({
+    comments: [{ id: 'c1', content: 'Urgent !', latest_analysis_id: null, created_at: '2026-09-01T10:00:00Z', brand_id: 'brand-1' }],
+  });
+  const { run } = createCommentAnalysis({
+    query: db.query,
+    analyseComment: async () => analysis({ priority: 'high', sentiment: 'neutral', urgent: false }),
+  });
+
+  const result = await run({});
+
+  assert.deepEqual(result, { inspected: 1, analysed: 1, failed: 0 });
+});
+
 test('la limite du lot est transmise à la requête de sélection', async () => {
   const db = createFakeDb({
     comments: Array.from({ length: 5 }, (_, index) => ({

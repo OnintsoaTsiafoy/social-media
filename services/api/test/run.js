@@ -9,3 +9,6 @@ await import('./social-service-client.test.js');
 await import('./ai-service-client.test.js');
 await import('./comments.test.js');
 await import('./response-suggestions.test.js');
+await import('./notifications.test.js');
+await import('./notification-push.test.js');
+await import('./service-auth.test.js');

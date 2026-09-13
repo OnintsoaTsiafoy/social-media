@@ -74,3 +74,111 @@ test('un compte déconnecté n’est jamais repris, même avec des seuils très 
   assert.equal(attempted.includes('disconnected-account'), false);
   assert.equal(attempted.length, 3);
 });
+
+// Sprint 11 Jour 3 — la dégradation réelle est posée côté graph-api
+// (serveur), le worker la détecte en relisant le statut après la tentative ;
+// le mock ci-dessous simule ce que graph-api ferait pour un échec réel.
+test('une dégradation de statut notifie le connecteur du compte', async () => {
+  const db = createFakeDb({
+    socialAccounts: [
+      {
+        id: 'acc-1',
+        status: 'CONNECTED',
+        updated_at: hoursAgo(48),
+        expires_at: null,
+        brand_id: 'brand-1',
+        connected_by_user_id: 'user-1',
+        provider: 'INSTAGRAM',
+        name: '@studio.vega',
+      },
+    ],
+  });
+  const notified = [];
+  const { run } = createTokenRefresh({
+    query: db.query,
+    refreshToken: async (id) => {
+      // Simule graph-api posant EXPIRED côté serveur avant de rejeter.
+      db.state.socialAccounts.find((row) => row.id === id).status = 'EXPIRED';
+      throw new Error('REAUTHENTICATION_REQUIRED');
+    },
+    notifyUser: async (payload) => notified.push(payload),
+    logger: { warn() {} },
+  });
+
+  await run({ staleAfterHours: 24 });
+
+  assert.equal(notified.length, 1);
+  assert.deepEqual(notified[0], {
+    userId: 'user-1',
+    brandId: 'brand-1',
+    type: 'TOKEN_EXPIRED',
+    priority: 'HIGH',
+    title: 'Connexion expirée',
+    message: 'Reconnectez @studio.vega pour reprendre les envois sur Instagram.',
+    network: 'INSTAGRAM',
+    resourceType: 'SOCIAL_ACCOUNT',
+    resourceId: 'acc-1',
+    eventId: 'social-account:acc-1:EXPIRED',
+  });
+});
+
+test('un statut inchangé ne notifie pas (pas de dégradation)', async () => {
+  const db = createFakeDb({
+    socialAccounts: [{ id: 'acc-1', status: 'CONNECTED', updated_at: hoursAgo(48), expires_at: null }],
+  });
+  const notified = [];
+  const { run } = createTokenRefresh({
+    query: db.query,
+    refreshToken: async () => {},
+    notifyUser: async (payload) => notified.push(payload),
+  });
+
+  await run({ staleAfterHours: 24 });
+
+  assert.equal(notified.length, 0);
+});
+
+test('un compte révoqué notifie account_disconnected', async () => {
+  const db = createFakeDb({
+    socialAccounts: [
+      { id: 'acc-1', status: 'EXPIRING', updated_at: hoursAgo(48), expires_at: null, provider: 'FACEBOOK' },
+    ],
+  });
+  const notified = [];
+  const { run } = createTokenRefresh({
+    query: db.query,
+    refreshToken: async (id) => {
+      db.state.socialAccounts.find((row) => row.id === id).status = 'REVOKED';
+      throw new Error('revoked');
+    },
+    notifyUser: async (payload) => notified.push(payload),
+    logger: { warn() {} },
+  });
+
+  await run({ expiringWithinHours: 999 });
+
+  assert.equal(notified.length, 1);
+  assert.equal(notified[0].type, 'ACCOUNT_DISCONNECTED');
+});
+
+// Un échec de notification (Express/Firebase indisponible) ne doit pas faire
+// régresser le résultat du rafraîchissement lui-même.
+test('un échec de notification n’affecte pas le résultat du rafraîchissement', async () => {
+  const db = createFakeDb({
+    socialAccounts: [{ id: 'acc-1', status: 'CONNECTED', updated_at: hoursAgo(48), expires_at: null }],
+  });
+  const { run } = createTokenRefresh({
+    query: db.query,
+    refreshToken: async (id) => {
+      db.state.socialAccounts.find((row) => row.id === id).status = 'EXPIRED';
+    },
+    notifyUser: async () => {
+      throw new Error('api_unavailable');
+    },
+    logger: { warn() {} },
+  });
+
+  const result = await run({ staleAfterHours: 24 });
+
+  assert.deepEqual(result, { inspected: 1, refreshed: 1, failed: 0 });
+});

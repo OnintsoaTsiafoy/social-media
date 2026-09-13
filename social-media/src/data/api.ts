@@ -6,6 +6,7 @@
  * for real `fetch` calls - the signatures are the contract screens rely on.
  */
 
+import type { Href } from 'expo-router';
 import { Platform } from 'react-native';
 
 import * as fixtures from './fixtures';
@@ -1177,53 +1178,114 @@ export const commentsApi = {
 };
 
 // ---------------------------------------------------------------------------
-// Notifications
+// Notifications (Sprint 11 — branché sur l'API réelle et Firebase Cloud
+// Messaging ; seule cette façade change, l'écran de notifications et celui
+// des préférences n'ont pas été touchés)
 // ---------------------------------------------------------------------------
+
+type RemoteNotification = Omit<AppNotification, 'href'> & { href: string };
+
+// Aucun paramètre de pagination ici : l'écran (encore un seul écran, pas de
+// pagination infinie) affiche la première page telle quelle, comme le
+// faisait la version fixture avec la liste complète.
+const NOTIFICATIONS_PAGE_SIZE = 50;
+
+const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  negativeComment: true,
+  urgentComment: true,
+  highPriorityComment: true,
+  aiResponseGenerated: true,
+  publicationPublished: true,
+  publicationFailed: true,
+  tokenExpiring: true,
+  syncFailed: true,
+  sound: true,
+  vibration: true,
+  quietHoursStart: '',
+  quietHoursEnd: '',
+  minimumPriority: 'low',
+};
+
+type RemoteNotificationPreferences = Omit<NotificationPreferences, 'quietHoursStart' | 'quietHoursEnd'> & {
+  quietHoursStart: string | null;
+  quietHoursEnd: string | null;
+};
+
+// L'écran de réglages (non modifié par ce sprint) utilise déjà '' pour « pas
+// de plage silencieuse » (voir app/settings/notifications.tsx). Le serveur,
+// lui, utilise `null` (voir notification_settings.quiet_hours_start dans
+// schema.prisma) : cette conversion vit ici, à la frontière, plutôt que de
+// changer l'écran ou le contrat serveur pour l'autre convention.
+function fromRemotePreferences(remote: RemoteNotificationPreferences): NotificationPreferences {
+  return { ...remote, quietHoursStart: remote.quietHoursStart ?? '', quietHoursEnd: remote.quietHoursEnd ?? '' };
+}
+
+function toRemotePreferencesPatch(patch: Partial<NotificationPreferences>): Partial<RemoteNotificationPreferences> {
+  return {
+    ...patch,
+    ...(patch.quietHoursStart !== undefined ? { quietHoursStart: patch.quietHoursStart || null } : {}),
+    ...(patch.quietHoursEnd !== undefined ? { quietHoursEnd: patch.quietHoursEnd || null } : {}),
+  };
+}
 
 export const notificationsApi = {
   async list(filter: 'all' | 'unread' | 'priority' | 'errors' = 'all'): Promise<AppNotification[]> {
-    return request(() => {
-      let items = [...store.notifications];
-      if (filter === 'unread') items = items.filter((n) => !n.read);
-      if (filter === 'priority') items = items.filter((n) => n.priority === 'high');
-      if (filter === 'errors') {
-        items = items.filter((n) =>
-          ['publication_failed', 'sync_failed', 'token_expired', 'token_expiring', 'account_disconnected'].includes(
-            n.type
-          )
-        );
-      }
-      return clone(items.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
-    });
+    const result = await fetchApi<{ items: RemoteNotification[] }>(
+      `/api/v1/notifications?filter=${filter}&pageSize=${NOTIFICATIONS_PAGE_SIZE}`,
+      {},
+      true
+    );
+    // `href` est calculé côté serveur (voir notifications/service.js::hrefFor) ;
+    // il pointe toujours vers une route réelle de cet arbre de navigation,
+    // mais les routes typées d'expo-router ne peuvent pas le vérifier pour
+    // une valeur qui vient du réseau — d'où le cast explicite.
+    return result.items.map((item) => ({ ...item, href: item.href as Href }));
   },
   async unreadCount(): Promise<number> {
-    return request(() => store.notifications.filter((n) => !n.read).length, 200);
+    const result = await fetchApi<{ count: number }>('/api/v1/notifications/unread-count', {}, true);
+    return result.count;
   },
   async markRead(id: string): Promise<void> {
-    return request(() => {
-      const notification = store.notifications.find((n) => n.id === id);
-      if (notification) notification.read = true;
-    }, 300);
+    await fetchApi(`/api/v1/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' }, true);
   },
   async markAllRead(): Promise<void> {
-    return request(() => {
-      store.notifications = store.notifications.map((n) => ({ ...n, read: true }));
-    }, 500);
+    await fetchApi('/api/v1/notifications/read-all', { method: 'POST' }, true);
   },
   async getPreferences(): Promise<NotificationPreferences> {
-    return request(() => clone(store.notificationPrefs));
+    const remote = await fetchApi<RemoteNotificationPreferences>('/api/v1/notification-settings', {}, true);
+    return fromRemotePreferences(remote);
   },
   async updatePreferences(patch: Partial<NotificationPreferences>): Promise<NotificationPreferences> {
-    return request(() => {
-      store.notificationPrefs = { ...store.notificationPrefs, ...patch };
-      return clone(store.notificationPrefs);
-    }, 500);
+    const remote = await fetchApi<RemoteNotificationPreferences>(
+      '/api/v1/notification-settings',
+      { method: 'PATCH', body: JSON.stringify(toRemotePreferencesPatch(patch)) },
+      true
+    );
+    return fromRemotePreferences(remote);
   },
+  // Pas de point d'entrée dédié côté serveur : réappliquer les valeurs par
+  // défaut EST un PATCH comme un autre, la table n'a pas de notion de
+  // « jamais réglé » à restaurer.
   async resetPreferences(): Promise<NotificationPreferences> {
-    return request(() => {
-      store.notificationPrefs = clone(fixtures.notificationPreferences);
-      return clone(store.notificationPrefs);
-    }, 500);
+    return notificationsApi.updatePreferences(DEFAULT_NOTIFICATION_PREFERENCES);
+  },
+
+  /** Enregistre ou renouvelle le token FCM de l'appareil courant. Appelé à la
+   * connexion et chaque fois que Firebase signale un nouveau token (voir
+   * src/lib/pushNotifications.ts). */
+  async registerDeviceToken(token: string, platform: 'android' | 'ios'): Promise<void> {
+    await fetchApi(
+      '/api/v1/device-tokens',
+      { method: 'POST', body: JSON.stringify({ token, platform }) },
+      true
+    );
+  },
+
+  /** Désassocie le token FCM de cet appareil — appelé à la déconnexion, pour
+   * qu'un compte différent connecté ensuite sur le même appareil ne reçoive
+   * pas les notifications laissées en attente pour l'ancien utilisateur. */
+  async removeDeviceToken(token: string): Promise<void> {
+    await fetchApi('/api/v1/device-tokens', { method: 'DELETE', body: JSON.stringify({ token }) }, true);
   },
 };
 

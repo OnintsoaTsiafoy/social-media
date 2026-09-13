@@ -83,6 +83,6 @@ Les schémas OpenAPI de départ sont dans `contracts/openapi/`. Ils sont le poin
 - `Authorization: Bearer <service-jwt>` obligatoire sur `/internal/v1`.
 - Le JWT contient un `aud` correspondant au service cible, des scopes minimaux et un identifiant de requête propagé.
 - Les commandes à effet de bord portent une `Idempotency-Key` et un `socialAccountId`; aucun token Meta brut ne traverse l'API publique.
-- Les événements Socket.IO sont versionnés, possèdent `eventId`, `occurredAt`, `userId` et, si applicable, `brandId`.
+- **Sprint 11** : Firebase Cloud Messaging remplace le plan Socket.IO du Sprint 01 (`contracts/socket-events.yaml`, désormais obsolète — conservé pour le vocabulaire des types, pas pour son mécanisme de transport). Le payload FCM est un message *data-only* (jamais de bloc `notification` — c'est le client qui affiche, jamais l'OS directement, pour rester cohérent premier plan/arrière-plan/fermé) : `{ version, eventId, type, notificationId, resourceType, resourceId, brandId }`, toutes les valeurs en chaîne. Il ne transporte aucune donnée métier : le client recharge la ressource via `/api/v1/notifications` avant d'agir. Voir `services/api/src/notifications/push.js`.
 
 La correspondance endpoint → sprint est détaillée dans [MATRICE_ENDPOINT_SPRINT.md](MATRICE_ENDPOINT_SPRINT.md).

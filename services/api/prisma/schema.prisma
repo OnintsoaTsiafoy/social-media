@@ -157,6 +157,47 @@ enum AiFormality {
   ADAPTIVE
 }
 
+// Sprint 11. Vocabulaire du mobile depuis le Sprint 01 (voir
+// social-media/src/types/index.ts::NotificationType) : une notification
+// « commentaire reçu » générique n'existe pas côté écran — seuls les
+// commentaires qui déclenchent réellement une catégorie (prioritaire, négatif,
+// urgent) génèrent un push, pour ne pas alerter à chaque commentaire neutre.
+enum NotificationType {
+  PRIORITY_COMMENT
+  NEGATIVE_COMMENT
+  URGENT_COMMENT
+  AI_RESPONSE_READY
+  PUBLICATION_PUBLISHED
+  PUBLICATION_FAILED
+  PUBLICATION_PARTIAL
+  TOKEN_EXPIRING
+  TOKEN_EXPIRED
+  SYNC_FAILED
+  ACCOUNT_DISCONNECTED
+}
+
+// Distinct de CommentPriority : même échelle (LOW/MEDIUM/HIGH), mais un
+// concept différent (urgence d'affichage de la notification, pas verdict
+// d'analyse) — voir `Priority` côté mobile.
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// Ce que `resourceId` désigne, pour que le mobile sache quelle ressource
+// recharger via l'API avant d'ouvrir l'écran (jamais le contenu du push).
+enum NotificationResourceType {
+  COMMENT
+  PUBLICATION
+  SOCIAL_ACCOUNT
+}
+
+enum DevicePlatform {
+  ANDROID
+  IOS
+}
+
 model User {
   id                      String                 @id @default(uuid()) @db.Uuid
   email                   String                 @unique @db.VarChar(320)
@@ -189,6 +230,9 @@ model User {
   commentAnalyses         CommentAnalysis[]      @relation("AnalysisRequester")
   responseSuggestions     ResponseSuggestion[]   @relation("SuggestionAuthor")
   approvedSuggestions     ResponseSuggestion[]   @relation("SuggestionApprover")
+  notifications           Notification[]
+  deviceTokens            DeviceToken[]
+  notificationSettings    NotificationSetting?
 
   @@index([status])
   @@map("users")
@@ -212,6 +256,7 @@ model Brand {
   publications    Publication[]
   socialAccounts  SocialAccount[]
   oauthStates     OAuthState[]
+  notifications   Notification[]
 
   @@index([ownerUserId])
   @@index([deletedAt])
@@ -770,4 +815,95 @@ model SentResponse {
 
   @@index([status, startedAt])
   @@map("sent_responses")
+}
+
+// Sprint 11. Une ligne par destinataire, jamais un événement métier partagé :
+// un commentaire reçu sur une marque à trois community managers crée trois
+// lignes (une par membre notifié), chacune avec son propre `readAt`.
+// `eventId` porte l'identité de l'événement métier d'origine (ex. l'id de
+// l'analyse, ou `publication:{id}:published`) — l'unicité est posée sur
+// (eventId, userId), pas sur eventId seul, pour permettre exactement ce
+// fan-out tout en rendant chaque envoi individuel idempotent (rejouer le même
+// événement pour le même destinataire ne doit jamais créer de doublon).
+//
+// Persistée AVANT tout appel à Firebase (voir NotificationPushService) : un
+// échec FCM ne doit jamais faire disparaître une ligne déjà écrite ici, qui
+// reste la source de vérité pour l'historique et le compteur non lu.
+model Notification {
+  id           String                     @id @default(uuid()) @db.Uuid
+  userId       String                     @map("user_id") @db.Uuid
+  brandId      String?                    @map("brand_id") @db.Uuid
+  type         NotificationType
+  priority     NotificationPriority       @default(MEDIUM)
+  title        String                     @db.VarChar(200)
+  message      String                     @db.Text
+  network      SocialProvider?
+  resourceType NotificationResourceType?  @map("resource_type")
+  resourceId   String?                    @map("resource_id") @db.Uuid
+  // Identifiant de l'événement métier d'origine — permet à un producteur de
+  // rejouer sans risque (ex. un sweep worker relancé après un crash) et sert
+  // de clé de déduplication FCM (voir le payload logique du Jour 2).
+  eventId      String                     @map("event_id") @db.VarChar(150)
+  readAt       DateTime?                  @map("read_at") @db.Timestamptz(6)
+  createdAt    DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  user         User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand        Brand?                     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+// Sprint 11. Un utilisateur peut avoir plusieurs appareils actifs à la fois
+// (téléphone + tablette) : chaque token FCM est sa propre ligne, jamais
+// remplacée par la précédente. `token` est unique globalement — un même
+// device réinstallé/reconnecté sous un autre compte réassigne la ligne au
+// nouvel utilisateur plutôt que d'en créer une deuxième orpheline.
+// `disabledAt` marque un token que FCM a signalé invalide/non enregistré
+// (voir NotificationPushService) sans perdre l'historique de l'appareil ;
+// DELETE /device-tokens (déconnexion volontaire) supprime la ligne pour de
+// bon, ce sont deux gestes différents.
+model DeviceToken {
+  id         String         @id @default(uuid()) @db.Uuid
+  userId     String         @map("user_id") @db.Uuid
+  token      String         @unique @db.VarChar(400)
+  platform   DevicePlatform
+  disabledAt DateTime?      @map("disabled_at") @db.Timestamptz(6)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lastSeenAt DateTime       @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("device_tokens")
+}
+
+// Sprint 11. Une ligne par utilisateur, créée à la demande (voir
+// notifications/service.js::getNotificationSettings) plutôt qu'à
+// l'inscription : un utilisateur qui n'a jamais rien réglé lit des valeurs
+// par défaut sans qu'une ligne existe, exactement comme
+// profile/service.js::preferencesOf pour les préférences générales. Une
+// PATCH crée la ligne au besoin (upsert).
+model NotificationSetting {
+  userId               String               @id @map("user_id") @db.Uuid
+  negativeComment      Boolean              @default(true) @map("negative_comment")
+  urgentComment        Boolean              @default(true) @map("urgent_comment")
+  highPriorityComment  Boolean              @default(true) @map("high_priority_comment")
+  aiResponseGenerated  Boolean              @default(true) @map("ai_response_generated")
+  publicationPublished Boolean              @default(true) @map("publication_published")
+  publicationFailed    Boolean              @default(true) @map("publication_failed")
+  tokenExpiring        Boolean              @default(true) @map("token_expiring")
+  syncFailed           Boolean              @default(true) @map("sync_failed")
+  sound                Boolean              @default(true)
+  vibration            Boolean              @default(true)
+  // "HH:mm", nulles ensemble tant que l'utilisateur n'a rien réglé : pas de
+  // plage silencieuse par défaut plutôt qu'une plage arbitraire imposée.
+  quietHoursStart      String?              @map("quiet_hours_start") @db.VarChar(5)
+  quietHoursEnd        String?              @map("quiet_hours_end") @db.VarChar(5)
+  minimumPriority      NotificationPriority @default(LOW) @map("minimum_priority")
+  updatedAt            DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                 User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_settings")
 }

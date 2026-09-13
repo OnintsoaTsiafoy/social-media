@@ -26,7 +26,7 @@ const CLAIM_PUBLICATION = `
    WHERE id = $1::uuid
      AND deleted_at IS NULL
      AND status IN ('DRAFT', 'SCHEDULED', 'PUBLISHING', 'FAILED', 'PARTIALLY_PUBLISHED')
-  RETURNING id, brand_id, content, hashtags, language, timezone
+  RETURNING id, brand_id, content, hashtags, language, timezone, created_by_user_id
 `;
 
 const SELECT_TARGETS = `
@@ -108,6 +108,36 @@ function attemptIdempotencyKey(publicationId, provider, attemptNumber) {
   return `${publicationId}:${provider}:${attemptNumber}`;
 }
 
+// Sprint 11 Jour 3. Un statut par publication, une seule fois : l'eventId
+// (`publication:{id}:{status}`) n'inclut pas la tentative, donc une relance
+// automatique qui échoue à nouveau dans le MÊME statut ne re-notifie pas —
+// choix délibéré pour ne pas pousser une alerte à chaque retry d'un backoff
+// déjà en cours (voir retryDelaySeconds). DRAFT/SCHEDULED/PUBLISHING/
+// CANCELLED ne sont pas des états terminaux dignes d'une notification.
+const PUBLICATION_NOTIFICATION_TYPE = {
+  PUBLISHED: 'PUBLICATION_PUBLISHED',
+  FAILED: 'PUBLICATION_FAILED',
+  PARTIALLY_PUBLISHED: 'PUBLICATION_PARTIAL',
+};
+
+const PUBLICATION_NOTIFICATION_TITLE = {
+  PUBLISHED: 'Publication publiée',
+  FAILED: 'Publication échouée',
+  PARTIALLY_PUBLISHED: 'Publication partiellement publiée',
+};
+
+function contentSnippet(content) {
+  const text = (content ?? '').trim();
+  return text.length > 80 ? `${text.slice(0, 80)}…` : text;
+}
+
+function publicationNotificationMessage(status, content) {
+  const snippet = contentSnippet(content);
+  if (status === 'PUBLISHED') return `« ${snippet} » a été publiée avec succès.`;
+  if (status === 'FAILED') return `« ${snippet} » n’a pas pu être publiée.`;
+  return `« ${snippet} » a été publiée sur certains réseaux seulement.`;
+}
+
 export function createDeliveryService({
   query,
   provider = { deliver: defaultDeliver },
@@ -116,6 +146,11 @@ export function createDeliveryService({
   // calls Meta (graph-api needs a URL it can fetch, not a storage key). The
   // mock ignores mediaUrls entirely, so tests can omit this dependency.
   signMedia = async () => null,
+  // Sprint 11 Jour 3: notifie l'auteur de la publication (pas toute la
+  // marque — c'est SA publication) une fois le statut agrégé recalculé.
+  // Optionnel comme `notifyUser` de comment-analysis.js : les tests
+  // existants qui l'omettent ne doivent pas se mettre à échouer.
+  notifyUser,
   logger = console,
 }) {
   async function deliverTarget(publication, target, mediaUrls) {
@@ -217,6 +252,27 @@ export function createDeliveryService({
 
     const status = await refreshPublicationStatus(publicationId);
     await query(MARK_SCHEDULE_DISPATCHED, [publicationId]);
+
+    const notificationType = PUBLICATION_NOTIFICATION_TYPE[status];
+    if (notifyUser && notificationType) {
+      try {
+        await notifyUser({
+          userId: publication.created_by_user_id,
+          brandId: publication.brand_id,
+          type: notificationType,
+          priority: status === 'PUBLISHED' ? 'LOW' : 'HIGH',
+          title: PUBLICATION_NOTIFICATION_TITLE[status],
+          message: publicationNotificationMessage(status, publication.content),
+          resourceType: 'PUBLICATION',
+          resourceId: publicationId,
+          eventId: `publication:${publicationId}:${status}`,
+        });
+      } catch (error) {
+        // Ne doit jamais faire échouer la publication elle-même, déjà
+        // livrée (ou non) indépendamment de la notification.
+        logger.warn?.({ scope: 'delivery', action: 'notify', publicationId, error: error?.message });
+      }
+    }
 
     // Retries automatiques : uniquement les erreurs temporaires, avec le
     // backoff 1 min / 5 min / 15 min / 1 h.

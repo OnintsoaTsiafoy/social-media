@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { authorInitials, toPublicAnalysis } from '../src/comments/service.js';
+import { authorInitials, notificationTypesForAnalysis, toPublicAnalysis } from '../src/comments/service.js';
 import {
   commentIdSchema,
   commentsCountQuerySchema,
@@ -113,4 +113,37 @@ test('a stored analysis is lowercased on the wire, matching the mobile vocabular
   assert.equal(analysed.sensitive, false);
   assert.equal(analysed.analysedAt, '2026-09-12T10:00:00.000Z');
   assert.equal(analysed.modelVersion, 'fr-linear-1.0.0+v1');
+});
+
+// Sprint 11 Jour 3 — un commentaire neutre et non urgent ne doit déclencher
+// aucune notification : sans ce test, une régression pousserait une alerte
+// pour chaque commentaire reçu.
+test('a neutral, non-urgent, low-priority analysis triggers no notification', () => {
+  assert.deepEqual(
+    notificationTypesForAnalysis({ priority: 'low', sentiment: 'neutral', urgent: false }),
+    []
+  );
+});
+
+test('a high-priority analysis triggers priority_comment', () => {
+  assert.deepEqual(
+    notificationTypesForAnalysis({ priority: 'high', sentiment: 'neutral', urgent: false }),
+    ['PRIORITY_COMMENT']
+  );
+});
+
+// Un même commentaire peut être à la fois urgent ET négatif : ce sont deux
+// alertes distinctes, chacune avec son propre réglage côté utilisateur.
+test('a comment can trigger multiple notification types at once', () => {
+  assert.deepEqual(
+    notificationTypesForAnalysis({ priority: 'high', sentiment: 'negative', urgent: true }),
+    ['PRIORITY_COMMENT', 'NEGATIVE_COMMENT', 'URGENT_COMMENT']
+  );
+});
+
+test('urgency alone (medium priority, neutral sentiment) still triggers urgent_comment', () => {
+  assert.deepEqual(
+    notificationTypesForAnalysis({ priority: 'medium', sentiment: 'neutral', urgent: true }),
+    ['URGENT_COMMENT']
+  );
 });

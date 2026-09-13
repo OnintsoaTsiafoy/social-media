@@ -2,6 +2,7 @@ import { prisma } from '../db/prisma.js';
 import { callAiService } from '../lib/aiServiceClient.js';
 import { writeAuditLog } from '../lib/audit.js';
 import { HttpError } from '../lib/http.js';
+import { createNotification, notifiableBrandMembers } from '../notifications/service.js';
 
 // Nombre d'échanges précédents transmis au service de génération. Volontairement
 // bas : « inclure trop d'historique sensible » est un risque explicite du
@@ -229,6 +230,29 @@ export async function createSuggestion({ userId, comment, text, tone, language, 
     requestId: request.requestId,
     metadata: { commentId: comment.id, generator: payload.generator, blocked: payload.blocked },
   });
+
+  // Notifie les AUTRES community managers de la marque : celui qui vient de
+  // générer la proposition la voit déjà dans la réponse de cette requête —
+  // le notifier de sa propre action serait redondant. Une réponse rédigée à
+  // la main n'est pas une génération : rien à annoncer.
+  if (payload.generatedByAi) {
+    const recipients = await notifiableBrandMembers(brandId, { excludeUserId: userId });
+    for (const recipientId of recipients) {
+      await createNotification({
+        userId: recipientId,
+        brandId,
+        type: 'AI_RESPONSE_READY',
+        priority: 'MEDIUM',
+        title: 'Réponse IA à valider',
+        message: comment.authorName
+          ? `Une proposition de réponse a été générée pour le commentaire de ${comment.authorName}.`
+          : 'Une proposition de réponse a été générée pour un commentaire.',
+        resourceType: 'COMMENT',
+        resourceId: comment.id,
+        eventId: `response-suggestion:${created.id}`,
+      });
+    }
+  }
 
   return toPublicSuggestion(created);
 }

@@ -1,12 +1,14 @@
 openapi: 3.1.0
 info:
   title: Hootly Public API
-  version: 0.5.0
+  version: 0.6.0
   description: >
     Contrat public Hootly. Authentification (Sprint 02), profil et marques
     (Sprint 03), publications, médias, planification et calendrier (Sprint 04),
     comptes sociaux et OAuth Meta (Sprint 06/07), commentaires et réponses
-    contrôlées (Sprint 08).
+    contrôlées (Sprint 08), analyse de sentiment (Sprint 09), propositions de
+    réponse et hashtags (Sprint 10), notifications et Firebase Cloud
+    Messaging (Sprint 11).
 servers:
   - url: http://localhost:3000
 paths:
@@ -786,6 +788,110 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '503':
           description: Service IA injoignable (code ai_unavailable)
+  /api/v1/notifications:
+    get:
+      summary: Lister les notifications de l'utilisateur connecté (Sprint 11)
+      description: >
+        Portée par l'utilisateur, jamais par la marque directement : une
+        notification est créée une fois par destinataire (voir Jour 3), donc
+        l'appartenance à `userId` EST le contrôle d'accès. `filter` reprend
+        exactement la sémantique de `notificationsApi.list()` côté mobile
+        (`all`, `unread`, `priority` = priorité haute, `errors` = échecs de
+        publication/synchronisation/token).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: filter, in: query, schema: { type: string, enum: [all, unread, priority, errors], default: all } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+  /api/v1/notifications/unread-count:
+    get:
+      summary: Compteur de notifications non lues (Sprint 11)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+  /api/v1/notifications/{notificationId}/read:
+    parameters:
+      - { name: notificationId, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      summary: Marquer une notification comme lue (Sprint 11)
+      description: Idempotent — relire une notification déjà lue ne change pas son horodatage de lecture.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/notifications/read-all:
+    post:
+      summary: Marquer toutes les notifications non lues comme lues (Sprint 11)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+  /api/v1/device-tokens:
+    post:
+      summary: Enregistrer ou renouveler un token FCM pour l'appareil courant (Sprint 11)
+      description: >
+        Upsert par `token` (unique globalement) : un appareil réinstallé ou
+        reconnecté sous un autre compte réassigne la même ligne au nouvel
+        utilisateur. Aussi utilisé quand Firebase renouvelle le token
+        (nouvel appel avec la nouvelle valeur).
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, platform]
+              properties:
+                token: { type: string, minLength: 1, maxLength: 400 }
+                platform: { type: string, enum: [android, ios] }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+    delete:
+      summary: Désassocier un token FCM, p. ex. à la déconnexion (Sprint 11)
+      description: Le token voyage dans le corps, pas dans l'URL. Silencieux si le token n'existe déjà plus.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string, minLength: 1, maxLength: 400 }
+      responses:
+        '204': { description: Token désassocié (ou déjà absent) }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+  /api/v1/notification-settings:
+    get:
+      summary: Lire les préférences de notification (Sprint 11)
+      description: Valeurs par défaut renvoyées si l'utilisateur n'a encore rien réglé — aucune ligne n'est créée par une lecture.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+    patch:
+      summary: Modifier les préférences de notification (Sprint 11)
+      description: Upsert — crée la ligne au besoin. Vérifiées côté serveur avant tout envoi push (Jour 3), jamais côté client seul.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NotificationSettingsPatch' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
 components:
   securitySchemes:
     bearerAuth:
@@ -896,6 +1002,27 @@ components:
         weeklyDigest: { type: boolean }
         pushNotifications: { type: boolean }
         weekStartsOn: { type: string, enum: [monday, sunday] }
+    NotificationSettingsPatch:
+      type: object
+      minProperties: 1
+      description: >
+        Un bouton par type de notification (Sprint 11), aligné sur
+        NotificationPreferences côté mobile. `minimumPriority` filtre
+        indépendamment des bascules par type.
+      properties:
+        negativeComment: { type: boolean }
+        urgentComment: { type: boolean }
+        highPriorityComment: { type: boolean }
+        aiResponseGenerated: { type: boolean }
+        publicationPublished: { type: boolean }
+        publicationFailed: { type: boolean }
+        tokenExpiring: { type: boolean }
+        syncFailed: { type: boolean }
+        sound: { type: boolean }
+        vibration: { type: boolean }
+        quietHoursStart: { type: [string, 'null'], pattern: '^([01]\d|2[0-3]):[0-5]\d$', example: '22:00' }
+        quietHoursEnd: { type: [string, 'null'], pattern: '^([01]\d|2[0-3]):[0-5]\d$', example: '07:00' }
+        minimumPriority: { type: string, enum: [low, medium, high] }
     AvatarMetadata:
       type: object
       required: [objectKey, mimeType, sizeBytes]

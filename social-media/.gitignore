@@ -8,6 +8,12 @@ expo-env.d.ts
 /android
 /ios
 
+# Sprint 11 — Firebase config, fourni localement (voir app.json's
+# android.googleServicesFile). Ne contient pas de clé privée à proprement
+# parler, mais reste spécifique à un projet Firebase et ne doit pas être
+# committé sans réflexion.
+google-services.json
+
 # Misc
 .DS_Store
 *.log

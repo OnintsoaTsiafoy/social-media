@@ -57,6 +57,12 @@ services:
       MEDIA_BUCKET: ${MEDIA_BUCKET}
       MEDIA_MAX_BYTES: ${MEDIA_MAX_BYTES}
       MEDIA_URL_TTL_SECONDS: ${MEDIA_URL_TTL_SECONDS}
+      # Sprint 11: NotificationPushService (services/api/src/lib/firebase.js)
+      # only initialises Firebase Admin when all three are set — the API
+      # starts and stays healthy without them, push is just a no-op.
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY}
     ports:
       - "3000:3000"
     depends_on:
@@ -93,6 +99,12 @@ services:
       MEDIA_BUCKET: ${MEDIA_BUCKET}
       MEDIA_URL_TTL_SECONDS: ${MEDIA_URL_TTL_SECONDS}
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET}
+      # Sprint 11 Jour 3: Firebase Admin ne vit que dans Express (Jour 2) — le
+      # worker lui demande de créer/pousser une notification via
+      # /internal/v1/notifications (voir src/notifications-client.js).
+      # Best-effort : jamais requis par /ready, un envoi raté ne doit jamais
+      # faire échouer l'analyse/la publication/le rafraîchissement eux-mêmes.
+      API_SERVICE_URL: ${API_SERVICE_URL}
     # Publié pour que `scripts/verify-readiness.ps1` interroge la sonde du worker.
     ports:
       - "3001:3001"

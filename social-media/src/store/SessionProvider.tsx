@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 
 import { ApiError, auth, brandsApi, notificationsApi } from '@/data/api';
 import { clearSessionTokens, readToken, saveRefreshToken, saveToken } from '@/lib/secureStorage';
+import { unregisterForPushNotifications } from '@/lib/pushNotifications';
 import type { Brand, User } from '@/types';
 
 export type SessionStatus = 'restoring' | 'signedOut' | 'signedIn';
@@ -105,6 +106,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    // Avant tout : un compte différent connecté ensuite sur cet appareil ne
+    // doit jamais recevoir les notifications restées en attente pour cet
+    // utilisateur (voir src/lib/pushNotifications.ts).
+    await unregisterForPushNotifications();
     try {
       await auth.logout();
     } catch {

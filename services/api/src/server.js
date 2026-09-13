@@ -5,6 +5,8 @@ import { authRouter } from './auth/routes.js';
 import { brandRouter } from './brands/routes.js';
 import { commentRouter } from './comments/routes.js';
 import { mediaRouter } from './media/routes.js';
+import { internalNotificationRouter } from './notifications/internal-routes.js';
+import { deviceTokenRouter, notificationRouter, notificationSettingsRouter } from './notifications/routes.js';
 import { calendarRouter, publicationRouter } from './publications/routes.js';
 import { profileRouter } from './profile/routes.js';
 import { hashtagRouter, responseSuggestionRouter } from './response-suggestions/routes.js';
@@ -114,6 +116,44 @@ const openApiDocument = {
     '/api/v1/comments/{commentId}/reply': {
       post: { summary: 'Envoyer une réponse (idempotent par commentaire, 409 si déjà envoyée ou commentaire supprimé)' },
     },
+    // Correctif adjacent : montées au Sprint 10, jamais reportées ici.
+    '/api/v1/response-suggestions': {
+      get: { summary: 'Lister toutes les versions d’une proposition (?commentId=)' },
+      post: { summary: 'Générer ou rédiger une proposition de réponse' },
+    },
+    '/api/v1/response-suggestions/{suggestionId}': {
+      get: { summary: 'Détail d’une version' },
+      patch: { summary: 'Enregistrer une réécriture humaine (crée une nouvelle version)' },
+    },
+    '/api/v1/response-suggestions/{suggestionId}/approve': {
+      post: { summary: 'Approuver une proposition (seul chemin qui autorise ensuite un envoi)' },
+    },
+    '/api/v1/response-suggestions/{suggestionId}/reject': {
+      post: { summary: 'Rejeter une proposition (409 si déjà envoyée)' },
+    },
+    '/api/v1/publications/generate-hashtags': {
+      post: { summary: 'Proposer des hashtags pour un texte de publication' },
+    },
+    '/api/v1/notifications': {
+      get: { summary: 'Lister les notifications de l’utilisateur connecté (?filter=all|unread|priority|errors, pagination)' },
+    },
+    '/api/v1/notifications/unread-count': {
+      get: { summary: 'Compteur de notifications non lues' },
+    },
+    '/api/v1/notifications/{notificationId}/read': {
+      patch: { summary: 'Marquer une notification comme lue (idempotent)' },
+    },
+    '/api/v1/notifications/read-all': {
+      post: { summary: 'Marquer toutes les notifications non lues comme lues' },
+    },
+    '/api/v1/device-tokens': {
+      post: { summary: 'Enregistrer ou renouveler un token FCM pour l’appareil courant' },
+      delete: { summary: 'Désassocier un token FCM (déconnexion) — le token voyage dans le corps' },
+    },
+    '/api/v1/notification-settings': {
+      get: { summary: 'Lire les préférences de notification (valeurs par défaut si aucune n’a encore été enregistrée)' },
+      patch: { summary: 'Modifier les préférences de notification (crée la ligne au besoin)' },
+    },
   },
 };
 
@@ -161,6 +201,13 @@ app.use('/api/v1/calendar', calendarRouter);
 app.use('/api/v1/social-accounts', socialAccountRouter);
 app.use('/api/v1/comments', commentRouter);
 app.use('/api/v1/response-suggestions', responseSuggestionRouter);
+app.use('/api/v1/notifications', notificationRouter);
+app.use('/api/v1/device-tokens', deviceTokenRouter);
+app.use('/api/v1/notification-settings', notificationSettingsRouter);
+// Sprint 11 Jour 3 : seul point d'entrée /internal/v1 exposé par Express —
+// jusqu'ici l'API n'était qu'appelante de graph-api/ai-service, jamais
+// appelée (voir lib/serviceAuth.js).
+app.use('/internal/v1/notifications', internalNotificationRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
