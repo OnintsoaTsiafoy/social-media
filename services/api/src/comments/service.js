@@ -47,6 +47,57 @@ async function resolvePublicationRefs(comments) {
   return map;
 }
 
+// Sprint 12 : sens inverse de resolvePublicationRefs ci-dessus (publication
+// -> commentaires, au lieu de commentaire -> publication), pour que
+// publications/service.js puisse afficher commentCount/negativeCommentCount/
+// urgentCommentCount sans réimplémenter la jointure. Batché pour la même
+// raison : un appel pour toute une liste, jamais un par publication.
+export async function commentStatsForPublications(publicationIds) {
+  if (publicationIds.length === 0) return new Map();
+
+  const targets = await prisma.publicationTarget.findMany({
+    where: { publicationId: { in: publicationIds }, externalPublicationId: { not: null } },
+    select: { publicationId: true, socialAccountId: true, externalPublicationId: true },
+  });
+  // socialAccountId reste nullable pour les lignes antérieures au Sprint 06
+  // (voir schema.prisma) ; SocialComment.socialAccountId ne l'est pas, donc
+  // une paire avec null ferait échouer la requête plutôt que ne rien matcher.
+  const withAccount = targets.filter((target) => target.socialAccountId);
+  if (withAccount.length === 0) return new Map();
+
+  const pairs = withAccount.map((target) => ({
+    socialAccountId: target.socialAccountId,
+    externalPublicationId: target.externalPublicationId,
+  }));
+  const comments = await prisma.socialComment.findMany({
+    where: { OR: pairs },
+    select: {
+      socialAccountId: true,
+      externalPublicationId: true,
+      latestAnalysis: { select: { sentiment: true, isUrgent: true } },
+    },
+  });
+  const commentsByKey = new Map();
+  for (const comment of comments) {
+    const key = `${comment.socialAccountId}:${comment.externalPublicationId}`;
+    if (!commentsByKey.has(key)) commentsByKey.set(key, []);
+    commentsByKey.get(key).push(comment);
+  }
+
+  const stats = new Map();
+  for (const target of targets) {
+    const key = `${target.socialAccountId}:${target.externalPublicationId}`;
+    const entry = stats.get(target.publicationId) ?? { total: 0, negative: 0, urgent: 0 };
+    for (const comment of commentsByKey.get(key) ?? []) {
+      entry.total += 1;
+      if (comment.latestAnalysis?.sentiment === 'NEGATIVE') entry.negative += 1;
+      if (comment.latestAnalysis?.isUrgent) entry.urgent += 1;
+    }
+    stats.set(target.publicationId, entry);
+  }
+  return stats;
+}
+
 // `latestAnalysis` est le pointeur de cache porté par social_comments (voir
 // schema.prisma) : toujours la dernière ligne de comment_analyses, jamais une
 // valeur recopiée. Un commentaire jamais analysé le laisse à null, ce que le
@@ -122,25 +173,17 @@ function accessibleWhere(brandId, filters) {
   };
 }
 
-// `CommentPriority` est déclaré LOW, MEDIUM, HIGH : l'ordre d'un type enum
-// PostgreSQL suit sa déclaration, donc `desc` remonte bien HIGH en premier.
-// `nulls: 'last'` garde les commentaires non analysés après ceux qui le sont
-// plutôt qu'en tête (comportement par défaut de PostgreSQL en tri décroissant).
-function orderFor(sort) {
-  if (sort === 'priority') {
-    return [{ latestAnalysis: { priority: { sort: 'desc', nulls: 'last' } } }, { createdAt: 'desc' }];
-  }
-  return [{ createdAt: 'desc' }];
-}
-
 export async function listComments(brandId, filters) {
   const where = accessibleWhere(brandId, filters);
+
+  if (filters.sort === 'priority') return listCommentsSortedByPriority(where, filters);
+
   const [total, records] = await prisma.$transaction([
     prisma.socialComment.count({ where }),
     prisma.socialComment.findMany({
       where,
       include: COMMENT_INCLUDE,
-      orderBy: orderFor(filters.sort),
+      orderBy: [{ createdAt: 'desc' }],
       skip: (filters.page - 1) * filters.pageSize,
       take: filters.pageSize,
     }),
@@ -153,6 +196,55 @@ export async function listComments(brandId, filters) {
   ]);
   return {
     items: records.map((record) => toPublicComment(record, publicationRefs, suggestions)),
+    page: filters.page,
+    pageSize: filters.pageSize,
+    total,
+  };
+}
+
+// `CommentPriority` est déclaré LOW, MEDIUM, HIGH : l'ordre d'un type enum
+// PostgreSQL suit sa déclaration, donc HIGH doit remonter en premier, les
+// commentaires non analysés (pas de latestAnalysis) restant après ceux qui
+// le sont plutôt qu'en tête.
+const PRIORITY_RANK = { HIGH: 2, MEDIUM: 1, LOW: 0 };
+
+// Bug latent découvert au Sprint 12 (jamais frappé par les tests de ce dépôt,
+// tous au niveau schéma/fonction pure, jamais contre une vraie base) :
+// Prisma n'accepte le tri étendu `{ sort, nulls }` que sur un champ propre au
+// modèle interrogé, jamais à travers une relation to-one — vérifié
+// empiriquement, `latestAnalysis: { priority: { sort: 'desc', nulls: 'last' } }`
+// échoue avec « Argument priority: Expected SortOrder, provided Object ».
+// Contournement sans SQL brut : trier en mémoire sur un jeu léger
+// d'identifiants (une seule colonne scalaire chargée par ligne), paginer sur
+// ce tri, puis ne recharger avec l'include complet que la page demandée —
+// même idiome que le tri des publications les plus engageantes
+// (analytics/service.js::analyticsTopPublications).
+async function listCommentsSortedByPriority(where, filters) {
+  const all = await prisma.socialComment.findMany({
+    where,
+    select: { id: true, latestAnalysis: { select: { priority: true } } },
+    orderBy: [{ createdAt: 'desc' }],
+  });
+
+  const ranked = all
+    .map((row) => ({ id: row.id, rank: PRIORITY_RANK[row.latestAnalysis?.priority] ?? -1 }))
+    .sort((a, b) => b.rank - a.rank); // Tri stable (Node ≥ 11) : conserve le tri par date à rang égal.
+
+  const total = ranked.length;
+  const start = (filters.page - 1) * filters.pageSize;
+  const pageIds = ranked.slice(start, start + filters.pageSize).map((row) => row.id);
+
+  const records =
+    pageIds.length === 0 ? [] : await prisma.socialComment.findMany({ where: { id: { in: pageIds } }, include: COMMENT_INCLUDE });
+  const byId = new Map(records.map((record) => [record.id, record]));
+  const ordered = pageIds.map((id) => byId.get(id)).filter(Boolean);
+
+  const [publicationRefs, suggestions] = await Promise.all([
+    resolvePublicationRefs(ordered),
+    latestSuggestionsFor(ordered.map((record) => record.id)),
+  ]);
+  return {
+    items: ordered.map((record) => toPublicComment(record, publicationRefs, suggestions)),
     page: filters.page,
     pageSize: filters.pageSize,
     total,

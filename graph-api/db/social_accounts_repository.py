@@ -98,6 +98,21 @@ async def mark_comments_synced(account_id: str) -> None:
             )
 
 
+async def mark_metrics_synced(account_id: str) -> None:
+    """Sprint 12 — l'unique écrivain de last_metrics_sync_at (colonne présente
+    depuis le Sprint 06 mais jamais écrite jusqu'ici), même raisonnement que
+    mark_comments_synced : graph-api l'écrit dans le même appel que la
+    persistance des relevés, sans aller-retour séparé qui pourrait l'omettre
+    en cas de crash du worker entre les deux."""
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "UPDATE social_accounts SET last_metrics_sync_at = now() WHERE id = %s",
+                (account_id,),
+            )
+
+
 async def update_profile(account_id: str, *, name: str, username: str | None, avatar_url: str | None) -> None:
     """Keeps the displayed name/username/avatar current between OAuth
     reconnects — `upsert_account` only refreshes these at initial connect."""

@@ -45,11 +45,11 @@ export default function HomeScreen() {
   const [syncing, setSyncing] = useState(false);
   const treat = useMutation();
 
-  const summary = useAsync(() => dashboardApi.summary(), []);
-  const priority = useAsync(() => dashboardApi.priorityComments(), []);
-  const upcoming = useAsync(() => dashboardApi.upcomingPublications(), []);
+  const summary = useAsync(() => dashboardApi.summary(brand?.id ?? ''), []);
+  const priority = useAsync(() => dashboardApi.priorityComments(brand?.id ?? ''), []);
+  const upcoming = useAsync(() => dashboardApi.upcomingPublications(brand?.id ?? ''), []);
   const accounts = useAsync(() => accountsApi.list(brand?.id ?? '', brand?.name ?? ''), []);
-  const analytics = useAsync(() => analyticsApi.overview('30d'), []);
+  const analytics = useAsync(() => analyticsApi.overview(brand?.id ?? '', '30d'), []);
 
   const refreshAll = useCallback(async () => {
     await Promise.all([
@@ -359,7 +359,9 @@ export default function HomeScreen() {
               />
             ) : null}
             <Text variant="micro" color={palette.inkDisabled}>
-              Dernière synchronisation : {formatRelative(analytics.data.lastSyncAt)}
+              {analytics.data.lastSyncAt
+                ? `Dernière synchronisation : ${formatRelative(analytics.data.lastSyncAt)}`
+                : 'Statistiques pas encore synchronisées.'}
             </Text>
           </Card>
         ) : null}

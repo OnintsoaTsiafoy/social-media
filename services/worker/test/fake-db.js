@@ -229,10 +229,48 @@ export function createFakeDb(initial = {}) {
       return [{ id: analysis.id }];
     }
 
+    // Sprint 12 metrics-sync.js's own target-selection query also selects
+    // `DISTINCT external_publication_id FROM publication_targets`, so this
+    // branch must be checked first, matched on `status = 'SENT'` — the
+    // fragment unique to it — before the more generic comment-sync.js branch
+    // below, which would otherwise swallow it too.
+    if (text.includes("status = 'SENT'") && text.includes('DISTINCT external_publication_id')) {
+      const [socialAccountId, limit] = params;
+      return (state.targets ?? [])
+        .filter(
+          (row) =>
+            row.social_account_id === socialAccountId &&
+            row.status === 'SENT' &&
+            row.external_publication_id
+        )
+        .sort((a, b) => new Date(b.sent_at ?? 0).getTime() - new Date(a.sent_at ?? 0).getTime())
+        .slice(0, limit)
+        .map((row) => ({ external_publication_id: row.external_publication_id }));
+    }
+
     if (text.includes('DISTINCT external_publication_id')) {
       return (state.targets ?? [])
         .filter((row) => row.social_account_id === params[0] && row.external_publication_id)
         .map((row) => ({ external_publication_id: row.external_publication_id }));
+    }
+
+    // Sprint 12 metrics-sync.js's account-selection query. Même remarque que
+    // pour last_comments_sync_at : fragment propre à cette requête.
+    if (text.includes('last_metrics_sync_at')) {
+      const [staleAfterMinutes, limit] = params;
+      const staleThreshold = Date.now() - staleAfterMinutes * 60 * 1000;
+      return (state.socialAccounts ?? [])
+        .filter((row) => {
+          if (!['CONNECTED', 'EXPIRING'].includes(row.status)) return false;
+          return !row.last_metrics_sync_at || new Date(row.last_metrics_sync_at).getTime() < staleThreshold;
+        })
+        .sort((a, b) => {
+          if (!a.last_metrics_sync_at) return -1;
+          if (!b.last_metrics_sync_at) return 1;
+          return new Date(a.last_metrics_sync_at).getTime() - new Date(b.last_metrics_sync_at).getTime();
+        })
+        .slice(0, limit)
+        .map((row) => ({ id: row.id, provider: row.provider }));
     }
 
     if (text.includes('FROM social_accounts sa')) {

@@ -403,6 +403,8 @@ model Publication {
   @@index([brandId, scheduledAt])
   @@index([status, scheduledAt])
   @@index([deletedAt])
+  // Sprint 12 : filtrage par période pour les agrégations analytics.
+  @@index([brandId, publishedAt])
   @@map("publications")
 }
 
@@ -427,6 +429,7 @@ model PublicationTarget {
   publication           Publication                  @relation(fields: [publicationId], references: [id], onDelete: Cascade)
   socialAccount         SocialAccount?               @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
   attempts              PublicationDeliveryAttempt[]
+  metrics               SocialMetric[]
 
   // Was @@unique([publicationId, provider]): structurally forbade two
   // accounts of the same provider on one publication. Sprint 06 replaces it
@@ -434,7 +437,36 @@ model PublicationTarget {
   @@unique([publicationId, socialAccountId])
   @@index([publicationId, provider])
   @@index([status])
+  // Sprint 12 : graph-api résout un publication_target_id à partir du couple
+  // (social_account_id, external_publication_id) reçu de Meta.
+  @@index([socialAccountId, externalPublicationId])
   @@map("publication_targets")
+}
+
+// Sprint 12. Historique append-only des relevés Meta pour une cible de
+// publication : une ligne par tentative de synchronisation, jamais mise à
+// jour ni dédupliquée, pour permettre les timelines et les deltas
+// période-sur-période. Écrite uniquement par graph-api (raw SQL), même
+// répartition que SocialComment/CommentAnalysis : Prisma possède le DDL,
+// graph-api possède les écritures issues de Meta.
+//
+// null = Meta n'a pas renvoyé cette métrique pour cette tentative (permission
+// manquante, type d'objet non supporté, erreur transitoire) : l'écran affiche
+// « Non disponible » et ne doit jamais la traiter comme 0. 0 est une valeur
+// que Meta a explicitement renvoyée.
+model SocialMetric {
+  id                  String            @id @default(uuid()) @db.Uuid
+  publicationTargetId String            @map("publication_target_id") @db.Uuid
+  collectedAt         DateTime          @map("collected_at") @db.Timestamptz(6)
+  reactions           Int?
+  comments            Int?
+  shares              Int?
+  reach               Int?
+  impressions         Int?
+  publicationTarget   PublicationTarget @relation(fields: [publicationTargetId], references: [id], onDelete: Cascade)
+
+  @@index([publicationTargetId, collectedAt])
+  @@map("social_metrics")
 }
 
 model PublicationMedia {

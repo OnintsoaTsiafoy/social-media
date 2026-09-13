@@ -9,9 +9,11 @@ from db import (
     idempotency_repository,
     oauth_states_repository,
     oauth_tokens_repository,
+    publication_targets_repository,
     sent_responses_repository,
     social_accounts_repository,
     social_comments_repository,
+    social_metrics_repository,
     social_permissions_repository,
     webhook_events_repository,
 )
@@ -183,12 +185,18 @@ def fake_social_accounts_store(monkeypatch):
             if account["id"] == account_id:
                 account["last_comments_sync_at"] = "2026-01-01T00:00:00+00:00"
 
+    async def fake_mark_metrics_synced(account_id):
+        for account in store.values():
+            if account["id"] == account_id:
+                account["last_metrics_sync_at"] = "2026-01-01T00:00:00+00:00"
+
     monkeypatch.setattr(social_accounts_repository, "upsert_account", fake_upsert_account)
     monkeypatch.setattr(social_accounts_repository, "get_by_id", fake_get_by_id)
     monkeypatch.setattr(social_accounts_repository, "get_by_external_id", fake_get_by_external_id)
     monkeypatch.setattr(social_accounts_repository, "update_status", fake_update_status)
     monkeypatch.setattr(social_accounts_repository, "update_profile", fake_update_profile)
     monkeypatch.setattr(social_accounts_repository, "mark_comments_synced", fake_mark_comments_synced)
+    monkeypatch.setattr(social_accounts_repository, "mark_metrics_synced", fake_mark_metrics_synced)
     return store
 
 
@@ -375,6 +383,40 @@ def fake_sent_responses_store(monkeypatch):
     monkeypatch.setattr(sent_responses_repository, "mark_succeeded", fake_mark_succeeded)
     monkeypatch.setattr(sent_responses_repository, "mark_failed", fake_mark_failed)
     monkeypatch.setattr(sent_responses_repository, "get_by_comment_id", fake_get_by_comment_id)
+    return store
+
+
+@pytest.fixture(autouse=True)
+def fake_publication_targets_store(monkeypatch):
+    """In-memory fake for publication_targets (Sprint 12) — graph-api only
+    ever reads this table, to resolve the publication_target_id a metrics
+    snapshot must be filed under. Tests seed it directly by key; an
+    unseeded (social_account_id, external_publication_id) pair resolves to
+    None, exactly like a Meta id graph-api has never heard of locally."""
+    store: dict[tuple[str, str], str] = {}
+
+    async def fake_find_id_by_external_publication(social_account_id, external_publication_id):
+        return store.get((social_account_id, external_publication_id))
+
+    monkeypatch.setattr(
+        publication_targets_repository, "find_id_by_external_publication", fake_find_id_by_external_publication
+    )
+    return store
+
+
+@pytest.fixture(autouse=True)
+def fake_social_metrics_store(monkeypatch):
+    """In-memory fake for social_metrics (Sprint 12) — append-only, so this
+    is a list of every snapshot insert_snapshot was called with, not a dict
+    keyed for upsert."""
+    store: list[dict] = []
+
+    async def fake_insert_snapshot(**kwargs):
+        row = {"id": f"metric-{len(store) + 1}", **kwargs}
+        store.append(row)
+        return {"id": row["id"]}
+
+    monkeypatch.setattr(social_metrics_repository, "insert_snapshot", fake_insert_snapshot)
     return store
 
 

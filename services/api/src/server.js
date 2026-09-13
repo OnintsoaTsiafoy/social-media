@@ -1,9 +1,11 @@
 import express from 'express';
 import { fileURLToPath } from 'node:url';
 
+import { analyticsRouter } from './analytics/routes.js';
 import { authRouter } from './auth/routes.js';
 import { brandRouter } from './brands/routes.js';
 import { commentRouter } from './comments/routes.js';
+import { dashboardRouter } from './dashboard/routes.js';
 import { mediaRouter } from './media/routes.js';
 import { internalNotificationRouter } from './notifications/internal-routes.js';
 import { deviceTokenRouter, notificationRouter, notificationSettingsRouter } from './notifications/routes.js';
@@ -154,6 +156,42 @@ const openApiDocument = {
       get: { summary: 'Lire les préférences de notification (valeurs par défaut si aucune n’a encore été enregistrée)' },
       patch: { summary: 'Modifier les préférences de notification (crée la ligne au besoin)' },
     },
+    '/api/v1/analytics/sync': {
+      post: {
+        summary:
+          'Déclencher une synchronisation des métriques pour une marque (?brandId= dans le corps) — enqueue un job pg-boss, ne bloque jamais sur graph-api, 202 immédiat',
+      },
+    },
+    '/api/v1/analytics/summary': {
+      get: { summary: 'Totaux et deltas pour une marque (?brandId=, period=7d|30d|90d, network=all|facebook|instagram)' },
+    },
+    '/api/v1/analytics/timeline': {
+      get: { summary: 'Interactions par réseau, 4 semaines glissantes fixes (?brandId=, network) — ignore period' },
+    },
+    '/api/v1/analytics/top-publications': {
+      get: { summary: 'Publications les plus engageantes de la période (?brandId=, period, network, limit)' },
+    },
+    '/api/v1/analytics/networks-comparison': {
+      get: { summary: 'Mêmes totaux que /summary, ventilés par réseau (?brandId=, period, network)' },
+    },
+    '/api/v1/analytics/sentiments': {
+      get: { summary: 'Répartition des commentaires par sentiment sur la période (?brandId=, period, network)' },
+    },
+    '/api/v1/analytics/priorities': {
+      get: { summary: 'Répartition des commentaires par priorité sur la période (?brandId=, period, network)' },
+    },
+    '/api/v1/analytics/publications/{publicationId}': {
+      get: { summary: 'Détail analytics d’une publication (?brandId=) — métriques par réseau, sentiment/urgence des commentaires, réponses IA' },
+    },
+    '/api/v1/dashboard/summary': {
+      get: { summary: 'Compteurs agrégés pour l’écran d’accueil (?brandId=) — recompose comments/service.js::commentsCounts' },
+    },
+    '/api/v1/dashboard/priority-comments': {
+      get: { summary: 'Les 3 commentaires prioritaires non traités (?brandId=)' },
+    },
+    '/api/v1/dashboard/upcoming-publications': {
+      get: { summary: 'Les 3 prochaines publications planifiées (?brandId=)' },
+    },
   },
 };
 
@@ -204,6 +242,8 @@ app.use('/api/v1/response-suggestions', responseSuggestionRouter);
 app.use('/api/v1/notifications', notificationRouter);
 app.use('/api/v1/device-tokens', deviceTokenRouter);
 app.use('/api/v1/notification-settings', notificationSettingsRouter);
+app.use('/api/v1/analytics', analyticsRouter);
+app.use('/api/v1/dashboard', dashboardRouter);
 // Sprint 11 Jour 3 : seul point d'entrée /internal/v1 exposé par Express —
 // jusqu'ici l'API n'était qu'appelante de graph-api/ai-service, jamais
 // appelée (voir lib/serviceAuth.js).

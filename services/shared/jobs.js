@@ -8,6 +8,7 @@ export const QUEUES = {
   refreshExpiringTokens: 'refresh-expiring-oauth-tokens',
   syncSocialComments: 'sync-social-comments',
   analyzeSocialComments: 'analyze-social-comments',
+  syncSocialMetrics: 'sync-social-metrics',
 };
 
 export const ALL_QUEUES = Object.values(QUEUES);

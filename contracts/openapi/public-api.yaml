@@ -470,7 +470,7 @@ paths:
     parameters:
       - { name: socialAccountId, in: path, required: true, schema: { type: string, format: uuid } }
     post:
-      summary: Revalider la connexion auprès de Meta (pas de sync métriques avant le Sprint 12 — commentaires depuis le Sprint 08, voir /api/v1/comments/sync)
+      summary: Revalider la connexion auprès de Meta (commentaires depuis le Sprint 08, voir /api/v1/comments/sync ; métriques depuis le Sprint 12, voir /api/v1/analytics/sync)
       security: [{ bearerAuth: [] }]
       responses:
         '200': { $ref: '#/components/responses/Success' }
@@ -892,6 +892,173 @@ paths:
         '200': { $ref: '#/components/responses/Success' }
         '400': { $ref: '#/components/responses/ValidationFailed' }
         '401': { $ref: '#/components/responses/AuthenticationRequired' }
+  /api/v1/analytics/sync:
+    post:
+      summary: Déclencher une synchronisation des métriques pour une marque (Sprint 12)
+      description: >
+        Empile un job sur la même file que le cron du worker et répond 202
+        immédiatement — n'appelle jamais graph-api de façon synchrone, donc ne
+        peut jamais bloquer la requête ni être le déclencheur d'une
+        synchronisation lourde depuis un simple affichage. Déduplication
+        (fenêtre de 60s) par marque : un double clic ne fait pas partir deux
+        balayages (data.queued vaut false pour le second appel).
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [brandId], properties: { brandId: { type: string, format: uuid } } }
+      responses:
+        '202': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/analytics/summary:
+    get:
+      summary: Totaux et deltas pour une marque sur une période (Sprint 12)
+      description: >
+        null et 0 sont distincts : null signifie que Meta n'a pas renvoyé la
+        métrique pour le dernier relevé (permission manquante, erreur
+        transitoire), jamais coercé à zéro. engagementRate =
+        (reactions+comments+shares)/reach, null si reach est null ou 0.
+        unavailable liste les réseaux dont une permission de lecture des
+        métriques a été explicitement refusée — pas ceux simplement pas
+        encore synchronisés.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: brandId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: period, in: query, schema: { type: string, enum: [7d, 30d, 90d], default: 30d } }
+        - { name: network, in: query, schema: { type: string, enum: [facebook, instagram, all], default: all } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/analytics/timeline:
+    get:
+      summary: Interactions par réseau, 4 semaines glissantes fixes (Sprint 12)
+      description: >
+        Fenêtre fixée à 4 semaines glissantes quel que soit le contexte —
+        n'accepte pas de paramètre period, contrairement aux autres routes de
+        ce domaine, pour rester cohérente avec le titre statique affiché par
+        l'écran mobile. Un relevé null contribue pour 0 à une barre
+        hebdomadaire (somme sur plusieurs publications), contrairement à une
+        carte métrique individuelle.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: brandId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: network, in: query, schema: { type: string, enum: [facebook, instagram, all], default: all } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/analytics/top-publications:
+    get:
+      summary: Publications les plus engageantes de la période (Sprint 12)
+      description: Classées par (reactions+comments+shares) décroissant ; sérialisées comme n'importe quelle Publication (mêmes champs metrics/commentCount que /api/v1/publications).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: brandId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: period, in: query, schema: { type: string, enum: [7d, 30d, 90d], default: 30d } }
+        - { name: network, in: query, schema: { type: string, enum: [facebook, instagram, all], default: all } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 20, default: 5 } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/analytics/networks-comparison:
+    get:
+      summary: Mêmes totaux que /summary, ventilés par réseau (Sprint 12)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: brandId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: period, in: query, schema: { type: string, enum: [7d, 30d, 90d], default: 30d } }
+        - { name: network, in: query, schema: { type: string, enum: [facebook, instagram, all], default: all } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/analytics/sentiments:
+    get:
+      summary: Répartition des commentaires par sentiment sur la période (Sprint 12)
+      description: Compte uniquement la DERNIÈRE analyse de chaque commentaire (comme /api/v1/comments) — un commentaire jamais analysé n'est compté nulle part, jamais rangé par défaut dans « neutre ».
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: brandId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: period, in: query, schema: { type: string, enum: [7d, 30d, 90d], default: 30d } }
+        - { name: network, in: query, schema: { type: string, enum: [facebook, instagram, all], default: all } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/analytics/priorities:
+    get:
+      summary: Répartition des commentaires par priorité sur la période (Sprint 12)
+      description: Même règle que /api/v1/analytics/sentiments — dernière analyse uniquement.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: brandId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: period, in: query, schema: { type: string, enum: [7d, 30d, 90d], default: 30d } }
+        - { name: network, in: query, schema: { type: string, enum: [facebook, instagram, all], default: all } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/analytics/publications/{publicationId}:
+    parameters:
+      - { name: publicationId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Détail analytics d'une publication (Sprint 12)
+      description: >
+        404 (jamais 403) si la publication n'appartient pas à la marque
+        indiquée par ?brandId=, même convention que le reste de l'API.
+        unavailable ne liste que les réseaux dont la permission de lecture
+        des métriques a été explicitement refusée — pas ceux simplement pas
+        encore synchronisés.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: brandId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/dashboard/summary:
+    get:
+      summary: Compteurs agrégés pour l'écran d'accueil (Sprint 12)
+      description: Recompose comments/service.js::commentsCounts et un comptage de publications planifiées — aucune nouvelle requête d'agrégation.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: brandId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/dashboard/priority-comments:
+    get:
+      summary: Les 3 commentaires prioritaires non traités (Sprint 12)
+      description: Recompose comments/service.js::listComments(status=new, priority=high, sort=priority).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: brandId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/dashboard/upcoming-publications:
+    get:
+      summary: Les 3 prochaines publications planifiées (Sprint 12)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: brandId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
 components:
   securitySchemes:
     bearerAuth:

@@ -318,7 +318,8 @@ export type AnalyticsOverview = {
   interactions: AnalyticsBucket[];
   sentiment: SentimentBreakdown;
   topPublications: Publication[];
-  lastSyncAt: string;
+  /** `null` when nothing has ever been synced for this brand yet (Sprint 12) — same meaning as `PublicationMetrics.lastSyncAt`. */
+  lastSyncAt: string | null;
   /** Metrics a platform refused, surfaced to the user as an explanation. */
   unavailable: string[];
 };

@@ -12,7 +12,14 @@ from datetime import datetime, timezone
 
 from core.config import settings
 from core.exceptions import GraphAPIError
-from db import oauth_tokens_repository, sent_responses_repository, social_accounts_repository, social_comments_repository
+from db import (
+    oauth_tokens_repository,
+    publication_targets_repository,
+    sent_responses_repository,
+    social_accounts_repository,
+    social_comments_repository,
+    social_metrics_repository,
+)
 from modules.facebook.clients.facebook_client import facebook_client
 from modules.facebook.provider import FacebookProvider
 from modules.facebook.schemas.internal import (
@@ -242,7 +249,22 @@ async def reply_comment(body: CommentsReplyRequest) -> CommentsReplyResponse:
     )
 
 
+_EMPTY_INSIGHTS = {"reactions": None, "comments": None, "shares": None, "reach": None, "impressions": None}
+
+
 async def sync_metrics(body: MetricsSyncRequest) -> MetricsSyncResponse:
+    """Sprint 12 : complète l'endpoint (jusqu'ici lecture seule) pour qu'il
+    persiste ce qu'il relève, comme sync_comments le fait déjà pour les
+    commentaires — c'est le sens de « corriger graph-api au lieu de dupliquer
+    ses services » : le worker ne fait que choisir les candidats et appeler
+    cette route, il n'écrit jamais lui-même dans social_metrics.
+
+    Un post qui échoue (supprimé, permission retirée, erreur transitoire) ne
+    doit pas faire échouer les autres posts du même lot : FacebookProvider
+    laisse `get_post_analytics` propager une GraphAPIError inattendue
+    (post_analytics_service.py, appel non protégé sur le post lui-même,
+    distinct de son propre `/insights` déjà dégradé en None), donc c'est ici,
+    et seulement ici, qu'on l'attrape."""
     account, token = await _resolve_account_and_token(body.social_account_id)
     if account is not None:
         _require_matching_provider(account, body.provider)
@@ -255,13 +277,18 @@ async def sync_metrics(body: MetricsSyncRequest) -> MetricsSyncResponse:
 
     metrics: list[MetricItem] = []
     for external_publication_id in body.publication_external_ids:
-        insights = await provider.get_insights(
-            account=account, token=token, external_publication_id=external_publication_id
-        )
+        try:
+            insights = await provider.get_insights(
+                account=account, token=token, external_publication_id=external_publication_id
+            )
+        except GraphAPIError:
+            insights = _EMPTY_INSIGHTS
+
+        collected_at = datetime.now(timezone.utc)
         metrics.append(
             MetricItem(
                 external_publication_id=external_publication_id,
-                collected_at=datetime.now(timezone.utc).isoformat(),
+                collected_at=collected_at.isoformat(),
                 reactions=insights["reactions"],
                 comments=insights["comments"],
                 shares=insights["shares"],
@@ -269,4 +296,20 @@ async def sync_metrics(body: MetricsSyncRequest) -> MetricsSyncResponse:
                 impressions=insights["impressions"],
             )
         )
+
+        if account.get("id"):
+            target_id = await publication_targets_repository.find_id_by_external_publication(
+                account["id"], external_publication_id
+            )
+            # Identifiant Meta inconnu localement (post jamais publié par
+            # Hootly, ou target orpheline) : on renvoie quand même le relevé à
+            # l'appelant, mais rien à rattacher en base.
+            if target_id:
+                await social_metrics_repository.insert_snapshot(
+                    publication_target_id=target_id, collected_at=collected_at, **insights
+                )
+
+    if account.get("id"):
+        await social_accounts_repository.mark_metrics_synced(account["id"])
+
     return MetricsSyncResponse(metrics=metrics)

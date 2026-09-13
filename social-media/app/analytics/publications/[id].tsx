@@ -26,6 +26,7 @@ import {
 import { analyticsApi } from '@/data/api';
 import { useAsync } from '@/hooks/useAsync';
 import { excerpt, formatDateTime, formatMetric, formatPercent, formatRelative } from '@/lib/format';
+import { useSession } from '@/store/SessionProvider';
 import { palette, spacing } from '@/theme';
 
 /**
@@ -34,8 +35,9 @@ import { palette, spacing } from '@/theme';
 export default function PublicationAnalyticsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { brand } = useSession();
 
-  const request = useAsync(() => analyticsApi.forPublication(id), [id]);
+  const request = useAsync(() => analyticsApi.forPublication(brand?.id ?? '', id), [brand?.id, id]);
   const data = request.data;
   const publication = data?.publication;
   const status = publication ? publicationStatusMeta[publication.status] : undefined;

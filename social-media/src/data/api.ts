@@ -19,11 +19,14 @@ import {
 } from '@/lib/secureStorage';
 import type {
   AiResponse,
+  AnalyticsBucket,
   AnalyticsOverview,
+  AnalyticsTotals,
   AppNotification,
   Brand,
   Comment,
   CommentStatus,
+  DashboardSummary,
   HistoryEvent,
   Intent,
   Language,
@@ -34,6 +37,7 @@ import type {
   PublicationStatus,
   PublicationTarget,
   Sentiment,
+  SentimentBreakdown,
   Session,
   SocialAccount,
   SocialNetwork,
@@ -1294,74 +1298,86 @@ export const notificationsApi = {
 // ---------------------------------------------------------------------------
 
 export const dashboardApi = {
-  async summary() {
-    return request(() => ({
-      scheduledCount: store.publications.filter((p) => p.status === 'scheduled').length,
-      newCommentCount: store.comments.filter((c) => c.isNew).length,
-      highPriorityCount: store.comments.filter((c) => c.analysis?.priority === 'high').length,
-      pendingAiResponseCount: store.comments.filter((c) => c.response?.status === 'proposed').length,
-    }), 400);
+  async summary(brandId: string): Promise<DashboardSummary> {
+    return fetchApi<DashboardSummary>(`/api/v1/dashboard/summary?brandId=${encodeURIComponent(brandId)}`, {}, true);
   },
 
-  async priorityComments(): Promise<Comment[]> {
-    return request(() =>
-      clone(
-        store.comments
-          .filter((c) => c.analysis?.priority === 'high' && c.status !== 'processed' && c.status !== 'ignored')
-          .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
-          .slice(0, 3)
-      )
-    );
+  async priorityComments(brandId: string): Promise<Comment[]> {
+    return fetchApi<Comment[]>(`/api/v1/dashboard/priority-comments?brandId=${encodeURIComponent(brandId)}`, {}, true);
   },
 
-  async upcomingPublications(): Promise<Publication[]> {
-    return request(() =>
-      clone(
-        store.publications
-          .filter((p) => p.status === 'scheduled' && p.scheduledAt)
-          .sort((a, b) => (a.scheduledAt ?? '').localeCompare(b.scheduledAt ?? ''))
-          .slice(0, 3)
-      )
+  async upcomingPublications(brandId: string): Promise<Publication[]> {
+    const items = await fetchApi<RemotePublication[]>(
+      `/api/v1/dashboard/upcoming-publications?brandId=${encodeURIComponent(brandId)}`,
+      {},
+      true
     );
+    return items.map(fromRemotePublication);
   },
 };
 
+type PublicationAnalytics = {
+  publication: Publication;
+  perNetwork: { network: SocialNetwork; reactions: number | null }[];
+  sentiment: SentimentBreakdown;
+  urgent: number;
+  responsesGenerated: number;
+  responsesSent: number;
+  unavailable: string[];
+};
+
 export const analyticsApi = {
-  async overview(_period: '7d' | '30d' | '90d' = '30d'): Promise<AnalyticsOverview> {
-    return request(() => {
-      const top = [...store.publications]
-        .filter((p) => p.metrics.engagementRate !== null)
-        .sort((a, b) => (b.metrics.engagementRate ?? 0) - (a.metrics.engagementRate ?? 0))
-        .slice(0, 3);
-      return clone({ ...store.analytics, topPublications: top });
-    }, 800);
+  /** Composeur côté client : les quatre routes /analytics/* (Sprint 12) sont
+   * indépendantes côté serveur (jamais de synchronisation lourde déclenchée
+   * par une lecture), assemblées ici dans la forme AnalyticsOverview que
+   * l'écran attend déjà — reconstituer l'écran autour de 4 appels séparés
+   * aurait été une réécriture, pas un branchement. `timeline` ignore
+   * volontairement `period` : sa fenêtre est fixée à 4 semaines glissantes
+   * côté serveur, cohérente avec le titre statique affiché par l'écran. */
+  async overview(brandId: string, period: '7d' | '30d' | '90d' = '30d', network: SocialNetwork | 'all' = 'all'): Promise<AnalyticsOverview> {
+    const query = new URLSearchParams({ brandId, period, network });
+    const [summary, timeline, topPublications, sentiments] = await Promise.all([
+      fetchApi<{ totals: AnalyticsTotals; lastSyncAt: string | null; unavailable: string[] }>(
+        `/api/v1/analytics/summary?${query.toString()}`,
+        {},
+        true
+      ),
+      fetchApi<{ interactions: AnalyticsBucket[] }>(
+        `/api/v1/analytics/timeline?brandId=${encodeURIComponent(brandId)}&network=${network}`,
+        {},
+        true
+      ),
+      fetchApi<{ topPublications: RemotePublication[] }>(`/api/v1/analytics/top-publications?${query.toString()}`, {}, true),
+      fetchApi<{ sentiment: SentimentBreakdown }>(`/api/v1/analytics/sentiments?${query.toString()}`, {}, true),
+    ]);
+
+    return {
+      totals: summary.totals,
+      interactions: timeline.interactions,
+      sentiment: sentiments.sentiment,
+      topPublications: topPublications.topPublications.map(fromRemotePublication),
+      lastSyncAt: summary.lastSyncAt,
+      unavailable: summary.unavailable,
+    };
   },
 
-  async forPublication(id: string) {
-    return request(() => {
-      const publication = store.publications.find((p) => p.id === id);
-      if (!publication) throw new ApiError('not_found', errorMessages.not_found);
-      const related = store.comments.filter((c) => c.publicationId === id);
-      return clone({
-        publication,
-        perNetwork: publication.targets.map((target) => ({
-          network: target.network,
-          reactions:
-            target.status === 'sent'
-              ? Math.round((publication.metrics.reactions ?? 0) * (target.network === 'facebook' ? 0.67 : 0.33))
-              : null,
-        })),
-        sentiment: {
-          positive: related.filter((c) => c.analysis?.sentiment === 'positive').length,
-          neutral: related.filter((c) => c.analysis?.sentiment === 'neutral').length,
-          negative: related.filter((c) => c.analysis?.sentiment === 'negative').length,
-        },
-        urgent: related.filter((c) => c.analysis?.urgent).length,
-        responsesGenerated: related.filter((c) => c.response).length,
-        responsesSent: related.filter((c) => c.response?.status === 'sent').length,
-        unavailable:
-          publication.metrics.impressions === null ? ['Impressions Instagram'] : ([] as string[]),
-      });
-    }, 800);
+  async forPublication(brandId: string, id: string): Promise<PublicationAnalytics> {
+    const data = await fetchApi<Omit<PublicationAnalytics, 'publication'> & { publication: RemotePublication }>(
+      `/api/v1/analytics/publications/${encodeURIComponent(id)}?brandId=${encodeURIComponent(brandId)}`,
+      {},
+      true
+    );
+    return { ...data, publication: fromRemotePublication(data.publication) };
+  },
+
+  /** Déclenche à la demande le même balayage que le cron du worker (Sprint
+   * 12) — jamais appelé automatiquement par le dashboard ou l'écran
+   * analytics, seulement par une action explicite (pull-to-refresh, bouton). */
+  async sync(brandId: string): Promise<{ queued: boolean }> {
+    return fetchApi<{ queued: boolean }>(
+      '/api/v1/analytics/sync',
+      { method: 'POST', body: JSON.stringify({ brandId }) },
+      true
+    );
   },
 };

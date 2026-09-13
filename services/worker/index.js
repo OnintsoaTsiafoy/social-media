@@ -18,8 +18,9 @@ import { createCommentSync } from './src/comment-sync.js';
 import { createMediaCleanup } from './src/cleanup-media.js';
 import { createDeliveryService } from './src/delivery.js';
 import { closePool, query } from './src/db.js';
+import { createMetricsSync } from './src/metrics-sync.js';
 import { defaultNotifyUser } from './src/notifications-client.js';
-import { defaultRefreshToken, defaultSyncComments } from './src/social-account-client.js';
+import { defaultRefreshToken, defaultSyncComments, defaultSyncMetrics } from './src/social-account-client.js';
 import { createSocialHttpProvider } from './src/social-http-provider.js';
 import { deleteObject, isStorageConfigured, signedReadUrl } from './src/storage.js';
 import { createTokenRefresh } from './src/token-refresh.js';
@@ -68,6 +69,7 @@ async function startBoss() {
   const mediaCleanup = createMediaCleanup({ query, deleteObject });
   const tokenRefresh = createTokenRefresh({ query, refreshToken: defaultRefreshToken, notifyUser: defaultNotifyUser });
   const commentSync = createCommentSync({ query, syncComments: defaultSyncComments });
+  const metricsSync = createMetricsSync({ query, syncMetrics: defaultSyncMetrics });
   const commentAnalysis = createCommentAnalysis({
     query,
     analyseComment: defaultAnalyseComment,
@@ -139,6 +141,21 @@ async function startBoss() {
   // synchronisation de secours. Le balayage est sans effet quand il n'y a rien
   // à analyser (une requête indexée qui ne rend aucune ligne).
   await boss.schedule(QUEUES.analyzeSocialComments, '*/5 * * * *', {});
+
+  await boss.work(QUEUES.syncSocialMetrics, async (jobs) => {
+    for (const job of jobs) {
+      const result = await metricsSync.run(job.data ?? {});
+      console.log({ scope: 'metrics-sync', ...result });
+    }
+  });
+
+  // Sprint 12 Jour 2 : plus lent que les commentaires (*/15) car chaque
+  // exécution coûte un appel Graph API séquentiel par post relevé côté
+  // graph-api — 30 minutes borne ce coût tout en gardant les métriques
+  // raisonnablement fraîches. Une exécution à la demande (POST
+  // /api/v1/analytics/sync) envoie sur la même file, clé singleton par
+  // marque — voir services/api/src/lib/jobs.js::enqueueMetricsSync.
+  await boss.schedule(QUEUES.syncSocialMetrics, '*/30 * * * *', {});
 
   state.boss = boss;
   state.queues = ALL_QUEUES;

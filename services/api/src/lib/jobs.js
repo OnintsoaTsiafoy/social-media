@@ -44,7 +44,11 @@ export async function getBoss() {
 async function send(queue, data, options = {}, sendAt) {
   try {
     const boss = await getBoss();
-    const jobOptions = { singletonKey: singletonKeyFor(data.publicationId), ...options };
+    // Sprint 12 : les jobs sans publicationId (ex. metrics-sync, keyé par
+    // marque) passent leur propre singletonKey plutôt que de laisser
+    // singletonKeyFor produire `publication:undefined`, qui collisionnerait
+    // entre toutes les marques.
+    const jobOptions = { singletonKey: options.singletonKey ?? singletonKeyFor(data.publicationId), ...options };
     return sendAt
       ? await boss.sendAfter(queue, data, jobOptions, sendAt)
       : await boss.send(queue, data, jobOptions);
@@ -79,6 +83,34 @@ export function enqueueRetry({ publicationId, requestedBy, providers, attempt, d
     { publicationId, requestedBy, providers, attempt },
     { retryLimit: 0 },
     new Date(Date.now() + delaySeconds * 1000)
+  );
+}
+
+/**
+ * Sprint 12 : déclenchement à la demande de la synchronisation des métriques
+ * (POST /api/v1/analytics/sync), sur la même file que la reprise
+ * périodique du worker (voir services/worker/index.js).
+ *
+ * `singletonKey` seul ne suffit pas à dédupliquer ici : sans
+ * `singletonSeconds`, pg-boss 10 laisse `singleton_on` à `null`, et l'index
+ * partiel qui empêcherait deux jobs `created` avec la même clé ne s'applique
+ * qu'à ce cas précis (vérifié empiriquement — voir le job_i4 de
+ * pg-boss/src/plans.js) — les files `publishNow`/`retryFailed` de ce fichier
+ * ont ce même singletonKey « inerte », sans conséquence là-bas parce que les
+ * verrous applicatifs réels (statut PUBLISHING, claim par cible) empêchent
+ * déjà un double envoi. Un balayage métriques n'a pas d'équivalent : deux
+ * exécutions concurrentes ne corrompraient rien mais dupliqueraient l'appel
+ * Graph API pour rien, donc `singletonSeconds` est ajouté ici pour que la
+ * fenêtre de déduplication soit réelle plutôt qu'un simple champ ignoré.
+ *
+ * @returns {Promise<string|null>} identifiant du job, ou `null` si un
+ *   balayage a déjà été demandé pour cette marque dans la même fenêtre.
+ */
+export function enqueueMetricsSync({ brandId, requestedBy }) {
+  return send(
+    QUEUES.syncSocialMetrics,
+    { brandId, requestedBy },
+    { singletonKey: `metrics-sync:${brandId}`, singletonSeconds: 60, retryLimit: 0 }
   );
 }
 

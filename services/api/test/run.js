@@ -12,3 +12,5 @@ await import('./response-suggestions.test.js');
 await import('./notifications.test.js');
 await import('./notification-push.test.js');
 await import('./service-auth.test.js');
+await import('./analytics.test.js');
+await import('./socialMetrics.test.js');

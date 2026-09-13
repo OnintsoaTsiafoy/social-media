@@ -43,3 +43,26 @@ export async function defaultSyncComments(socialAccountId, provider, publication
   }
   return response.json();
 }
+
+// Sprint 12 — graph-api resolves each publication_target_id and persists a
+// social_metrics snapshot as it collects each post's insights (see
+// internal_service.py::sync_metrics); this call's only job is to ask it to
+// do that for one account.
+export async function defaultSyncMetrics(socialAccountId, provider, publicationExternalIds) {
+  const token = mintServiceJwt(['social:read']);
+  const response = await fetch(`${baseUrl()}/internal/v1/metrics/sync`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      socialAccountId,
+      provider,
+      publicationExternalIds,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.error?.code ?? `metrics_sync_failed_${response.status}`);
+  }
+  return response.json();
+}

@@ -5,13 +5,15 @@ import {
   canSchedule,
   computePublicationStatus,
 } from '../../../shared/publication-status.js';
+import { commentStatsForPublications } from '../comments/service.js';
 import { prisma } from '../db/prisma.js';
 import { writeAuditLog } from '../lib/audit.js';
 import { HttpError } from '../lib/http.js';
 import { QUEUES, cancelJob, enqueuePublishNow, enqueueRetry, enqueueScheduledPublish } from '../lib/jobs.js';
+import { aggregateSnapshots, latestMetricsByTarget } from '../lib/socialMetrics.js';
 import { attachMediaToPublication, detachMediaFromPublication, toPublicMedia } from '../media/service.js';
 
-const publicationInclude = {
+export const publicationInclude = {
   brand: { select: { id: true, name: true } },
   createdBy: { select: { displayName: true, firstName: true, lastName: true } },
   targets: {
@@ -26,19 +28,31 @@ function asStringList(value) {
   return Array.isArray(value) ? value.filter((item) => typeof item === 'string') : [];
 }
 
-/** Métriques et compteurs de commentaires : Sprints 12 et 08. */
-const emptyMetrics = {
-  reactions: null,
-  comments: null,
-  shares: null,
-  reach: null,
-  impressions: null,
-  engagementRate: null,
-  lastSyncAt: null,
-};
+// Sprint 12 : metrics/commentCount ne sont plus des placeholders. Batché sur
+// toute une liste (pas un aller-retour par publication) — voir
+// latestMetricsByTarget/commentStatsForPublications, tous deux déjà pensés
+// pour prendre une liste d'identifiants en une seule requête. Les appels
+// list/calendar ci-dessous, qui rendent jusqu'à 500 publications, feraient
+// sinon un N+1 sur social_metrics ET social_comments à chaque appel.
+export async function toPublicPublications(records) {
+  const targetIds = records.flatMap((record) => record.targets.map((target) => target.id));
+  const publicationIds = records.map((record) => record.id);
+  const [metricsByTarget, commentStats] = await Promise.all([
+    latestMetricsByTarget(targetIds),
+    commentStatsForPublications(publicationIds),
+  ]);
+  return Promise.all(records.map((record) => buildPublicPublication(record, metricsByTarget, commentStats)));
+}
 
 export async function toPublicPublication(record) {
+  const [result] = await toPublicPublications([record]);
+  return result;
+}
+
+async function buildPublicPublication(record, metricsByTarget, commentStats) {
   const media = await Promise.all(record.media.map((link) => toPublicMedia(link.media)));
+  const aggregate = aggregateSnapshots(record.targets.map((target) => metricsByTarget.get(target.id) ?? null));
+  const stats = commentStats.get(record.id) ?? { total: 0, negative: 0, urgent: 0 };
 
   return {
     id: record.id,
@@ -77,10 +91,18 @@ export async function toPublicPublication(record) {
           status: record.schedule.status.toLowerCase(),
         }
       : null,
-    metrics: { ...emptyMetrics },
-    commentCount: 0,
-    negativeCommentCount: 0,
-    urgentCommentCount: 0,
+    metrics: {
+      reactions: aggregate.reactions,
+      comments: aggregate.comments,
+      shares: aggregate.shares,
+      reach: aggregate.reach,
+      impressions: aggregate.impressions,
+      engagementRate: aggregate.engagementRate,
+      lastSyncAt: aggregate.lastSyncedAt,
+    },
+    commentCount: stats.total,
+    negativeCommentCount: stats.negative,
+    urgentCommentCount: stats.urgent,
   };
 }
 
@@ -199,7 +221,7 @@ export async function listPublications(userId, filters) {
   ]);
 
   return {
-    items: await Promise.all(records.map(toPublicPublication)),
+    items: await toPublicPublications(records),
     page: filters.page,
     pageSize: filters.pageSize,
     total,
@@ -242,7 +264,7 @@ export async function calendar(userId, filters) {
     take: 500,
   });
 
-  return { from: filters.from, to: filters.to, items: await Promise.all(records.map(toPublicPublication)) };
+  return { from: filters.from, to: filters.to, items: await toPublicPublications(records) };
 }
 
 export async function getPublication(publicationId) {

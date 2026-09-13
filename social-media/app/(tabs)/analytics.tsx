@@ -24,6 +24,7 @@ import {
 import { analyticsApi } from '@/data/api';
 import { useAsync } from '@/hooks/useAsync';
 import { formatDelta, formatMetric, formatPercent, formatRelative } from '@/lib/format';
+import { useSession } from '@/store/SessionProvider';
 import { palette, spacing, useResponsive } from '@/theme';
 import type { SocialNetwork } from '@/types';
 
@@ -38,11 +39,12 @@ type Period = '7d' | '30d' | '90d';
 export default function AnalyticsScreen() {
   const router = useRouter();
   const { gutter } = useResponsive();
+  const { brand } = useSession();
 
   const [period, setPeriod] = useState<Period>('30d');
   const [network, setNetwork] = useState<SocialNetwork | 'all'>('all');
 
-  const request = useAsync(() => analyticsApi.overview(period), [period]);
+  const request = useAsync(() => analyticsApi.overview(brand?.id ?? '', period, network), [period, network]);
   const overview = request.data;
   const totals = overview?.totals;
 
@@ -216,8 +218,8 @@ export default function AnalyticsScreen() {
           ) : null}
 
           <Text variant="micro" color={palette.inkDisabled}>
-            Dernière synchronisation : {formatRelative(overview.lastSyncAt)} · « Non disponible » =
-            métrique non fournie par la plateforme.
+            {overview.lastSyncAt ? `Dernière synchronisation : ${formatRelative(overview.lastSyncAt)} · ` : 'Statistiques pas encore synchronisées. '}
+            « Non disponible » = métrique non fournie par la plateforme.
           </Text>
         </>
       ) : null}
