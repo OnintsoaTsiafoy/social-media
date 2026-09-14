@@ -33,6 +33,17 @@ function sumNonNull(snapshots, key) {
 }
 
 /**
+ * Même règle null-vs-zéro que `aggregateSnapshots` pour le seul numérateur
+ * (reactions + comments + shares) — exposé séparément pour les appelants
+ * (analytics/bestTimes.js) qui ont besoin des interactions sans vouloir
+ * recalculer engagementRate.
+ */
+export function sumInteractions({ reactions, comments, shares }) {
+  if ([reactions, comments, shares].every((value) => value === null || value === undefined)) return null;
+  return (reactions ?? 0) + (comments ?? 0) + (shares ?? 0);
+}
+
+/**
  * Agrège une ou plusieurs cibles (relevés déjà résolus, potentiellement
  * `null` pour une cible jamais synchronisée) en un seul jeu de métriques.
  * `null` = aucune des cibles n'a de valeur pour cette métrique ; `0` = la

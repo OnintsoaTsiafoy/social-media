@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
+from api.routes.analytics_routes import router as analytics_router
 from api.routes.assistance_routes import router as assistance_router
 from api.routes.health import router as health_router
 from api.routes.internal_routes import router as internal_router
@@ -82,3 +83,4 @@ app.include_router(health_router)
 app.include_router(internal_router)
 app.include_router(assistance_router)
 app.include_router(knowledge_router)
+app.include_router(analytics_router)

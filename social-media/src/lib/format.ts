@@ -197,6 +197,25 @@ export function combineDateAndTime(date: Date, time: string, timezone: string): 
   return new Date(asUtc - timezoneOffsetMinutes(timezone, new Date(rough)) * 60_000).toISOString();
 }
 
+/**
+ * Next calendar date (device-local Y/M/D, as `CalendarMonth`/`selected` use)
+ * whose weekday matches a best-time recommendation (0 = Monday … 6 = Sunday,
+ * same convention as `buildMonthGrid`). Picks today when `time` in `timezone`
+ * hasn't passed yet, otherwise the same weekday next week - a recommended
+ * slot is a recurring weekly pattern, not a single date.
+ */
+export function nextOccurrenceOfWeekday(weekday: number, time: string, timezone: string): Date {
+  const today = new Date();
+  const todayWeekday = (today.getDay() + 6) % 7;
+  const daysAhead = (weekday - todayWeekday + 7) % 7;
+  const candidate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + daysAhead);
+
+  if (daysAhead === 0 && new Date(combineDateAndTime(candidate, time, timezone)).getTime() <= Date.now()) {
+    candidate.setDate(candidate.getDate() + 7);
+  }
+  return candidate;
+}
+
 /** Calendar grid for a month, padded to whole Monday-first weeks. */
 export function buildMonthGrid(year: number, month: number): Date[] {
   const first = new Date(year, month, 1);

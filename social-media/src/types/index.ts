@@ -331,6 +331,41 @@ export type AnalyticsOverview = {
   unavailable: string[];
 };
 
+export type BestTimeConfidence = 'low' | 'medium' | 'high';
+
+/** One weekday × time-slot recommendation from `GET /analytics/best-times`. */
+export type BestTimeSlot = {
+  /** 0 = Monday … 6 = Sunday, same convention as `buildMonthGrid`. */
+  weekday: number;
+  weekdayLabel: string;
+  slotStartHour: number;
+  slotEndHour: number;
+  slotLabel: string;
+  score: number;
+  confidence: BestTimeConfidence;
+  sampleSize: number;
+  metrics: { avgEngagementRate: number; avgReach: number; avgInteractions: number };
+  /** `null` when there is no comparable average across the analysed slots. */
+  deltaVsAveragePercent: number | null;
+};
+
+export type BestTimesResult = {
+  status: 'ok' | 'insufficient_data';
+  network: SocialNetwork;
+  period: '7d' | '30d' | '90d';
+  timezone: string;
+  analyzedCount: number;
+  minimumRequired: number;
+  best: BestTimeSlot | null;
+  alternatives: BestTimeSlot[];
+};
+
+export type BestTimeExplanation = {
+  text: string;
+  generator: string;
+  generatedAt: string;
+};
+
 export type NotificationPreferences = {
   negativeComment: boolean;
   urgentComment: boolean;

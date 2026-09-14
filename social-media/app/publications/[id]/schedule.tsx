@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { CalendarMonth } from '@/components/domain/CalendarMonth';
 import { networksLabel } from '@/components/domain/PublicationCard';
+import { RecommendedTimesCard } from '@/components/domain/RecommendedTimes';
 import {
   AppHeader,
   Button,
@@ -63,6 +64,9 @@ export default function SchedulePublicationScreen() {
   const inPast = new Date(scheduledIso).getTime() <= Date.now();
 
   const blockedAccount = publication?.targets.length === 0;
+  // Une par réseau ciblé : le classement backend sépare toujours Facebook et
+  // Instagram, jamais mélangés dans une même recommandation.
+  const recommendedNetworks = [...new Set((publication?.targets ?? []).map((target) => target.network))];
 
   const confirmSchedule = async () => {
     if (inPast) {
@@ -135,6 +139,20 @@ export default function SchedulePublicationScreen() {
               showLegend={false}
             />
           </Card>
+
+          {recommendedNetworks.map((network) => (
+            <RecommendedTimesCard
+              key={network}
+              brandId={publication.brandId}
+              network={network}
+              timezone={timezone}
+              onUseSlot={(date, nextTime) => {
+                setSelected(date);
+                setTime(nextTime);
+                setError(undefined);
+              }}
+            />
+          ))}
 
           <View style={styles.row}>
             <SelectField

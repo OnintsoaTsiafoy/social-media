@@ -1,8 +1,10 @@
 import { prisma } from '../db/prisma.js';
+import { callAiService } from '../lib/aiServiceClient.js';
 import { HttpError } from '../lib/http.js';
 import { enqueueMetricsSync } from '../lib/jobs.js';
-import { aggregateSnapshots, latestMetricsByTarget } from '../lib/socialMetrics.js';
+import { aggregateSnapshots, latestMetricsByTarget, sumInteractions } from '../lib/socialMetrics.js';
 import { publicationInclude, toPublicPublications } from '../publications/service.js';
+import { computeBestTimes, resolveWeekdayHour } from './bestTimes.js';
 
 const PERIOD_DAYS = { '7d': 7, '30d': 30, '90d': 90 };
 
@@ -336,4 +338,63 @@ export async function analyticsPriorities({ brandId, period, network }) {
 export async function syncBrandMetrics({ brandId, requestedBy }) {
   const jobId = await enqueueMetricsSync({ brandId, requestedBy });
   return { queued: jobId !== null };
+}
+
+// Recommandation du meilleur horaire (sprint_listing/PLUS/
+// TODO_RECOMMANDATION_MEILLEUR_HORAIRE.md). `network` est déjà restreint à
+// facebook/instagram par bestTimesQuerySchema — publicationsInScope gère donc
+// toujours la branche "un seul réseau", jamais `all`.
+export async function analyticsBestTimes({ brandId, network, period, timezone }) {
+  const range = periodRange(period);
+  const publications = await publicationsInScope({ brandId, network, ...range });
+  const targetIds = publications.flatMap((publication) => publication.targets.map((target) => target.id));
+  const metricsByTarget = await latestMetricsByTarget(targetIds);
+
+  const rows = [];
+  for (const publication of publications) {
+    const { weekday, hour } = resolveWeekdayHour(publication.publishedAt, timezone);
+    for (const target of publication.targets) {
+      const snapshot = metricsByTarget.get(target.id) ?? null;
+      const aggregate = aggregateSnapshots([snapshot]);
+      rows.push({
+        weekday,
+        hour,
+        engagementRate: aggregate.engagementRate,
+        reach: aggregate.reach,
+        interactions: sumInteractions(aggregate),
+      });
+    }
+  }
+
+  return { network, period, timezone, ...computeBestTimes(rows) };
+}
+
+const BEST_TIMES_INSUFFICIENT_DATA_TEXT =
+  'Pas assez de publications publiées avec des statistiques suffisantes sur cette période pour ' +
+  'proposer un horaire recommandé. Publiez régulièrement puis réessayez une fois les statistiques disponibles.';
+
+// Les chiffres viennent toujours de `analyticsBestTimes`, jamais du client
+// (voir routes.js : /best-times/explain recalcule les faits côté serveur à
+// partir des mêmes paramètres plutôt que de faire confiance à un payload
+// envoyé par le mobile) — c'est ce qui permet à ai-service de promettre de ne
+// jamais inventer un chiffre absent de ce qu'on lui envoie.
+export async function explainBestTimes({ brandId, network, period, timezone }) {
+  const facts = await analyticsBestTimes({ brandId, network, period, timezone });
+
+  if (facts.status === 'insufficient_data') {
+    return { text: BEST_TIMES_INSUFFICIENT_DATA_TEXT, generator: 'insufficient-data', generatedAt: new Date().toISOString() };
+  }
+
+  const result = await callAiService('/internal/v1/analytics/best-times/explain', {
+    scope: 'ai:generate',
+    body: {
+      network: facts.network,
+      period: facts.period,
+      analyzedCount: facts.analyzedCount,
+      best: facts.best,
+      alternatives: facts.alternatives,
+    },
+  });
+
+  return { text: result.text, generator: result.generator, generatedAt: new Date().toISOString() };
 }

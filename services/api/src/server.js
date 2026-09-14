@@ -216,6 +216,18 @@ const openApiDocument = {
     '/api/v1/analytics/publications/{publicationId}': {
       get: { summary: 'Détail analytics d’une publication (?brandId=) — métriques par réseau, sentiment/urgence des commentaires, réponses IA' },
     },
+    '/api/v1/analytics/best-times': {
+      get: {
+        summary:
+          'Les 3 meilleurs créneaux jour/tranche horaire pour publier, un réseau à la fois (?brandId=, network=facebook|instagram, period, timezone) — score, niveau de confiance, échantillon',
+      },
+    },
+    '/api/v1/analytics/best-times/explain': {
+      post: {
+        summary:
+          'Explication IA courte du meilleur créneau (mêmes paramètres que /best-times, dans le corps) — faits recalculés côté serveur, jamais fournis par le client',
+      },
+    },
     '/api/v1/dashboard/summary': {
       get: { summary: 'Compteurs agrégés pour l’écran d’accueil (?brandId=) — recompose comments/service.js::commentsCounts' },
     },

@@ -25,3 +25,18 @@ export const topPublicationsQuerySchema = analyticsQuerySchema.extend({
 });
 
 export const publicationAnalyticsQuerySchema = z.object({ brandId: z.uuid() });
+
+// `network` est ici obligatoire et exclut `all`, contrairement à
+// networkFilterSchema : le TODO du meilleur horaire demande de séparer
+// Facebook et Instagram (des habitudes de publication différentes), jamais de
+// les mélanger dans un même classement de créneaux.
+export const bestTimesNetworkSchema = z.enum(NETWORKS);
+
+export const bestTimesQuerySchema = z.object({
+  brandId: z.uuid(),
+  network: bestTimesNetworkSchema,
+  period: periodSchema,
+  // Fuseau explicite demandé par le TODO (endpoint section) : Brand n'a pas
+  // de colonne timezone, donc l'appelant le précise plutôt que de le déduire.
+  timezone: z.string().min(1).max(64).default('Europe/Paris'),
+});

@@ -25,6 +25,7 @@ Les scripts détectent automatiquement Docker ou Podman. Le conteneur API appliq
 
 ## Documentation
 
+- [Documentation complète des fonctionnalités](docs/FONCTIONNALITES.md)
 - [Inventaire réel](docs/INVENTAIRE_ETAT_REEL.md)
 - [Décisions d'architecture](docs/DECISIONS_ARCHITECTURE.md)
 - [Contrats API](docs/CONTRATS_API.md)

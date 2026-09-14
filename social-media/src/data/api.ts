@@ -22,6 +22,8 @@ import type {
   AnalyticsOverview,
   AnalyticsTotals,
   AppNotification,
+  BestTimeExplanation,
+  BestTimesResult,
   Brand,
   Comment,
   CommentStatus,
@@ -145,6 +147,7 @@ function errorFromResponse(status: number, payload: unknown): ApiError {
   if (code === 'email_taken') return new ApiError('email_taken', message);
   if (code === 'token_expired') return new ApiError('token_expired', message);
   if (code === 'version_conflict') return new ApiError('conflict', message);
+  if (code === 'ai_unavailable') return new ApiError('ai_unavailable', message);
   if (code === 'rate_limited' || status === 429) return new ApiError('too_many_attempts', message);
   if (status === 401 || code === 'authentication_required') return new ApiError('unauthorized', message);
   if (status === 404) return new ApiError('not_found', message);
@@ -1417,6 +1420,34 @@ export const analyticsApi = {
     return fetchApi<{ queued: boolean }>(
       '/api/v1/analytics/sync',
       { method: 'POST', body: JSON.stringify({ brandId }) },
+      true
+    );
+  },
+
+  /** Recommandation du meilleur horaire (TODO_RECOMMANDATION_MEILLEUR_HORAIRE) —
+   * un réseau à la fois, jamais `'all'` : le classement sépare toujours
+   * Facebook et Instagram côté serveur. */
+  async bestTimes(
+    brandId: string,
+    network: SocialNetwork,
+    period: '7d' | '30d' | '90d' = '30d',
+    timezone?: string
+  ): Promise<BestTimesResult> {
+    const query = new URLSearchParams({ brandId, network, period, ...(timezone ? { timezone } : {}) });
+    return fetchApi<BestTimesResult>(`/api/v1/analytics/best-times?${query.toString()}`, {}, true);
+  },
+
+  /** Explication IA du créneau recommandé — les chiffres sont recalculés côté
+   * serveur à partir des mêmes paramètres, jamais renvoyés par le mobile. */
+  async explainBestTimes(
+    brandId: string,
+    network: SocialNetwork,
+    period: '7d' | '30d' | '90d' = '30d',
+    timezone?: string
+  ): Promise<BestTimeExplanation> {
+    return fetchApi<BestTimeExplanation>(
+      '/api/v1/analytics/best-times/explain',
+      { method: 'POST', body: JSON.stringify({ brandId, network, period, ...(timezone ? { timezone } : {}) }) },
       true
     );
   },

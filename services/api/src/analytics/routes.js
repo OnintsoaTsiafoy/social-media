@@ -5,18 +5,21 @@ import { requireBrandAccess } from '../brands/middleware.js';
 import { HttpError, sendSuccess } from '../lib/http.js';
 import {
   analyticsQuerySchema,
+  bestTimesQuerySchema,
   publicationAnalyticsQuerySchema,
   syncAnalyticsSchema,
   timelineQuerySchema,
   topPublicationsQuerySchema,
 } from './schemas.js';
 import {
+  analyticsBestTimes,
   analyticsNetworksComparison,
   analyticsPriorities,
   analyticsSentiments,
   analyticsSummary,
   analyticsTimeline,
   analyticsTopPublications,
+  explainBestTimes,
   publicationAnalytics,
   syncBrandMetrics,
 } from './service.js';
@@ -114,6 +117,28 @@ router.get(
   requireBrandAccess(),
   async (request, response) => {
     sendSuccess(response, await publicationAnalytics(request.params.publicationId, request.brandId));
+  }
+);
+
+router.get('/best-times', withBrandQuery(bestTimesQuerySchema), requireBrandAccess(), async (request, response) => {
+  const { brandId, network, period, timezone } = parse(bestTimesQuerySchema, request.query);
+  sendSuccess(response, await analyticsBestTimes({ brandId, network, period, timezone }));
+});
+
+router.post(
+  '/best-times/explain',
+  (request, _response, next) => {
+    try {
+      request.brandId = parse(bestTimesQuerySchema, request.body).brandId;
+      next();
+    } catch (error) {
+      next(error);
+    }
+  },
+  requireBrandAccess(),
+  async (request, response) => {
+    const { brandId, network, period, timezone } = parse(bestTimesQuerySchema, request.body);
+    sendSuccess(response, await explainBestTimes({ brandId, network, period, timezone }));
   }
 );
 
