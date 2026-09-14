@@ -80,7 +80,7 @@ npm --prefix social-media run typecheck
 npm --prefix social-media run lint
 docker compose run --rm --no-deps -e RAG_INTEGRATION=1 -v "${PWD}/services/api/test:/app/services/api/test:ro" api node --test test/rag.integration.test.js
 docker compose run --rm --no-deps -v "${PWD}/services/api/test:/app/services/api/test:ro" api node test/rag.live-smoke.js
-docker compose run --rm --no-deps -e RAG_EMBEDDING_TEST=1 ai-service python -m pytest -q tests -p no:cacheprovider
+docker compose run --rm --no-deps -e RAG_EMBEDDING_TEST=1 -v "${PWD}/services/ai-service/tests:/app/tests:ro" ai-service python -m pytest -q tests -p no:cacheprovider
 docker compose run --rm --no-deps -v "${PWD}/services/ai-service:/app" ai-service python -m evaluation.compare --local
 ```
 
