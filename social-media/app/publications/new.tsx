@@ -22,7 +22,7 @@ import { spacing } from '@/theme';
 /**
  * ÉCRAN 08 - Création d’une publication (`/publications/new`)
  *
- * Three exits: save as draft, publish now, or schedule. Leaving with unsaved
+ * Save the draft, then choose a reviewer on its detail screen. Leaving with unsaved
  * changes always asks first.
  */
 export default function NewPublicationScreen() {
@@ -43,7 +43,7 @@ export default function NewPublicationScreen() {
   const clearError = (key: keyof ComposerErrors) =>
     setErrors((current) => ({ ...current, [key]: undefined }));
 
-  const validate = (mode: 'draft' | 'publish' | 'schedule'): boolean => {
+  const validate = (mode: 'draft' | 'approval'): boolean => {
     const next: ComposerErrors = {
       text: draft.text.trim() ? undefined : messages.textRequired,
       networks: mode === 'draft' || draft.networks.length > 0 ? undefined : messages.networkRequired,
@@ -56,19 +56,8 @@ export default function NewPublicationScreen() {
     return !next.text && !next.networks && !next.media;
   };
 
-  const submit = async (mode: 'draft' | 'publish' | 'schedule') => {
+  const submit = async (mode: 'draft' | 'approval') => {
     if (!validate(mode)) return;
-
-    if (mode === 'publish') {
-      const confirmed = await confirm({
-        title: 'Publier maintenant ?',
-        message: `La publication sera envoyée immédiatement sur ${draft.networks.length} réseau${
-          draft.networks.length > 1 ? 'x' : ''
-        }.`,
-        confirmLabel: 'Publier',
-      });
-      if (!confirmed) return;
-    }
 
     const result = await mutation.run(() =>
       publicationsApi.create(
@@ -81,25 +70,15 @@ export default function NewPublicationScreen() {
           networks: draft.networks,
           perNetwork: draft.perNetworkEnabled ? draft.perNetwork : undefined,
         },
-        mode === 'schedule' ? 'draft' : mode
+        'draft'
       )
     );
     if (!result.ok) return;
 
     reset({ brandId: brand?.id ?? '' });
 
-    if (mode === 'draft') {
-      toast('La publication a été enregistrée comme brouillon.', 'success');
-      router.replace(`/publications/${result.data.id}`);
-      return;
-    }
-    if (mode === 'publish') {
-      toast('Envoi lancé. Actualisez pour suivre le résultat.', 'success');
-      router.replace(`/publications/${result.data.id}`);
-      return;
-    }
-    // Scheduling continues on the dedicated screen, which owns date validation.
-    router.replace(`/publications/${result.data.id}/schedule`);
+    toast('Brouillon enregistré. Vous pouvez demander une approbation.', 'success');
+    router.replace(`/publications/${result.data.id}`);
   };
 
   const handleBack = async () => {
@@ -138,18 +117,11 @@ export default function NewPublicationScreen() {
               disabled={mutation.pending}
               style={styles.footerButton}
             />
-            <Button
-              label="Planifier"
-              variant="accent"
-              size="sm"
-              onPress={() => submit('schedule')}
-              disabled={mutation.pending}
-              style={styles.footerButton}
-            />
+
           </View>
           <Button
-            label="Publier maintenant"
-            onPress={() => submit('publish')}
+            label="Continuer vers l’approbation"
+            onPress={() => submit('approval')}
             loading={mutation.pending}
             block
           />

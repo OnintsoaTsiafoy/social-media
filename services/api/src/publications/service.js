@@ -3,9 +3,11 @@ import {
   canEditContent,
   canPublish,
   canSchedule,
+  hasValidApproval,
   computePublicationStatus,
 } from '../../../shared/publication-status.js';
 import { commentStatsForPublications } from '../comments/service.js';
+import { approvalInclude, toPublicApproval, withPublicationLock } from './lock.js';
 import { prisma } from '../db/prisma.js';
 import { writeAuditLog } from '../lib/audit.js';
 import { HttpError } from '../lib/http.js';
@@ -22,6 +24,7 @@ export const publicationInclude = {
   },
   media: { include: { media: true }, orderBy: { position: 'asc' } },
   schedule: true,
+  approvals: { orderBy: [{ requestedAt: 'desc' }, { id: 'desc' }], take: 1, include: approvalInclude },
 };
 
 function asStringList(value) {
@@ -57,6 +60,9 @@ async function buildPublicPublication(record, metricsByTarget, commentStats) {
   return {
     id: record.id,
     brandId: record.brandId,
+    authorId: record.createdByUserId,
+    approval: record.approvals?.[0] ? toPublicApproval(record.approvals[0]) : null,
+    approvalValid: hasValidApproval(record),
     brandName: record.brand?.name ?? '',
     content: record.content,
     language: record.language,
@@ -106,8 +112,8 @@ async function buildPublicPublication(record, metricsByTarget, commentStats) {
   };
 }
 
-async function loadPublicPublication(publicationId) {
-  const record = await prisma.publication.findFirst({
+async function loadPublicPublication(publicationId, db = prisma) {
+  const record = await db.publication.findFirst({
     where: { id: publicationId, deletedAt: null },
     include: publicationInclude,
   });
@@ -122,9 +128,9 @@ async function loadPublicPublication(publicationId) {
 // account for that provider; with zero or several, it's left null (falls
 // back to the Sprint 05 legacy single-Page behavior in graph-api, or — once
 // a real picker exists — an explicit choice).
-async function resolveSocialAccountId(brandId, provider, explicitId) {
+async function resolveSocialAccountId(brandId, provider, explicitId, db = prisma) {
   if (explicitId) {
-    const account = await prisma.socialAccount.findFirst({
+    const account = await db.socialAccount.findFirst({
       where: { id: explicitId, brandId, provider: provider.toUpperCase() },
     });
     if (!account) {
@@ -133,18 +139,18 @@ async function resolveSocialAccountId(brandId, provider, explicitId) {
     return account.id;
   }
 
-  const candidates = await prisma.socialAccount.findMany({
+  const candidates = await db.socialAccount.findMany({
     where: { brandId, provider: provider.toUpperCase(), status: { in: ['CONNECTED', 'EXPIRING'] } },
     select: { id: true },
   });
   return candidates.length === 1 ? candidates[0].id : null;
 }
 
-async function targetData(brandId, target) {
+async function targetData(brandId, target, db = prisma) {
   const provider = target.provider.toUpperCase();
   return {
     provider,
-    socialAccountId: await resolveSocialAccountId(brandId, target.provider, target.socialAccountId),
+    socialAccountId: await resolveSocialAccountId(brandId, target.provider, target.socialAccountId, db),
     adaptedContent: target.adaptedContent ?? null,
     adaptedHashtags: target.adaptedHashtags ?? [],
   };
@@ -196,7 +202,7 @@ export async function createPublication(user, payload, request) {
     resourceType: 'publication',
     resourceId: publication.id,
     requestId: request.requestId,
-    metadata: { brandId: payload.brandId, targets: payload.targets.map((target) => target.provider) },
+    metadata: { fromStatus: null, toStatus: 'DRAFT', brandId: payload.brandId, targets: payload.targets.map((target) => target.provider) },
   });
 
   return loadPublicPublication(publication.id);
@@ -235,6 +241,9 @@ export async function countPublications(userId, filters) {
   const counts = {
     all: 0,
     draft: 0,
+    pending_approval: 0,
+    approved: 0,
+    rejected: 0,
     scheduled: 0,
     publishing: 0,
     published: 0,
@@ -271,10 +280,17 @@ export async function getPublication(publicationId) {
   return loadPublicPublication(publicationId);
 }
 
-export async function updatePublication(user, publication, payload, request) {
+async function updatePublicationLocked(user, publication, payload, request, prisma) {
   if (!canEditContent(publication.status)) {
-    throw new HttpError(409, 'conflict', 'Une publication en cours d’envoi ou publiée ne peut pas être modifiée.');
+    throw new HttpError(409, 'conflict', 'Cette publication est verrouillée. Annulez la demande en attente avant de la modifier.');
   }
+
+  // Cancel scheduling and invalidate the exact content version under the lock.
+  if (publication.schedule?.jobId) await cancelJob(QUEUES.publishScheduled, publication.schedule.jobId);
+  await prisma.scheduledPublication.updateMany({
+    where: { publicationId: publication.id, status: 'PENDING' },
+    data: { status: 'CANCELLED', jobId: null },
+  });
 
   if (payload.targets) {
     const sentProviders = publication.targets
@@ -289,7 +305,7 @@ export async function updatePublication(user, publication, payload, request) {
       where: { publicationId: publication.id, provider: { notIn: wanted }, status: { not: 'SENT' } },
     });
     for (const target of payload.targets) {
-      const data = await targetData(publication.brandId, target);
+      const data = await targetData(publication.brandId, target, prisma);
       // No DB-level unique constraint on (publicationId, provider) anymore
       // (Sprint 06 moved it to (publicationId, socialAccountId) to allow two
       // accounts of the same provider) — upsert by hand instead of relying
@@ -317,8 +333,8 @@ export async function updatePublication(user, publication, payload, request) {
     const unchanged =
       current.length === payload.mediaIds.length && current.every((id, index) => id === payload.mediaIds[index]);
     if (!unchanged) {
-      await detachMediaFromPublication(publication.id);
-      await attachMediaToPublication({ mediaIds: payload.mediaIds, publication, userId: user.id });
+      await detachMediaFromPublication(publication.id, prisma);
+      await attachMediaToPublication({ mediaIds: payload.mediaIds, publication, userId: user.id }, prisma);
     }
   }
 
@@ -329,6 +345,8 @@ export async function updatePublication(user, publication, payload, request) {
       ...(payload.language !== undefined ? { language: payload.language } : {}),
       ...(payload.hashtags !== undefined ? { hashtags: payload.hashtags } : {}),
       ...(payload.timezone !== undefined ? { timezone: payload.timezone } : {}),
+      status: 'DRAFT', scheduledAt: null, approvedRevision: null,
+      contentRevision: { increment: 1 },
     },
   });
 
@@ -338,15 +356,15 @@ export async function updatePublication(user, publication, payload, request) {
     resourceType: 'publication',
     resourceId: publication.id,
     requestId: request.requestId,
-    metadata: { fields: Object.keys(payload) },
+    metadata: { fields: Object.keys(payload), fromStatus: publication.status, toStatus: 'DRAFT', approvalInvalidated: hasValidApproval(publication) },
   });
 
-  return loadPublicPublication(publication.id);
+  return loadPublicPublication(publication.id, prisma);
 }
 
-export async function deletePublication(user, publication, request) {
+async function deletePublicationLocked(user, publication, request, prisma) {
   if (!canDelete(publication.status)) {
-    throw new HttpError(409, 'conflict', 'Un envoi est en cours : attendez son issue avant de supprimer.');
+    throw new HttpError(409, 'conflict', 'Annulez la demande d’approbation ou attendez la fin de l’envoi avant de supprimer.');
   }
 
   if (publication.schedule?.jobId) {
@@ -354,7 +372,7 @@ export async function deletePublication(user, publication, request) {
   }
 
   // Suppression logique : les envois déjà réalisés restent auditables.
-  await prisma.$transaction([
+  await Promise.all([
     prisma.scheduledPublication.updateMany({
       where: { publicationId: publication.id, status: 'PENDING' },
       data: { status: 'CANCELLED', jobId: null },
@@ -371,11 +389,12 @@ export async function deletePublication(user, publication, request) {
     resourceType: 'publication',
     resourceId: publication.id,
     requestId: request.requestId,
-    metadata: { previousStatus: publication.status },
+    metadata: { fromStatus: publication.status, toStatus: publication.status },
   });
 }
 
-export async function schedulePublication(user, publication, payload, request) {
+async function schedulePublicationLocked(user, publication, payload, request, prisma) {
+  assertApproved(publication);
   if (!canSchedule(publication.status)) {
     throw new HttpError(409, 'conflict', 'Cette publication ne peut plus être planifiée.');
   }
@@ -398,9 +417,10 @@ export async function schedulePublication(user, publication, payload, request) {
     publicationId: publication.id,
     requestedBy: user.id,
     scheduledAt: payload.scheduledAt.toISOString(),
-  });
+    revision: publication.contentRevision,
+  }, prisma);
 
-  await prisma.$transaction([
+  await Promise.all([
     prisma.scheduledPublication.upsert({
       where: { publicationId: publication.id },
       create: {
@@ -425,13 +445,13 @@ export async function schedulePublication(user, publication, payload, request) {
     resourceType: 'publication',
     resourceId: publication.id,
     requestId: request.requestId,
-    metadata: { scheduledAt: payload.scheduledAt.toISOString(), timezone, jobId },
+    metadata: { scheduledAt: payload.scheduledAt.toISOString(), timezone, jobId, fromStatus: publication.status, toStatus: 'SCHEDULED' },
   });
 
-  return loadPublicPublication(publication.id);
+  return loadPublicPublication(publication.id, prisma);
 }
 
-export async function cancelSchedule(user, publication, request) {
+async function cancelScheduleLocked(user, publication, request, prisma) {
   if (publication.status !== 'SCHEDULED') {
     throw new HttpError(409, 'conflict', 'Cette publication n’est pas planifiée.');
   }
@@ -440,16 +460,15 @@ export async function cancelSchedule(user, publication, request) {
     await cancelJob(QUEUES.publishScheduled, publication.schedule.jobId);
   }
 
-  await prisma.$transaction([
+  await Promise.all([
     prisma.scheduledPublication.updateMany({
       where: { publicationId: publication.id },
       data: { status: 'CANCELLED', jobId: null },
     }),
-    // La publication redevient un brouillon : elle reste modifiable et
-    // replanifiable, sans perdre son contenu.
+    // Cancelling a date does not change the approved content.
     prisma.publication.update({
       where: { id: publication.id },
-      data: { status: 'DRAFT', scheduledAt: null },
+      data: { status: hasValidApproval(publication) ? 'APPROVED' : 'DRAFT', scheduledAt: null },
     }),
   ]);
 
@@ -459,18 +478,19 @@ export async function cancelSchedule(user, publication, request) {
     resourceType: 'publication',
     resourceId: publication.id,
     requestId: request.requestId,
+    metadata: { fromStatus: publication.status, toStatus: hasValidApproval(publication) ? 'APPROVED' : 'DRAFT' },
   });
 
-  return loadPublicPublication(publication.id);
+  return loadPublicPublication(publication.id, prisma);
 }
 
 /** Transition conditionnelle : elle échoue si un autre acteur a déjà pris la main. */
-async function claimForPublishing(publication) {
+async function claimForPublishing(publication, prisma) {
   const claimed = await prisma.publication.updateMany({
     where: {
       id: publication.id,
       deletedAt: null,
-      status: { in: ['DRAFT', 'SCHEDULED', 'FAILED', 'PARTIALLY_PUBLISHED'] },
+      status: { in: ['APPROVED', 'SCHEDULED', 'FAILED', 'PARTIALLY_PUBLISHED'] },
     },
     data: { status: 'PUBLISHING' },
   });
@@ -480,13 +500,14 @@ async function claimForPublishing(publication) {
   }
 }
 
-async function releaseClaim(publication) {
+async function releaseClaim(publication, prisma) {
   await prisma.publication
     .updateMany({ where: { id: publication.id, status: 'PUBLISHING' }, data: { status: publication.status } })
     .catch(() => {});
 }
 
-export async function publishNow(user, publication, request) {
+async function publishNowLocked(user, publication, request, prisma) {
+  assertApproved(publication);
   if (!canPublish(publication.status)) {
     throw new HttpError(409, 'conflict', 'Cette publication ne peut pas être envoyée dans son état actuel.');
   }
@@ -507,7 +528,7 @@ export async function publishNow(user, publication, request) {
     });
   }
 
-  await claimForPublishing(publication);
+  await claimForPublishing(publication, prisma);
 
   let jobId;
   try {
@@ -515,9 +536,10 @@ export async function publishNow(user, publication, request) {
       publicationId: publication.id,
       requestedBy: user.id,
       idempotencyKey: request.get('idempotency-key') ?? null,
-    });
+      revision: publication.contentRevision,
+    }, prisma);
   } catch (error) {
-    await releaseClaim(publication);
+    await releaseClaim(publication, prisma);
     throw error;
   }
 
@@ -527,13 +549,14 @@ export async function publishNow(user, publication, request) {
     resourceType: 'publication',
     resourceId: publication.id,
     requestId: request.requestId,
-    metadata: { jobId },
+    metadata: { jobId, fromStatus: publication.status, toStatus: 'PUBLISHING' },
   });
 
-  return { jobId, publication: await loadPublicPublication(publication.id) };
+  return { jobId, publication: await loadPublicPublication(publication.id, prisma) };
 }
 
-export async function retryPublication(user, publication, payload, request) {
+async function retryPublicationLocked(user, publication, payload, request, prisma) {
+  assertApproved(publication);
   if (publication.status !== 'FAILED' && publication.status !== 'PARTIALLY_PUBLISHED') {
     throw new HttpError(409, 'conflict', 'Seule une publication en échec peut être relancée.');
   }
@@ -546,7 +569,7 @@ export async function retryPublication(user, publication, payload, request) {
     throw new HttpError(422, 'unprocessable', 'Aucun réseau en échec à relancer.');
   }
 
-  await claimForPublishing(publication);
+  await claimForPublishing(publication, prisma);
 
   let jobId;
   try {
@@ -555,9 +578,10 @@ export async function retryPublication(user, publication, payload, request) {
       requestedBy: user.id,
       providers: retryable.map((target) => target.provider),
       attempt: Math.max(...retryable.map((target) => target.attemptCount)) + 1,
-    });
+      revision: publication.contentRevision,
+    }, prisma);
   } catch (error) {
-    await releaseClaim(publication);
+    await releaseClaim(publication, prisma);
     throw error;
   }
 
@@ -567,10 +591,46 @@ export async function retryPublication(user, publication, payload, request) {
     resourceType: 'publication',
     resourceId: publication.id,
     requestId: request.requestId,
-    metadata: { providers: retryable.map((target) => target.provider), jobId },
+    metadata: { providers: retryable.map((target) => target.provider), jobId, fromStatus: publication.status, toStatus: 'PUBLISHING' },
   });
 
-  return { jobId, publication: await loadPublicPublication(publication.id) };
+  return { jobId, publication: await loadPublicPublication(publication.id, prisma) };
 }
 
 export { computePublicationStatus };
+
+function assertApproved(publication) {
+  if (!hasValidApproval(publication)) {
+    throw new HttpError(409, 'approval_required', 'Une approbation du contenu actuel est nécessaire avant tout envoi ou planification.');
+  }
+}
+
+export function updatePublication(user, publication, payload, request) {
+  return withPublicationLock(user, publication.id, 'COMMUNITY_MANAGER', (db, current) =>
+    updatePublicationLocked(user, current, payload, request, db));
+}
+
+export function deletePublication(user, publication, request) {
+  return withPublicationLock(user, publication.id, 'COMMUNITY_MANAGER', (db, current) =>
+    deletePublicationLocked(user, current, request, db));
+}
+
+export function schedulePublication(user, publication, payload, request) {
+  return withPublicationLock(user, publication.id, 'COMMUNITY_MANAGER', (db, current) =>
+    schedulePublicationLocked(user, current, payload, request, db));
+}
+
+export function cancelSchedule(user, publication, request) {
+  return withPublicationLock(user, publication.id, 'COMMUNITY_MANAGER', (db, current) =>
+    cancelScheduleLocked(user, current, request, db));
+}
+
+export function publishNow(user, publication, request) {
+  return withPublicationLock(user, publication.id, 'COMMUNITY_MANAGER', (db, current) =>
+    publishNowLocked(user, current, request, db));
+}
+
+export function retryPublication(user, publication, payload, request) {
+  return withPublicationLock(user, publication.id, 'COMMUNITY_MANAGER', (db, current) =>
+    retryPublicationLocked(user, current, payload, request, db));
+}

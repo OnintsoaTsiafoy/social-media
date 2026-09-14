@@ -64,6 +64,9 @@ const styles = StyleSheet.create({
 
 export const publicationStatusMeta: Record<PublicationStatus, { label: string; tone: BadgeTone; color: string }> = {
   draft: { label: 'Brouillon', tone: 'neutral', color: palette.inkDisabled },
+  pending_approval: { label: 'En attente d’approbation', tone: 'warning', color: palette.warning },
+  approved: { label: 'Approuvée', tone: 'success', color: palette.lime },
+  rejected: { label: 'À corriger', tone: 'danger', color: palette.danger },
   scheduled: { label: 'Planifiée', tone: 'info', color: palette.info },
   publishing: { label: 'En cours d’envoi', tone: 'warning', color: palette.warning },
   published: { label: 'Publiée', tone: 'success', color: palette.lime },

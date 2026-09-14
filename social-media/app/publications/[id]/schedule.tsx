@@ -63,12 +63,14 @@ export default function SchedulePublicationScreen() {
   const scheduledIso = combineDateAndTime(selected, time, timezone);
   const inPast = new Date(scheduledIso).getTime() <= Date.now();
 
+  const approvalBlocked = !publication?.approvalValid || !['approved', 'scheduled', 'failed'].includes(publication.status);
   const blockedAccount = publication?.targets.length === 0;
   // Une par réseau ciblé : le classement backend sépare toujours Facebook et
   // Instagram, jamais mélangés dans une même recommandation.
   const recommendedNetworks = [...new Set((publication?.targets ?? []).map((target) => target.network))];
 
   const confirmSchedule = async () => {
+    if (approvalBlocked) return;
     if (inPast) {
       setError('Choisissez une date et une heure futures.');
       return;
@@ -95,12 +97,13 @@ export default function SchedulePublicationScreen() {
             label="Confirmer la planification"
             onPress={confirmSchedule}
             loading={mutation.pending}
-            disabled={inPast || blockedAccount}
+            disabled={inPast || blockedAccount || approvalBlocked}
             block
           />
         ) : undefined
       }
     >
+      {publication && approvalBlocked ? <Callout tone="warning">Une approbation du contenu actuel est nécessaire avant la planification.</Callout> : null}
       {request.loading ? (
         <SkeletonList count={3} withThumbnail={false} />
       ) : request.error ? (

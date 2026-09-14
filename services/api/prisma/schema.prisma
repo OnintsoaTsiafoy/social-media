@@ -34,11 +34,22 @@ enum AiTone {
 
 enum PublicationStatus {
   DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
   SCHEDULED
   PUBLISHING
   PUBLISHED
   PARTIALLY_PUBLISHED
   FAILED
+  CANCELLED
+}
+
+enum PublicationApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
   CANCELLED
 }
 
@@ -163,6 +174,10 @@ enum AiFormality {
 // commentaires qui déclenchent réellement une catégorie (prioritaire, négatif,
 // urgent) génèrent un push, pour ne pas alerter à chaque commentaire neutre.
 enum NotificationType {
+  PUBLICATION_APPROVAL_REQUESTED
+  PUBLICATION_APPROVED
+  PUBLICATION_REJECTED
+  PUBLICATION_CHANGES_REQUESTED
   PRIORITY_COMMENT
   NEGATIVE_COMMENT
   URGENT_COMMENT
@@ -221,6 +236,8 @@ model User {
   aiSettingsCreated       BrandAiSetting[]       @relation("AiSettingsAuthor")
   uploadedMedia           Media[]                @relation("MediaOwner")
   publications            Publication[]          @relation("PublicationAuthor")
+  requestedApprovals      PublicationApproval[]  @relation("ApprovalRequester")
+  assignedApprovals       PublicationApproval[]  @relation("ApprovalReviewer")
   schedules               ScheduledPublication[] @relation("ScheduleAuthor")
   avatarMedia             Media?                 @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
   connectedSocialAccounts SocialAccount[]        @relation("SocialAccountConnector")
@@ -391,6 +408,8 @@ model Publication {
   language        String                @default("fr") @db.VarChar(8)
   hashtags        Json                  @default("[]")
   status          PublicationStatus     @default(DRAFT)
+  contentRevision Int                   @default(1) @map("content_revision")
+  approvedRevision Int?                 @map("approved_revision")
   scheduledAt     DateTime?             @map("scheduled_at") @db.Timestamptz(6)
   timezone        String                @default("Europe/Paris") @db.VarChar(64)
   publishedAt     DateTime?             @map("published_at") @db.Timestamptz(6)
@@ -402,6 +421,7 @@ model Publication {
   targets         PublicationTarget[]
   media           PublicationMedia[]
   schedule        ScheduledPublication?
+  approvals       PublicationApproval[]
 
   @@index([brandId, status])
   @@index([brandId, scheduledAt])
@@ -410,6 +430,31 @@ model Publication {
   // Sprint 12 : filtrage par période pour les agrégations analytics.
   @@index([brandId, publishedAt])
   @@map("publications")
+}
+
+// Each submission gets its own record. Decisions never overwrite an earlier
+// submission; the audit log retains every action, actor and status transition.
+model PublicationApproval {
+  id            String                    @id @default(uuid()) @db.Uuid
+  publicationId String                    @map("publication_id") @db.Uuid
+  requestedBy   String                    @map("requested_by") @db.Uuid
+  reviewerId    String?                   @map("reviewer_id") @db.Uuid
+  revision      Int
+  status        PublicationApprovalStatus @default(PENDING)
+  comment       String?                   @db.VarChar(2000)
+  requestComment String?                  @map("request_comment") @db.VarChar(2000)
+  requestedAt   DateTime                  @default(now()) @map("requested_at") @db.Timestamptz(6)
+  reviewedAt    DateTime?                 @map("reviewed_at") @db.Timestamptz(6)
+  createdAt     DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  publication   Publication              @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  requester     User                     @relation("ApprovalRequester", fields: [requestedBy], references: [id], onDelete: Restrict)
+  reviewer      User?                    @relation("ApprovalReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+
+  @@index([publicationId, requestedAt])
+  @@index([reviewerId, status])
+  @@index([status, requestedAt])
+  @@map("publication_approvals")
 }
 
 model PublicationTarget {
@@ -1041,6 +1086,7 @@ model NotificationSetting {
   aiResponseGenerated  Boolean              @default(true) @map("ai_response_generated")
   publicationPublished Boolean              @default(true) @map("publication_published")
   publicationFailed    Boolean              @default(true) @map("publication_failed")
+  publicationApproval  Boolean              @default(true) @map("publication_approval")
   tokenExpiring        Boolean              @default(true) @map("token_expiring")
   syncFailed           Boolean              @default(true) @map("sync_failed")
   sound                Boolean              @default(true)

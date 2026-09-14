@@ -1,5 +1,5 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import {
@@ -26,7 +26,9 @@ import {
   targetStatusMeta,
   useFeedback,
 } from '@/components/ui';
-import { publicationsApi } from '@/data/api';
+import { PublicationApprovalPanel } from '@/components/domain/PublicationApprovalPanel';
+import { useSession } from '@/store/SessionProvider';
+import { approvalsApi, publicationsApi } from '@/data/api';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import {
   formatDateTime,
@@ -55,6 +57,13 @@ export default function PublicationDetailScreen() {
   const [retryingNetwork, setRetryingNetwork] = useState<SocialNetwork | undefined>(undefined);
 
   const publication = request.data;
+  const { user } = useSession();
+  const [approvalBusy, setApprovalBusy] = useState(false);
+  const members = useAsync(() => publication ? approvalsApi.members(publication.brandId) : Promise.resolve([]), [publication?.brandId]);
+  const role = members.data?.find((member) => member.id === user?.id)?.role;
+  const canWrite = ['owner', 'admin', 'community_manager'].includes(role ?? '');
+  const refreshPublication = request.refresh;
+  useFocusEffect(useCallback(() => { void refreshPublication(); }, [refreshPublication]));
   const status = publication ? publicationStatusMeta[publication.status] : undefined;
 
   const retry = async (network?: SocialNetwork) => {
@@ -172,6 +181,13 @@ export default function PublicationDetailScreen() {
             </Text>
           </View>
 
+          {Object.entries(publication.perNetwork ?? {}).map(([network, content]) => <Card key={network} style={styles.card}>
+            <Text variant="eyebrow">Version {network}</Text>
+            <Text variant="body">{content?.text}</Text>
+            <Text variant="footnote">{content?.hashtags.join(' ')}</Text>
+          </Card>)}
+          <PublicationApprovalPanel publication={publication} onChange={request.setData} onBusyChange={setApprovalBusy} />
+
           {/* Section 2 - dates */}
           <Card style={styles.card}>
             <Text variant="eyebrow">Dates</Text>
@@ -228,7 +244,7 @@ export default function PublicationDetailScreen() {
                         </Text>
                       </View>
 
-                      {target.status === 'failed' ? (
+                      {target.status === 'failed' && publication.approvalValid && canWrite ? (
                         <Button
                           label="Relancer"
                           size="sm"
@@ -311,10 +327,18 @@ export default function PublicationDetailScreen() {
 
   /** Footer actions depend on the status, as tabulated in the spec. */
   function DetailActions() {
-    if (!publication) return null;
+    if (!publication || !canWrite || approvalBusy) return null;
 
     switch (publication.status) {
+      case 'pending_approval':
+      case 'rejected':
+        return null;
       case 'draft':
+        return <View style={styles.footerRow}>
+          <Button label="Modifier" variant="secondary" onPress={() => router.push(`/publications/${publication.id}/edit`)} style={styles.footerButton} />
+          <Button label="Supprimer" variant="danger" onPress={remove} disabled={mutation.pending} />
+        </View>;
+      case 'approved':
         return (
           <View style={styles.footer}>
             <View style={styles.footerRow}>
@@ -371,11 +395,13 @@ export default function PublicationDetailScreen() {
             <Button
               label="Modifier"
               variant="secondary"
+              disabled={publication.status === 'partially_published'}
               onPress={() => router.push(`/publications/${publication.id}/edit`)}
               style={styles.footerButton}
             />
             <Button
               label="Relancer"
+              disabled={!publication.approvalValid}
               onPress={() => retry()}
               loading={mutation.pending && retryingNetwork === undefined}
               style={styles.footerButton}

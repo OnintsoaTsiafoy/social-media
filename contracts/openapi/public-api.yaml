@@ -12,6 +12,128 @@ info:
 servers:
   - url: http://localhost:3000
 paths:
+  /api/v1/approvals:
+    get:
+      summary: Demandes des marques administrées par l’utilisateur
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: brandId, in: query, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { type: string, enum: [all, pending, approved, rejected, changes_requested, cancelled], default: pending } }
+        - { name: authorId, in: query, schema: { type: string, format: uuid } }
+        - { name: reviewerId, in: query, schema: { type: string, format: uuid } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { $ref: '#/components/responses/ApprovalList' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/approvals/members:
+    get:
+      summary: Membres actifs de la marque et rôles (appartenance vérifiée)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: brandId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/publications/{publicationId}/request-approval:
+    parameters:
+      - { name: publicationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Soumettre un brouillon (COMMUNITY_MANAGER, ADMIN ou OWNER)
+      description: Un reviewer facultatif doit être ADMIN ou OWNER de la même marque. Sinon, tous les responsables sont notifiés. Aucune publication n’est envoyée.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                reviewerId: { type: string, format: uuid }
+                comment: { type: string, maxLength: 2000 }
+      responses:
+        '201': { $ref: '#/components/responses/Publication' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/v1/publications/{publicationId}/approve:
+    parameters:
+      - { name: publicationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Approuver la version soumise (ADMIN ou OWNER de la marque)
+      description: Tout responsable de la marque peut prendre la décision. approvalId doit désigner la demande actuellement en attente. Pas d’envoi automatique.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ApprovalDecision' } } }
+      responses:
+        '200': { $ref: '#/components/responses/Publication' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/publications/{publicationId}/reject:
+    parameters:
+      - { name: publicationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Refuser avec un motif (ADMIN ou OWNER)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ApprovalRejection' } } }
+      responses:
+        '200': { $ref: '#/components/responses/Publication' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/publications/{publicationId}/request-changes:
+    parameters:
+      - { name: publicationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Demander une correction avec un commentaire obligatoire (ADMIN ou OWNER)
+      description: La publication passe à rejected et la demande à changes_requested. Une édition remet le contenu en brouillon.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ApprovalRejection' } } }
+      responses:
+        '200': { $ref: '#/components/responses/Publication' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/publications/{publicationId}/cancel-approval:
+    parameters:
+      - { name: publicationId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Annuler une demande en attente
+      description: Autorisé à l’auteur, au demandeur (avec rôle CM minimum) ou à un responsable. Retour au brouillon.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ApprovalDecision' } } }
+      responses:
+        '200': { $ref: '#/components/responses/Publication' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/publications/{publicationId}/approval-history:
+    parameters:
+      - { name: publicationId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Historique des actions en lecture seule (VIEWER minimum)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+      responses:
+        '200': { $ref: '#/components/responses/ApprovalHistory' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /health:
     get:
       summary: Liveness probe
@@ -319,7 +441,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [all, draft, scheduled, publishing, published, partially_published, failed, cancelled]
+            enum: [all, draft, pending_approval, approved, rejected, scheduled, publishing, published, partially_published, failed, cancelled]
         - { name: provider, in: query, schema: { type: string, enum: [facebook, instagram] } }
         - { name: search, in: query, schema: { type: string, maxLength: 120 } }
         - { name: from, in: query, schema: { type: string, format: date-time } }
@@ -1108,6 +1230,50 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    ApprovalDecision:
+      type: object
+      additionalProperties: false
+      required: [approvalId]
+      properties:
+        approvalId: { type: string, format: uuid }
+        comment: { type: string, maxLength: 2000 }
+    ApprovalRejection:
+      type: object
+      additionalProperties: false
+      required: [approvalId, comment]
+      properties:
+        approvalId: { type: string, format: uuid }
+        comment: { type: string, minLength: 1, maxLength: 2000, description: Espaces seuls refusés }
+    PublicationApproval:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        publicationId: { type: string, format: uuid }
+        requestedBy: { type: string, format: uuid }
+        requesterName: { type: string }
+        reviewerId: { type: [string, 'null'], format: uuid }
+        reviewerName: { type: [string, 'null'] }
+        revision: { type: integer }
+        status: { type: string, enum: [pending, approved, rejected, changes_requested, cancelled] }
+        requestComment: { type: [string, 'null'] }
+        comment: { type: [string, 'null'] }
+        requestedAt: { type: string, format: date-time }
+        reviewedAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ApprovalHistoryEvent:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        action: { type: string, example: publication.approve }
+        actorId: { type: [string, 'null'], format: uuid }
+        actorName: { type: string }
+        timestamp: { type: string, format: date-time }
+        comment: { type: [string, 'null'] }
+        fromStatus: { type: [string, 'null'] }
+        toStatus: { type: [string, 'null'] }
+        reviewerId: { type: [string, 'null'], format: uuid }
+        approvalId: { type: [string, 'null'], format: uuid }
     PublicationTargetInput:
       type: object
       required: [provider]
@@ -1153,6 +1319,12 @@ components:
     Publication:
       type: object
       properties:
+        authorId: { type: string, format: uuid }
+        approvalValid: { type: boolean, description: Validation portant sur le contenu actuel }
+        approval:
+          oneOf:
+            - { $ref: '#/components/schemas/PublicationApproval' }
+            - { type: 'null' }
         id: { type: string, format: uuid }
         brandId: { type: string, format: uuid }
         brandName: { type: string }
@@ -1161,7 +1333,7 @@ components:
         hashtags: { type: array, items: { type: string } }
         status:
           type: string
-          enum: [draft, scheduled, publishing, published, partially_published, failed, cancelled]
+          enum: [draft, pending_approval, approved, rejected, scheduled, publishing, published, partially_published, failed, cancelled]
         media: { type: array, items: { $ref: '#/components/schemas/Media' } }
         targets:
           type: array
@@ -1225,6 +1397,7 @@ components:
         aiResponseGenerated: { type: boolean }
         publicationPublished: { type: boolean }
         publicationFailed: { type: boolean }
+        publicationApproval: { type: boolean, default: true, description: Demandes et décisions du workflow d’approbation }
         tokenExpiring: { type: boolean }
         syncFailed: { type: boolean }
         sound: { type: boolean }
@@ -1371,6 +1544,45 @@ components:
             requestId: { type: string }
             details: { type: array, items: { type: object } }
   responses:
+    ApprovalList:
+      description: Demandes triées de la plus récente à la plus ancienne
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      items:
+                        type: array
+                        items:
+                          allOf:
+                            - { $ref: '#/components/schemas/PublicationApproval' }
+                            - type: object
+                              properties:
+                                publication: { $ref: '#/components/schemas/Publication' }
+    ApprovalHistory:
+      description: Journal des actions triées de la plus récente à la plus ancienne
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      items: { type: array, items: { $ref: '#/components/schemas/ApprovalHistoryEvent' } }
     Publication:
       description: Publication sous enveloppe Hootly
       content:

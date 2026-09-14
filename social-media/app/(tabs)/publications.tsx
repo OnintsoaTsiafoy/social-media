@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 
@@ -19,7 +19,8 @@ import {
   useBottomContentInset,
   useFeedback,
 } from '@/components/ui';
-import { publicationsApi, type PublicationFilters } from '@/data/api';
+import { approvalsApi, publicationsApi, type PublicationFilters } from '@/data/api';
+import { useSession } from '@/store/SessionProvider';
 import { useAsync } from '@/hooks/useAsync';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import { palette, spacing, useResponsive } from '@/theme';
@@ -31,6 +32,9 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'Toutes' },
   { value: 'scheduled', label: 'Planifiées' },
   { value: 'draft', label: 'Brouillons' },
+  { value: 'pending_approval', label: 'À valider' },
+  { value: 'approved', label: 'Approuvées' },
+  { value: 'rejected', label: 'À corriger' },
   { value: 'published', label: 'Publiées' },
   { value: 'partially_published', label: 'Partielles' },
   { value: 'failed', label: 'Échouées' },
@@ -45,6 +49,11 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
  */
 export default function PublicationsScreen() {
   const router = useRouter();
+  const { brand } = useSession();
+  const canReview = brand?.role === 'OWNER' || brand?.role === 'ADMIN';
+  const approvalCount = useAsync(() => canReview && brand
+    ? approvalsApi.list({ brandId: brand.id, status: 'pending' }, 0, 1).then((page) => page.total)
+    : Promise.resolve(0), [brand?.id, canReview]);
   const { toast } = useFeedback();
   const { gutter } = useResponsive();
   const bottomInset = useBottomContentInset();
@@ -60,6 +69,12 @@ export default function PublicationsScreen() {
     [status, search]
   );
   const counts = useAsync(() => publicationsApi.counts(), []);
+  const refreshList = list.refresh, refreshCounts = counts.refresh, refreshApprovals = approvalCount.refresh;
+  useFocusEffect(useCallback(() => {
+    void refreshList();
+    void refreshCounts();
+    void refreshApprovals();
+  }, [refreshList, refreshCounts, refreshApprovals]));
 
   const retry = useCallback(
     async (id: string) => {
@@ -125,6 +140,12 @@ export default function PublicationsScreen() {
             ) : null}
           </View>
 
+          {canReview ? <View style={{ paddingHorizontal: gutter, paddingTop: spacing.lg }}>
+            <Button label={`Approbations${approvalCount.data === undefined ? '' : ` (${approvalCount.data})`}`}
+              variant="secondary" size="sm" onPress={() => router.push('/approvals')} />
+            {approvalCount.error ? <Text variant="micro">Compteur indisponible</Text> : null}
+          </View> : null}
+
           <ChipRow gutter={gutter} style={styles.chipRow}>
             {STATUS_FILTERS.map((filter) => (
               <Chip
@@ -184,7 +205,7 @@ export default function PublicationsScreen() {
               <EmptyState
                 icon="publications"
                 title="Aucune publication"
-                message="Créez votre première publication pour la planifier ou la publier immédiatement."
+                message="Créez votre première publication et soumettez-la pour approbation."
                 actionLabel="Nouvelle publication"
                 onAction={() => router.push('/publications/new')}
               />

@@ -68,7 +68,7 @@ export function PublicationCard({ publication, onPress, onRetry, retrying = fals
       <View style={styles.footer}>
         <Badge label={status.label} tone={status.tone} />
 
-        {onRetry && hasError ? (
+        {onRetry && hasError && publication.approvalValid && ['failed', 'partially_published'].includes(publication.status) ? (
           <Button label="Relancer" variant="primary" size="sm" onPress={onRetry} loading={retrying} style={styles.retry} />
         ) : (
           <Text variant="micro" color={palette.inkFaint} numberOfLines={1} style={styles.timing}>

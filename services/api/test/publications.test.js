@@ -7,6 +7,7 @@ import {
   canEditContent,
   canPublish,
   canSchedule,
+  hasValidApproval,
   canTransition,
   computePublicationStatus,
   retryDelaySeconds,
@@ -99,7 +100,10 @@ test('le statut global est déduit de l’état réel des cibles', () => {
 });
 
 test('les transitions interdites protègent une publication envoyée', () => {
-  assert.ok(canTransition('DRAFT', 'SCHEDULED'));
+  assert.equal(canTransition('DRAFT', 'SCHEDULED'), false);
+  assert.ok(canTransition('DRAFT', 'PENDING_APPROVAL'));
+  assert.ok(canTransition('PENDING_APPROVAL', 'APPROVED'));
+  assert.ok(canTransition('APPROVED', 'SCHEDULED'));
   assert.ok(canTransition('SCHEDULED', 'PUBLISHING'));
   assert.ok(canTransition('PARTIALLY_PUBLISHED', 'PUBLISHING'));
   assert.equal(canTransition('PUBLISHED', 'DRAFT'), false);
@@ -113,6 +117,20 @@ test('les transitions interdites protègent une publication envoyée', () => {
   assert.equal(canSchedule('PUBLISHED'), false);
   assert.equal(canPublish('PUBLISHED'), false);
   assert.ok(canPublish('PARTIALLY_PUBLISHED'));
+});
+
+test('approval gates every send and is bound to the current content revision', () => {
+  for (const status of ['DRAFT', 'PENDING_APPROVAL', 'REJECTED', 'CANCELLED']) {
+    assert.equal(canSchedule(status), false);
+    assert.equal(canPublish(status), false);
+  }
+  assert.equal(canEditContent('PENDING_APPROVAL'), false);
+  assert.equal(canDelete('PENDING_APPROVAL'), false);
+  const publication = { contentRevision: 2, approvedRevision: 2, approvals: [{ revision: 2, status: 'APPROVED' }] };
+  assert.equal(hasValidApproval(publication), true);
+  assert.equal(hasValidApproval({ ...publication, contentRevision: 3 }), false);
+  assert.equal(hasValidApproval({ ...publication, approvals: [] }), false);
+  assert.equal(hasValidApproval({}), false);
 });
 
 test('une cible déjà envoyée n’est jamais resélectionnée', () => {

@@ -155,10 +155,10 @@ export async function deleteMedia(userId, mediaId, request) {
  * publication devient propriétaire du fichier, et le nettoyage des objets
  * temporaires ne peut plus l'atteindre.
  */
-export async function attachMediaToPublication({ mediaIds, publication, userId }) {
+export async function attachMediaToPublication({ mediaIds, publication, userId }, db = prisma) {
   if (!mediaIds?.length) return [];
 
-  const media = await prisma.media.findMany({ where: { id: { in: mediaIds }, deletedAt: null } });
+  const media = await db.media.findMany({ where: { id: { in: mediaIds }, deletedAt: null } });
   if (media.length !== mediaIds.length) {
     throw new HttpError(422, 'media_not_ready', 'Un média sélectionné est introuvable ou a été supprimé.');
   }
@@ -175,7 +175,7 @@ export async function attachMediaToPublication({ mediaIds, publication, userId }
 
     // Un média déjà rattaché ailleurs ne peut pas être déplacé : l'objet
     // disparaîtrait de la publication qui l'utilise déjà.
-    const usedElsewhere = await prisma.publicationMedia.count({
+    const usedElsewhere = await db.publicationMedia.count({
       where: { mediaId: item.id, publicationId: { not: publication.id } },
     });
     if (usedElsewhere > 0) {
@@ -187,11 +187,11 @@ export async function attachMediaToPublication({ mediaIds, publication, userId }
       await moveObject(item.objectKey, targetKey);
     }
 
-    const updated = await prisma.media.update({
+    const updated = await db.media.update({
       where: { id: item.id },
       data: { objectKey: targetKey, status: 'READY', brandId: publication.brandId },
     });
-    await prisma.publicationMedia.create({
+    await db.publicationMedia.create({
       data: { publicationId: publication.id, mediaId: item.id, position: index },
     });
     attached.push(updated);
@@ -207,14 +207,14 @@ export async function attachMediaToPublication({ mediaIds, publication, userId }
  * `TEMPORARY` : sans cela, remplacer l'image d'un brouillon laisserait un objet
  * dans le bucket que plus rien ne référence et que le nettoyage ignorerait.
  */
-export async function detachMediaFromPublication(publicationId) {
-  const links = await prisma.publicationMedia.findMany({ where: { publicationId } });
-  await prisma.publicationMedia.deleteMany({ where: { publicationId } });
+export async function detachMediaFromPublication(publicationId, db = prisma) {
+  const links = await db.publicationMedia.findMany({ where: { publicationId } });
+  await db.publicationMedia.deleteMany({ where: { publicationId } });
 
   for (const link of links) {
-    const stillUsed = await prisma.publicationMedia.count({ where: { mediaId: link.mediaId } });
+    const stillUsed = await db.publicationMedia.count({ where: { mediaId: link.mediaId } });
     if (stillUsed > 0) continue;
-    await prisma.media.updateMany({
+    await db.media.updateMany({
       where: { id: link.mediaId, deletedAt: null, purpose: 'publication' },
       data: { status: 'TEMPORARY' },
     });

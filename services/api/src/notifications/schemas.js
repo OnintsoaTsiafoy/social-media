@@ -5,6 +5,10 @@ import { z } from 'zod';
 // NotificationType dans schema.prisma), un seul vocabulaire des deux côtés —
 // aucune table de correspondance n'est nécessaire, `.toLowerCase()` suffit.
 const TYPES = [
+  'publication_approval_requested',
+  'publication_approved',
+  'publication_rejected',
+  'publication_changes_requested',
   'priority_comment',
   'negative_comment',
   'urgent_comment',
@@ -51,6 +55,7 @@ export const updateNotificationSettingsSchema = z
     aiResponseGenerated: z.boolean().optional(),
     publicationPublished: z.boolean().optional(),
     publicationFailed: z.boolean().optional(),
+    publicationApproval: z.boolean().optional(),
     tokenExpiring: z.boolean().optional(),
     syncFailed: z.boolean().optional(),
     sound: z.boolean().optional(),
@@ -66,6 +71,10 @@ export const updateNotificationSettingsSchema = z
 // schema.prisma — majuscules — donc pas de conversion ici, contrairement au
 // contrat public au-dessus.
 const INTERNAL_TYPES = [
+  'PUBLICATION_APPROVAL_REQUESTED',
+  'PUBLICATION_APPROVED',
+  'PUBLICATION_REJECTED',
+  'PUBLICATION_CHANGES_REQUESTED',
   'PRIORITY_COMMENT',
   'NEGATIVE_COMMENT',
   'URGENT_COMMENT',

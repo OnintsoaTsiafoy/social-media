@@ -9,6 +9,9 @@
 
 export const PUBLICATION_STATUS = {
   DRAFT: 'DRAFT',
+  PENDING_APPROVAL: 'PENDING_APPROVAL',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
   SCHEDULED: 'SCHEDULED',
   PUBLISHING: 'PUBLISHING',
   PUBLISHED: 'PUBLISHED',
@@ -34,12 +37,15 @@ export const PROVIDERS = ['FACEBOOK', 'INSTAGRAM'];
 
 /** Transitions autorisées ; toute autre combinaison est un `409 conflict`. */
 const ALLOWED_TRANSITIONS = {
-  DRAFT: ['SCHEDULED', 'PUBLISHING', 'CANCELLED'],
-  SCHEDULED: ['DRAFT', 'PUBLISHING', 'CANCELLED'],
+  DRAFT: ['PENDING_APPROVAL', 'CANCELLED'],
+  PENDING_APPROVAL: ['APPROVED', 'REJECTED', 'DRAFT'],
+  APPROVED: ['DRAFT', 'SCHEDULED', 'PUBLISHING', 'CANCELLED'],
+  REJECTED: ['DRAFT'],
+  SCHEDULED: ['DRAFT', 'APPROVED', 'PUBLISHING', 'CANCELLED'],
   PUBLISHING: ['PUBLISHED', 'PARTIALLY_PUBLISHED', 'FAILED'],
   PUBLISHED: [],
   PARTIALLY_PUBLISHED: ['PUBLISHING'],
-  FAILED: ['PUBLISHING', 'DRAFT', 'CANCELLED'],
+  FAILED: ['PUBLISHING', 'SCHEDULED', 'DRAFT', 'CANCELLED'],
   CANCELLED: ['DRAFT'],
 };
 
@@ -49,21 +55,29 @@ export function canTransition(from, to) {
 
 /** Statuts depuis lesquels le contenu reste modifiable. */
 export function canEditContent(status) {
-  return status === 'DRAFT' || status === 'SCHEDULED' || status === 'FAILED' || status === 'CANCELLED';
+  return ['DRAFT', 'APPROVED', 'REJECTED', 'SCHEDULED', 'FAILED', 'CANCELLED'].includes(status);
 }
 
 /** Une publication en cours d'envoi ne peut pas être supprimée sous le worker. */
 export function canDelete(status) {
-  return status !== 'PUBLISHING';
+  return status !== 'PUBLISHING' && status !== 'PENDING_APPROVAL';
 }
 
 export function canSchedule(status) {
-  return status === 'DRAFT' || status === 'SCHEDULED' || status === 'FAILED' || status === 'CANCELLED';
+  return ['APPROVED', 'SCHEDULED', 'FAILED'].includes(status);
 }
 
 /** Une publication déjà envoyée ne peut pas repartir ; un échec partiel, si. */
 export function canPublish(status) {
-  return status === 'DRAFT' || status === 'SCHEDULED' || status === 'FAILED' || status === 'PARTIALLY_PUBLISHED';
+  return ['APPROVED', 'SCHEDULED', 'FAILED', 'PARTIALLY_PUBLISHED'].includes(status);
+}
+
+export function hasValidApproval(publication) {
+  return Number.isInteger(publication.contentRevision) &&
+    publication.approvedRevision === publication.contentRevision &&
+    publication.approvals?.some((approval) =>
+      approval.status === 'APPROVED' && approval.revision === publication.contentRevision
+    ) === true;
 }
 
 /**

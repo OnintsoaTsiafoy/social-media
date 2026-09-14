@@ -1,4 +1,5 @@
 import express from 'express';
+import { approvalsRouter, publicationApprovalRouter } from './approvals/routes.js';
 import { fileURLToPath } from 'node:url';
 
 import { analyticsRouter } from './analytics/routes.js';
@@ -30,6 +31,14 @@ const openApiDocument = {
     description: 'API publique Hootly.',
   },
   paths: {
+    '/api/v1/approvals': { get: { summary: 'Demandes des marques administrées, paginées ; filtres brandId, status, authorId, reviewerId' } },
+    '/api/v1/approvals/members': { get: { summary: 'Membres et responsables de la marque (brandId obligatoire)' } },
+    '/api/v1/publications/{publicationId}/request-approval': { post: { summary: 'Soumettre un brouillon ; reviewerId et comment facultatifs' } },
+    '/api/v1/publications/{publicationId}/approve': { post: { summary: 'ADMIN/OWNER : approuver la demande affichée (approvalId obligatoire)' } },
+    '/api/v1/publications/{publicationId}/reject': { post: { summary: 'ADMIN/OWNER : refuser (approvalId et comment obligatoires)' } },
+    '/api/v1/publications/{publicationId}/request-changes': { post: { summary: 'ADMIN/OWNER : demander des modifications (approvalId et comment obligatoires)' } },
+    '/api/v1/publications/{publicationId}/cancel-approval': { post: { summary: 'Annuler la demande et revenir au brouillon (approvalId obligatoire)' } },
+    '/api/v1/publications/{publicationId}/approval-history': { get: { summary: 'Historique paginé des actions, acteurs, commentaires et transitions' } },
     '/health': { get: { summary: 'Liveness probe', responses: { 200: { description: 'Process alive' } } } },
     '/ready': { get: { summary: 'Readiness probe', responses: { 200: { description: 'Dependencies configured' }, 503: { description: 'Configuration missing' } } } },
     '/api/v1/auth/register': { post: { summary: 'Créer un compte' } },
@@ -280,6 +289,8 @@ app.use('/api/v1/media', mediaRouter);
 // identifiant et répondraient 400 avant que cette route ne soit consultée.
 app.use('/api/v1/publications', hashtagRouter);
 app.use('/api/v1/publications', publicationRouter);
+app.use('/api/v1/publications', publicationApprovalRouter);
+app.use('/api/v1/approvals', approvalsRouter);
 app.use('/api/v1/calendar', calendarRouter);
 app.use('/api/v1/social-accounts', socialAccountRouter);
 app.use('/api/v1/comments', commentRouter);

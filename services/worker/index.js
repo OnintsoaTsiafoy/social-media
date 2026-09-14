@@ -55,10 +55,10 @@ async function startBoss() {
     signMedia: isStorageConfigured()
       ? (bucket, key) => signedReadUrl(bucket, key)
       : async () => null,
-    scheduleRetry: ({ publicationId, providers, attempt, requestedBy, delaySeconds }) =>
+    scheduleRetry: ({ publicationId, providers, attempt, requestedBy, delaySeconds, revision }) =>
       boss.sendAfter(
         QUEUES.retryFailed,
-        { publicationId, providers, attempt, requestedBy },
+        { publicationId, providers, attempt, requestedBy, revision },
         { singletonKey: `publication:${publicationId}`, retryLimit: 0 },
         new Date(Date.now() + delaySeconds * 1000)
       ),

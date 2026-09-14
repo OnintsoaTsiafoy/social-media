@@ -8,6 +8,9 @@ export type Language = 'fr' | 'en' | 'ar';
 
 export type PublicationStatus =
   | 'draft'
+  | 'pending_approval'
+  | 'approved'
+  | 'rejected'
   | 'scheduled'
   | 'publishing'
   | 'published'
@@ -46,6 +49,10 @@ export type AccountStatus =
 export type BrandTone = 'professional' | 'friendly' | 'empathetic' | 'formal' | 'custom';
 
 export type NotificationType =
+  | 'publication_approval_requested'
+  | 'publication_approved'
+  | 'publication_rejected'
+  | 'publication_changes_requested'
   | 'priority_comment'
   | 'negative_comment'
   | 'urgent_comment'
@@ -164,6 +171,9 @@ export type Publication = {
   targets: PublicationTarget[];
   status: PublicationStatus;
   authorName: string;
+  authorId: string;
+  approval: PublicationApproval | null;
+  approvalValid: boolean;
   createdAt: string;
   updatedAt: string;
   scheduledAt: string | null;
@@ -175,6 +185,30 @@ export type Publication = {
   urgentCommentCount: number;
   /** Per-network overrides, when the CM wants different copy per platform. */
   perNetwork?: Partial<Record<SocialNetwork, { text: string; hashtags: string[] }>>;
+};
+
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'changes_requested' | 'cancelled';
+export type PublicationApproval = {
+  id: string;
+  publicationId: string;
+  requestedBy: string;
+  requesterName: string;
+  reviewerId: string | null;
+  reviewerName: string | null;
+  status: ApprovalStatus;
+  revision: number;
+  requestComment: string | null;
+  comment: string | null;
+  requestedAt: string;
+  reviewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+export type ApprovalMember = { id: string; displayName: string; role: 'owner' | 'admin' | 'community_manager' | 'viewer' };
+export type ApprovalHistoryEvent = {
+  id: string; action: string; actorId: string | null; actorName: string; timestamp: string;
+  comment: string | null; fromStatus: PublicationStatus | null; toStatus: PublicationStatus | null;
+  reviewerId: string | null; approvalId: string | null;
 };
 
 export type AiAnalysis = {
@@ -367,6 +401,7 @@ export type BestTimeExplanation = {
 };
 
 export type NotificationPreferences = {
+  publicationApproval: boolean;
   negativeComment: boolean;
   urgentComment: boolean;
   highPriorityComment: boolean;

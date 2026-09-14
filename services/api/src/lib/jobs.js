@@ -64,24 +64,28 @@ async function send(queue, data, options = {}, sendAt) {
  *   déjà en attente pour cette publication (clé singleton) — ce qui rend
  *   l'appel idempotent au lieu d'envoyer deux fois.
  */
-export function enqueuePublishNow({ publicationId, requestedBy, idempotencyKey }) {
-  return send(QUEUES.publishNow, { publicationId, requestedBy, idempotencyKey }, { retryLimit: 0 });
+function transactionOptions(db) {
+  return db ? { db: { executeSql: async (text, values) => ({ rows: await db.$queryRawUnsafe(text, ...values) }) } } : {};
 }
 
-export function enqueueScheduledPublish({ publicationId, requestedBy, scheduledAt }) {
+export function enqueuePublishNow({ publicationId, requestedBy, idempotencyKey, revision }, db) {
+  return send(QUEUES.publishNow, { publicationId, requestedBy, idempotencyKey, revision }, { retryLimit: 0, ...transactionOptions(db) });
+}
+
+export function enqueueScheduledPublish({ publicationId, requestedBy, scheduledAt, revision }, db) {
   return send(
     QUEUES.publishScheduled,
-    { publicationId, requestedBy, scheduledAt },
-    { retryLimit: 0 },
+    { publicationId, requestedBy, scheduledAt, revision },
+    { retryLimit: 0, ...transactionOptions(db) },
     new Date(scheduledAt)
   );
 }
 
-export function enqueueRetry({ publicationId, requestedBy, providers, attempt, delaySeconds = 0 }) {
+export function enqueueRetry({ publicationId, requestedBy, providers, attempt, revision, delaySeconds = 0 }, db) {
   return send(
     QUEUES.retryFailed,
-    { publicationId, requestedBy, providers, attempt },
-    { retryLimit: 0 },
+    { publicationId, requestedBy, providers, attempt, revision },
+    { retryLimit: 0, ...transactionOptions(db) },
     new Date(Date.now() + delaySeconds * 1000)
   );
 }

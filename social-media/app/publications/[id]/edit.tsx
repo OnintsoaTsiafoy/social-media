@@ -29,12 +29,15 @@ import type { PublicationStatus } from '@/types';
 /** Which statuses may still be edited - mirrors the table in the spec. */
 const EDITABLE: Record<PublicationStatus, { allowed: boolean; note: string }> = {
   draft: { allowed: true, note: 'Modifiable' },
+  pending_approval: { allowed: false, note: 'Annulez la demande pour modifier' },
+  approved: { allowed: true, note: 'Nouvelle approbation après modification' },
+  rejected: { allowed: true, note: 'Corriger puis renvoyer pour approbation' },
   scheduled: { allowed: true, note: 'Modifiable jusqu’à l’exécution' },
   publishing: { allowed: false, note: 'Bloquée pendant l’envoi' },
   published: { allowed: false, note: 'Duplication seulement' },
-  partially_published: { allowed: true, note: 'Relance du réseau en erreur' },
+  partially_published: { allowed: false, note: 'Relance du réseau en erreur' },
   failed: { allowed: true, note: 'Modifiable · relance' },
-  cancelled: { allowed: false, note: 'Duplication ou suppression' },
+  cancelled: { allowed: true, note: 'Modifier pour revenir au brouillon' },
 };
 
 /**
@@ -88,7 +91,7 @@ export default function EditPublicationScreen() {
     if (publication.status === 'scheduled') {
       const confirmed = await confirm({
         title: 'Modifier une publication planifiée ?',
-        message: `Elle est planifiée pour le ${formatDateTime(publication.scheduledAt ?? '')}. La planification est conservée.`,
+        message: `Elle est planifiée pour le ${formatDateTime(publication.scheduledAt ?? '')}. La planification sera annulée et une nouvelle approbation sera nécessaire.`,
         confirmLabel: 'Enregistrer',
       });
       if (!confirmed) return;
@@ -107,15 +110,15 @@ export default function EditPublicationScreen() {
     if (!result.ok) return;
 
     request.setData(result.data);
-    toast('Modifications enregistrées.', 'success');
-    router.back();
+    toast('Modifications enregistrées. Demandez une nouvelle approbation.', 'success');
+    router.replace(`/publications/${publication.id}`);
   };
 
   const cancelSchedule = async () => {
     if (!publication) return;
     const confirmed = await confirm({
       title: 'Annuler la planification ?',
-      message: 'La publication repassera en brouillon et ne sera pas envoyée.',
+      message: 'La publication restera approuvée et ne sera pas envoyée à la date prévue.',
       confirmLabel: 'Annuler la planification',
       destructive: true,
     });
@@ -210,7 +213,7 @@ export default function EditPublicationScreen() {
           {publication.status === 'scheduled' && publication.scheduledAt ? (
             <Callout tone="info" icon="clock">
               Publication planifiée le {formatDateTime(publication.scheduledAt)} - modifiable jusqu’à
-              l’exécution.
+              l’exécution. Toute modification annule la planification et nécessite une nouvelle approbation.
             </Callout>
           ) : null}
 

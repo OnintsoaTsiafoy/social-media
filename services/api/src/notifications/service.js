@@ -132,6 +132,7 @@ const DEFAULT_SETTINGS = {
   aiResponseGenerated: true,
   publicationPublished: true,
   publicationFailed: true,
+  publicationApproval: true,
   tokenExpiring: true,
   syncFailed: true,
   sound: true,
@@ -152,6 +153,7 @@ function toPublicSettings(row) {
     aiResponseGenerated: row.aiResponseGenerated,
     publicationPublished: row.publicationPublished,
     publicationFailed: row.publicationFailed,
+    publicationApproval: row.publicationApproval,
     tokenExpiring: row.tokenExpiring,
     syncFailed: row.syncFailed,
     sound: row.sound,
@@ -189,6 +191,10 @@ export async function updateNotificationSettings(userId, patch) {
 // pourraient diverger.
 
 const SETTINGS_KEY_BY_TYPE = {
+  PUBLICATION_APPROVAL_REQUESTED: 'publicationApproval',
+  PUBLICATION_APPROVED: 'publicationApproval',
+  PUBLICATION_REJECTED: 'publicationApproval',
+  PUBLICATION_CHANGES_REQUESTED: 'publicationApproval',
   PRIORITY_COMMENT: 'highPriorityComment',
   NEGATIVE_COMMENT: 'negativeComment',
   URGENT_COMMENT: 'urgentComment',
@@ -232,13 +238,16 @@ export function isWithinQuietHours(nowHHMM, start, end) {
   return nowHHMM >= start || nowHHMM < end;
 }
 
-async function shouldPush(userId, type, priority) {
-  const settings = await prisma.notificationSetting.findUnique({ where: { userId } });
+export function notificationPreferenceAllows(settings, type, priority) {
   const enabled = settings ? settings[SETTINGS_KEY_BY_TYPE[type]] : true;
   if (!enabled) return false;
-
   const floor = settings ? settings.minimumPriority : 'LOW';
-  if (PRIORITY_RANK[priority] < PRIORITY_RANK[floor]) return false;
+  return PRIORITY_RANK[priority] >= PRIORITY_RANK[floor];
+}
+
+async function shouldPush(userId, type, priority) {
+  const settings = await prisma.notificationSetting.findUnique({ where: { userId } });
+  if (!notificationPreferenceAllows(settings, type, priority)) return false;
 
   // Priorité haute : toujours livrée, y compris en heures silencieuses —
   // une plage silencieuse est un confort, pas une raison de manquer un
@@ -281,10 +290,14 @@ export async function createNotification({
     throw error;
   }
 
-  if (await shouldPush(userId, type, priority)) {
+  await pushPersistedNotification(notification);
+  return { deduplicated: false, notification: toPublicNotification(notification) };
+}
+
+export async function pushPersistedNotification(notification) {
+  if (await shouldPush(notification.userId, notification.type, notification.priority)) {
     await pushNotification(notification);
   }
-  return { deduplicated: false, notification: toPublicNotification(notification) };
 }
 
 // Résout les destinataires d'une notification de portée « marque » (analyse

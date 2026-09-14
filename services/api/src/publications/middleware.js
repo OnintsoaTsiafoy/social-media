@@ -2,12 +2,8 @@ import { hasBrandRole } from '../brands/middleware.js';
 import { prisma } from '../db/prisma.js';
 import { HttpError } from '../lib/http.js';
 import { publicationIdSchema } from './schemas.js';
+import { publicationContext } from './lock.js';
 
-const publicationContext = {
-  targets: true,
-  media: { include: { media: true } },
-  schedule: true,
-};
 
 /** Vérifie l'appartenance à la marque via le membership de l'utilisateur. */
 async function requireMembership(brandId, userId, minimumRole, notFoundMessage) {

@@ -127,6 +127,13 @@ export default function NotificationSettingsScreen() {
 
           <Group label="Publications & comptes">
             <Toggle
+              label="Approbations des publications"
+              description="Demandes, validations, refus et modifications demandées."
+              value={prefs.publicationApproval}
+              onValueChange={(value) => patch({ publicationApproval: value })}
+            />
+            <Divider />
+            <Toggle
               label="Publication réussie"
               value={prefs.publicationPublished}
               onValueChange={(value) => patch({ publicationPublished: value })}

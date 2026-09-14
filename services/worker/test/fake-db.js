@@ -10,6 +10,8 @@
 export function createFakeDb(initial = {}) {
   const state = {
     publications: initial.publications ?? [],
+    approvals: initial.approvals ?? [],
+    auditLogs: [],
     targets: initial.targets ?? [],
     attempts: initial.attempts ?? [],
     schedules: initial.schedules ?? [],
@@ -26,13 +28,35 @@ export function createFakeDb(initial = {}) {
     return state.publications.find((row) => row.id === id);
   }
 
+  function approved(row) {
+    return row && !row.deleted_at && row.approved_revision === row.content_revision &&
+      state.approvals.some((approval) => approval.publication_id === row.id && approval.status === 'APPROVED' && approval.revision === row.content_revision);
+  }
+
   async function query(text, params = []) {
     state.calls.push(text.trim().split('\n')[0].trim());
 
+    if (text.includes('AS approval_valid')) {
+      const row = publication(params[0]);
+      return row && !row.deleted_at ? [{ ...row, approval_valid: approved(row) }] : [];
+    }
+    if (text.includes('INSERT INTO audit_logs')) {
+      state.auditLogs.push({ publicationId: params[0], ...JSON.parse(params[1]) });
+      return [];
+    }
+    if (text.includes("UPDATE scheduled_publications SET status = 'CANCELLED'")) {
+      const row = publication(params[0]);
+      const schedule = state.schedules.find((schedule) => schedule.publication_id === params[0]);
+      if (schedule?.status === 'PENDING' && !approved(row)) schedule.status = 'CANCELLED';
+      return [];
+    }
+
     if (text.includes("SET status = 'PUBLISHING'")) {
       const row = publication(params[0]);
-      const claimable = ['DRAFT', 'SCHEDULED', 'PUBLISHING', 'FAILED', 'PARTIALLY_PUBLISHED'];
-      if (!row || row.deleted_at || !claimable.includes(row.status)) return [];
+      const claimable = ['APPROVED', 'SCHEDULED', 'PUBLISHING', 'FAILED', 'PARTIALLY_PUBLISHED'];
+      if (!row || !approved(row) || row.content_revision !== params[1] || !claimable.includes(row.status)) return [];
+      if (params[2] && (!['SCHEDULED', 'PUBLISHING'].includes(row.status) ||
+          (params[3] && new Date(row.scheduled_at).getTime() !== new Date(params[3]).getTime()))) return [];
       row.status = 'PUBLISHING';
       return [row];
     }
@@ -117,9 +141,9 @@ export function createFakeDb(initial = {}) {
       return [];
     }
 
-    if (text.includes('SELECT status FROM scheduled_publications')) {
+    if (text.includes('SELECT status, scheduled_at FROM scheduled_publications')) {
       const schedule = state.schedules.find((row) => row.publication_id === params[0]);
-      return schedule ? [{ status: schedule.status }] : [];
+      return schedule ? [{ status: schedule.status, scheduled_at: schedule.scheduled_at }] : [];
     }
 
     if (text.includes('UPDATE scheduled_publications')) {

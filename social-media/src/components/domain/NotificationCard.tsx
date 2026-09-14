@@ -9,6 +9,10 @@ type Appearance = { icon: IconName; tone: 'danger' | 'warning' | 'success' | 'ne
 
 /** Type → icon and colour, so notification styling lives in one place. */
 const appearances: Record<NotificationType, Appearance> = {
+  publication_approval_requested: { icon: 'clock', tone: 'warning' },
+  publication_approved: { icon: 'checkCircle', tone: 'success' },
+  publication_rejected: { icon: 'failed', tone: 'danger' },
+  publication_changes_requested: { icon: 'priority', tone: 'warning' },
   priority_comment: { icon: 'priority', tone: 'danger' },
   negative_comment: { icon: 'priority', tone: 'danger' },
   urgent_comment: { icon: 'urgent', tone: 'danger' },

@@ -559,6 +559,35 @@ export const accountsApi = {
 // Publications
 // ---------------------------------------------------------------------------
 
+export type ApprovalAction = 'approve' | 'reject' | 'request-changes' | 'cancel-approval';
+export type ApprovalFilters = { brandId: string; status?: import('@/types').ApprovalStatus | 'all'; authorId?: string; reviewerId?: string };
+export const approvalsApi = {
+  async members(brandId: string): Promise<import('@/types').ApprovalMember[]> {
+    return fetchApi(`/api/v1/approvals/members?brandId=${encodeURIComponent(brandId)}`, {}, true);
+  },
+  async list(filters: ApprovalFilters, page = 0, pageSize = PAGE_SIZE) {
+    const query = new URLSearchParams({ brandId: filters.brandId, status: filters.status ?? 'pending', page: String(page + 1), pageSize: String(pageSize) });
+    if (filters.authorId) query.set('authorId', filters.authorId);
+    if (filters.reviewerId) query.set('reviewerId', filters.reviewerId);
+    const result = await fetchApi<{ items: (import('@/types').PublicationApproval & { publication: RemotePublication })[]; total: number }>(`/api/v1/approvals?${query}`, {}, true);
+    return { items: result.items.map((item) => ({ ...item, publication: fromRemotePublication(item.publication) })),
+      total: result.total, hasMore: (page + 1) * pageSize < result.total };
+  },
+  async request(id: string, payload: { reviewerId?: string; comment?: string }) {
+    return fromRemotePublication(await fetchApi<RemotePublication>(`/api/v1/publications/${id}/request-approval`,
+      { method: 'POST', body: JSON.stringify(payload) }, true));
+  },
+  async decide(id: string, action: ApprovalAction, approvalId: string, comment?: string) {
+    return fromRemotePublication(await fetchApi<RemotePublication>(`/api/v1/publications/${id}/${action}`,
+      { method: 'POST', body: JSON.stringify({ approvalId, comment }) }, true));
+  },
+  async history(id: string, page = 0) {
+    const result = await fetchApi<{ items: import('@/types').ApprovalHistoryEvent[]; total: number }>(
+      `/api/v1/publications/${id}/approval-history?page=${page + 1}&pageSize=30`, {}, true);
+    return { ...result, hasMore: (page + 1) * 30 < result.total };
+  },
+};
+
 export type PublicationFilters = {
   status?: PublicationStatus | 'all';
   network?: SocialNetwork | 'multi' | 'all';
@@ -609,6 +638,9 @@ type RemotePublicationTarget = {
 };
 
 type RemotePublication = {
+  authorId: string;
+  approval: Publication['approval'];
+  approvalValid: boolean;
   id: string;
   brandId: string;
   brandName: string;
@@ -664,6 +696,9 @@ function fromRemotePublication(publication: RemotePublication): Publication {
 
   return {
     id: publication.id,
+    authorId: publication.authorId,
+    approval: publication.approval,
+    approvalValid: publication.approvalValid,
     brandId: publication.brandId,
     brandName: publication.brandName,
     text: publication.content,
@@ -773,13 +808,10 @@ export const publicationsApi = {
 
   async create(
     draft: PublicationDraft,
-    mode: 'draft' | 'publish' | 'schedule',
-    scheduledAt?: string
+    mode: 'draft' = 'draft'
   ): Promise<Publication> {
     if (!draft.text.trim()) throw new ApiError('conflict', 'Le texte de la publication est obligatoire.');
-    if (mode !== 'draft' && draft.networks.length === 0) {
-      throw new ApiError('conflict', 'Sélectionnez au moins un réseau.');
-    }
+    if (mode !== 'draft') throw new ApiError('conflict', 'Créez un brouillon puis demandez une approbation.');
 
     const created = await fetchApi<RemotePublication>(
       '/api/v1/publications',
@@ -797,10 +829,6 @@ export const publicationsApi = {
       true
     );
 
-    if (mode === 'publish') return publicationsApi.publishNow(created.id);
-    if (mode === 'schedule' && scheduledAt) {
-      return publicationsApi.schedule(created.id, scheduledAt, created.timezone);
-    }
     return fromRemotePublication(created);
   },
 
@@ -1244,6 +1272,7 @@ const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   aiResponseGenerated: true,
   publicationPublished: true,
   publicationFailed: true,
+  publicationApproval: true,
   tokenExpiring: true,
   syncFailed: true,
   sound: true,

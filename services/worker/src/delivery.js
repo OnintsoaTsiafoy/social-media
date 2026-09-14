@@ -25,8 +25,38 @@ const CLAIM_PUBLICATION = `
      SET status = 'PUBLISHING', updated_at = now()
    WHERE id = $1::uuid
      AND deleted_at IS NULL
-     AND status IN ('DRAFT', 'SCHEDULED', 'PUBLISHING', 'FAILED', 'PARTIALLY_PUBLISHED')
-  RETURNING id, brand_id, content, hashtags, language, timezone, created_by_user_id
+     AND status IN ('APPROVED', 'SCHEDULED', 'PUBLISHING', 'FAILED', 'PARTIALLY_PUBLISHED')
+     AND content_revision = $2::int AND approved_revision = content_revision
+     AND (NOT $3::boolean OR (status IN ('SCHEDULED', 'PUBLISHING')
+          AND scheduled_at = COALESCE($4::timestamptz, scheduled_at)))
+     AND EXISTS (SELECT 1 FROM publication_approvals a WHERE a.publication_id = publications.id
+                 AND a.revision = publications.content_revision AND a.status = 'APPROVED')
+  RETURNING id, brand_id, content, hashtags, language, timezone, created_by_user_id, content_revision
+`;
+
+const CHECK_APPROVAL = `
+  SELECT p.status, p.content_revision, p.approved_revision,
+         EXISTS (SELECT 1 FROM publication_approvals a WHERE a.publication_id = p.id
+                 AND a.revision = p.content_revision AND a.status = 'APPROVED') AS approval_valid
+    FROM publications p WHERE p.id = $1::uuid AND p.deleted_at IS NULL
+`;
+
+const CANCEL_INVALID_SCHEDULE = `
+  UPDATE scheduled_publications SET status = 'CANCELLED', job_id = NULL, updated_at = now()
+   WHERE publication_id = $1::uuid AND status = 'PENDING'
+     AND NOT EXISTS (SELECT 1 FROM publications p JOIN publication_approvals a ON a.publication_id = p.id
+       WHERE p.id = $1::uuid AND p.deleted_at IS NULL AND a.status = 'APPROVED'
+         AND p.approved_revision = p.content_revision AND a.revision = p.content_revision)
+`;
+
+const AUDIT_SKIPPED_JOB = `
+  INSERT INTO audit_logs (id, action, resource_type, resource_id, metadata, created_at)
+  VALUES (gen_random_uuid(), 'publication.job_cancelled', 'publication', $1, $2::jsonb, now())
+`;
+
+const AUDIT_DELIVERY = `
+  INSERT INTO audit_logs (id, action, resource_type, resource_id, metadata, created_at)
+  VALUES (gen_random_uuid(), 'publication.delivery_completed', 'publication', $1, $2::jsonb, now())
 `;
 
 const SELECT_TARGETS = `
@@ -96,7 +126,7 @@ const UPDATE_PUBLICATION_STATUS = `
    WHERE id = $1::uuid
 `;
 
-const SELECT_SCHEDULE = `SELECT status FROM scheduled_publications WHERE publication_id = $1::uuid`;
+const SELECT_SCHEDULE = `SELECT status, scheduled_at FROM scheduled_publications WHERE publication_id = $1::uuid`;
 
 const MARK_SCHEDULE_DISPATCHED = `
   UPDATE scheduled_publications
@@ -153,7 +183,24 @@ export function createDeliveryService({
   notifyUser,
   logger = console,
 }) {
+  async function approvalIsCurrent(publicationId, revision) {
+    const [row] = await query(CHECK_APPROVAL, [publicationId]);
+    return row && Number.isInteger(revision) && row.content_revision === revision &&
+      row.approved_revision === revision && row.approval_valid;
+  }
+
+  async function cancelInvalidJob(publicationId, reason) {
+    await query(CANCEL_INVALID_SCHEDULE, [publicationId]);
+    await query(AUDIT_SKIPPED_JOB, [publicationId, JSON.stringify({ reason })]);
+    logger.warn?.({ scope: 'delivery', publicationId, skipped: reason });
+    return { publicationId, skipped: reason };
+  }
+
   async function deliverTarget(publication, target, mediaUrls) {
+    if (!await approvalIsCurrent(publication.id, publication.revision)) {
+      await cancelInvalidJob(publication.id, 'approval_invalid');
+      return { provider: target.provider, skipped: 'approval_invalid' };
+    }
     // Verrou conditionnel : si la cible n'est plus livrable (déjà envoyée ou
     // prise par un autre worker), on ne l'envoie pas.
     const [claimed] = await query(CLAIM_TARGET, [target.id]);
@@ -216,21 +263,27 @@ export function createDeliveryService({
    * @param {{ publicationId: string, providers?: string[], requireSchedule?: boolean, requestedBy?: string }} command
    */
   async function publish(command) {
-    const { publicationId, providers, requireSchedule = false, requestedBy } = command;
+    const { publicationId, providers, requireSchedule = false, requestedBy, revision, scheduledAt } = command;
+
+    if (!await approvalIsCurrent(publicationId, revision)) {
+      return cancelInvalidJob(publicationId, 'approval_invalid_or_stale_job');
+    }
 
     if (requireSchedule) {
       const [schedule] = await query(SELECT_SCHEDULE, [publicationId]);
       // Une planification annulée entre-temps ne doit rien envoyer.
-      if (!schedule || schedule.status !== 'PENDING') {
+      if (!schedule || schedule.status !== 'PENDING' ||
+          (scheduledAt && new Date(schedule.scheduled_at).getTime() !== new Date(scheduledAt).getTime())) {
         return { publicationId, skipped: 'schedule_not_pending' };
       }
     }
 
-    const [publication] = await query(CLAIM_PUBLICATION, [publicationId]);
+    const [publication] = await query(CLAIM_PUBLICATION, [publicationId, revision, requireSchedule, scheduledAt ?? null]);
     if (!publication) return { publicationId, skipped: 'not_publishable' };
 
     const context = {
       id: publication.id,
+      revision,
       content: publication.content,
       hashtags: Array.isArray(publication.hashtags) ? publication.hashtags : [],
     };
@@ -250,8 +303,13 @@ export function createDeliveryService({
       results.push(await deliverTarget(context, target, mediaUrls));
     }
 
+    if (results.some((result) => result.skipped === 'approval_invalid')) {
+      return { publicationId, skipped: 'approval_invalid', results };
+    }
+
     const status = await refreshPublicationStatus(publicationId);
     await query(MARK_SCHEDULE_DISPATCHED, [publicationId]);
+    await query(AUDIT_DELIVERY, [publicationId, JSON.stringify({ fromStatus: 'PUBLISHING', toStatus: status })]);
 
     const notificationType = PUBLICATION_NOTIFICATION_TYPE[status];
     if (notifyUser && notificationType) {
@@ -285,6 +343,7 @@ export function createDeliveryService({
         providers: [result.provider],
         attempt: result.attemptNumber + 1,
         requestedBy,
+        revision,
         delaySeconds,
       });
       retries.push({ provider: result.provider, delaySeconds, jobId });

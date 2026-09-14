@@ -4,6 +4,9 @@ import { z } from 'zod';
 export const PROVIDERS = ['facebook', 'instagram'];
 export const STATUSES = [
   'draft',
+  'pending_approval',
+  'approved',
+  'rejected',
   'scheduled',
   'publishing',
   'published',
