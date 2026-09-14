@@ -40,3 +40,9 @@ export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1).max(128),
   newPassword: passwordSchema,
 });
+
+export const sessionIdSchema = z.uuid('Identifiant de session invalide.');
+
+export const deleteAccountSchema = z.object({
+  password: z.string().min(1).max(128),
+});

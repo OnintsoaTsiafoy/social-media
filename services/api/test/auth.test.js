@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { registerSchema } from '../src/auth/schemas.js';
+import { deleteAccountSchema, registerSchema, sessionIdSchema } from '../src/auth/schemas.js';
 import { createAccessToken, verifyAccessToken } from '../src/auth/tokens.js';
 
 process.env.JWT_ACCESS_SECRET = 'test-only-signing-secret-that-is-long-enough';
@@ -30,6 +30,18 @@ test('register schema rejects a weak password', () => {
       lastName: 'Martin',
     })
   );
+});
+
+test('session id schema accepts a UUID and rejects anything else', () => {
+  assert.equal(sessionIdSchema.safeParse('ee025d27-d721-41fd-a2a5-60f71caadb4a').success, true);
+  assert.equal(sessionIdSchema.safeParse('not-a-uuid').success, false);
+  assert.equal(sessionIdSchema.safeParse('').success, false);
+});
+
+test('delete account schema requires a non-empty password', () => {
+  assert.equal(deleteAccountSchema.safeParse({ password: 'ChangeMe123!' }).success, true);
+  assert.equal(deleteAccountSchema.safeParse({ password: '' }).success, false);
+  assert.equal(deleteAccountSchema.safeParse({}).success, false);
 });
 
 test('access token is constrained to its audience and session', () => {

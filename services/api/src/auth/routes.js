@@ -5,21 +5,27 @@ import { HttpError, sendSuccess } from '../lib/http.js';
 import { requireAuthentication } from './middleware.js';
 import {
   changePasswordSchema,
+  deleteAccountSchema,
   forgotPasswordSchema,
   loginSchema,
   refreshSchema,
   registerSchema,
   resetPasswordSchema,
+  sessionIdSchema,
 } from './schemas.js';
 import {
   changePassword,
   currentUser,
+  deleteAccount,
+  listSessions,
   login,
   logout,
   refresh,
   register,
   requestPasswordReset,
   resetPassword,
+  revokeAllSessions,
+  revokeSession,
 } from './service.js';
 
 const router = express.Router();
@@ -97,6 +103,27 @@ router.post('/change-password', requireAuthentication, async (request, response)
   const { currentPassword, newPassword } = parse(changePasswordSchema, request.body);
   const data = await changePassword(request.auth, currentPassword, newPassword, request);
   sendSuccess(response, data);
+});
+
+router.get('/sessions', requireAuthentication, async (request, response) => {
+  sendSuccess(response, await listSessions(request.auth));
+});
+
+router.delete('/sessions/:id', requireAuthentication, async (request, response) => {
+  const id = parse(sessionIdSchema, request.params.id);
+  await revokeSession(request.auth, id, request);
+  response.status(204).end();
+});
+
+router.delete('/sessions', requireAuthentication, async (request, response) => {
+  await revokeAllSessions(request.auth, request);
+  response.status(204).end();
+});
+
+router.delete('/account', requireAuthentication, async (request, response) => {
+  const { password } = parse(deleteAccountSchema, request.body);
+  await deleteAccount(request.auth, password, request);
+  response.status(204).end();
 });
 
 export { router as authRouter };

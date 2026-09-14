@@ -45,7 +45,6 @@ export default function DeleteAccountScreen() {
   const [password, setPassword] = useState('');
   const [word, setWord] = useState('');
   const [understood, setUnderstood] = useState(false);
-  const [error, setError] = useState<string | undefined>(undefined);
 
   const wordMatches = word.trim().toUpperCase() === CONFIRMATION_WORD;
   const ready = password.length > 0 && wordMatches && understood;
@@ -63,10 +62,7 @@ export default function DeleteAccountScreen() {
     if (!confirmed) return;
 
     const result = await mutation.run(() => auth.deleteAccount(password));
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
+    if (!result.ok) return;
 
     await signOut();
     toast('Votre compte a été supprimé.', 'info');
@@ -116,16 +112,14 @@ export default function DeleteAccountScreen() {
         </Text>
       </Card>
 
+      {mutation.error ? <Callout tone="danger">{mutation.error}</Callout> : null}
+
       <View style={styles.form}>
         <PasswordField
           label="Mot de passe"
           placeholder="Votre mot de passe"
           value={password}
-          onChangeText={(value) => {
-            setPassword(value);
-            setError(undefined);
-          }}
-          error={error}
+          onChangeText={setPassword}
         />
 
         <TextField

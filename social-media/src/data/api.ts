@@ -9,7 +9,6 @@
 import type { Href } from 'expo-router';
 import { Platform } from 'react-native';
 
-import * as fixtures from './fixtures';
 import {
   clearSessionTokens,
   readRefreshToken,
@@ -237,45 +236,6 @@ export const devSimulation = {
   },
 };
 
-const LATENCY_MS = 480;
-
-function delay(ms = LATENCY_MS) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
-}
-
-/** Guards every call: rejects when offline, and honours a one-shot failure. */
-async function request<T>(produce: () => T, ms = LATENCY_MS): Promise<T> {
-  await delay(ms);
-  if (simulation.offline) {
-    throw new ApiError('offline', errorMessages.offline);
-  }
-  if (simulation.failNextRead) {
-    simulation.failNextRead = false;
-    throw new ApiError('server', errorMessages.server);
-  }
-  return produce();
-}
-
-// ---------------------------------------------------------------------------
-// Mutable store - cloned from fixtures so edits survive within a session.
-// ---------------------------------------------------------------------------
-
-const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
-
-const store = {
-  user: clone(fixtures.currentUser),
-  brands: clone(fixtures.brands),
-  activeBrandId: fixtures.brands[0]!.id,
-  accounts: clone(fixtures.socialAccounts),
-  publications: clone(fixtures.publications),
-  comments: clone(fixtures.comments),
-  history: clone(fixtures.commentHistory),
-  notifications: clone(fixtures.notifications),
-  analytics: clone(fixtures.analyticsOverview),
-  notificationPrefs: clone(fixtures.notificationPreferences),
-  sessions: clone(fixtures.sessions),
-};
-
 // ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
@@ -349,18 +309,28 @@ export const auth = {
     await fetchApi('/api/v1/auth/logout', { method: 'POST' }, true);
   },
 
+  /** Désactive le compte côté serveur : annule les publications planifiées et
+   * déconnecte les comptes sociaux des marques que l'utilisateur possède seul,
+   * puis révoque toutes ses sessions. Refusé (409) si une marque possédée a
+   * encore d'autres membres actifs — il faut d'abord les transférer ou les
+   * retirer. */
   async deleteAccount(password: string): Promise<void> {
-    return request(() => {
-      if (password === 'wrongpassword') {
-        throw new ApiError('invalid_credentials', 'Le mot de passe est incorrect.');
-      }
-    }, 900);
+    await fetchApi('/api/v1/auth/account', { method: 'DELETE', body: JSON.stringify({ password }) }, true);
   },
 };
 
 // ---------------------------------------------------------------------------
 // Profile, brands, sessions
 // ---------------------------------------------------------------------------
+
+type RemoteSession = { id: string; device: string; lastActiveAt: string; current: boolean };
+
+/** Le serveur ne fait pas de géolocalisation IP : la localisation, elle,
+ * reste indisponible plutôt qu'inventée (même convention que les métriques
+ * manquantes, voir README - "Non disponible", jamais une valeur fictive). */
+function fromRemoteSession(remote: RemoteSession): Session {
+  return { ...remote, location: 'Non disponible' };
+}
 
 export const profile = {
   async get(): Promise<User> {
@@ -372,17 +342,14 @@ export const profile = {
     );
   },
   async listSessions(): Promise<Session[]> {
-    return request(() => clone(store.sessions));
+    const remote = await fetchApi<RemoteSession[]>('/api/v1/auth/sessions', {}, true);
+    return remote.map(fromRemoteSession);
   },
   async revokeSession(id: string): Promise<void> {
-    return request(() => {
-      store.sessions = store.sessions.filter((s) => s.id !== id);
-    });
+    await fetchApi(`/api/v1/auth/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }, true);
   },
   async revokeAllSessions(): Promise<void> {
-    return request(() => {
-      store.sessions = store.sessions.filter((s) => s.current);
-    }, 700);
+    await fetchApi('/api/v1/auth/sessions', { method: 'DELETE' }, true);
   },
 };
 

@@ -3,9 +3,11 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import bcrypt from 'bcrypt';
 
 import { prisma } from '../db/prisma.js';
-import { activeBrandForUser } from '../brands/service.js';
+import { activeBrandForUser, deleteBrand } from '../brands/service.js';
 import { HttpError } from '../lib/http.js';
 import { unreadCount } from '../notifications/service.js';
+import { cancelSchedule } from '../publications/service.js';
+import { disconnectAccount } from '../social-accounts/service.js';
 import { accessTokenTtlSeconds, createAccessToken, refreshTokenTtlSeconds } from './tokens.js';
 
 const BCRYPT_ROUNDS = 12;
@@ -283,5 +285,132 @@ export async function changePassword(auth, currentPassword, newPassword, request
       requestId: request.requestId,
     });
     return sessionResponse(replacement, auth.user);
+  });
+}
+
+export async function listSessions(auth) {
+  const sessions = await prisma.userSession.findMany({
+    where: { userId: auth.user.id, revokedAt: null, expiresAt: { gt: new Date() } },
+    orderBy: [{ lastUsedAt: 'desc' }, { createdAt: 'desc' }],
+  });
+
+  return sessions.map((session) => ({
+    id: session.id,
+    device: session.deviceName,
+    // Un appareil qui vient de se connecter n'a pas encore rafraîchi son
+    // jeton : lastUsedAt reste `null` jusque-là (voir refresh() plus haut).
+    lastActiveAt: (session.lastUsedAt ?? session.createdAt).toISOString(),
+    current: session.id === auth.sessionId,
+  }));
+}
+
+export async function revokeSession(auth, sessionId, request) {
+  const session = await prisma.userSession.findFirst({
+    where: { id: sessionId, userId: auth.user.id, revokedAt: null },
+  });
+  if (!session) {
+    throw new HttpError(404, 'not_found', 'Session introuvable.');
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.userSession.update({ where: { id: sessionId }, data: { revokedAt: new Date() } });
+    await writeAudit(tx, {
+      userId: auth.user.id,
+      action: 'auth.session_revoked',
+      resourceType: 'user_session',
+      resourceId: sessionId,
+      requestId: request.requestId,
+    });
+  });
+}
+
+export async function revokeAllSessions(auth, request) {
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.userSession.updateMany({ where: { userId: auth.user.id, revokedAt: null }, data: { revokedAt: now } });
+    await writeAudit(tx, {
+      userId: auth.user.id,
+      action: 'auth.all_sessions_revoked',
+      resourceType: 'user_session',
+      resourceId: auth.sessionId,
+      requestId: request.requestId,
+    });
+  });
+}
+
+/**
+ * Suppression de compte (Sprint 13). `Brand.ownerUserId` est obligatoire et
+ * il n'existe aucun transfert de propriété : si une marque possédée a
+ * encore d'autres membres actifs, la suppression est refusée plutôt que de
+ * les priver silencieusement de leur accès (décision produit du Sprint 13,
+ * voir docs/SPRINT_13). L'utilisateur doit d'abord retirer ou transférer
+ * ces membres. Une marque possédée sans autre membre est en revanche
+ * archivée comme le permet déjà `deleteBrand`, après annulation de ses
+ * publications planifiées et déconnexion de ses comptes sociaux — les deux
+ * promesses de l'écran mobile de suppression.
+ */
+export async function deleteAccount(auth, password, request) {
+  if (!(await bcrypt.compare(password, auth.user.passwordHash))) {
+    throw new HttpError(401, 'invalid_credentials', 'Le mot de passe est incorrect.');
+  }
+
+  const ownedMemberships = await prisma.brandMember.findMany({
+    where: {
+      userId: auth.user.id,
+      role: 'OWNER',
+      isActive: true,
+      brand: { deletedAt: null, status: 'ACTIVE' },
+    },
+    include: { brand: true },
+  });
+
+  for (const membership of ownedMemberships) {
+    const otherActiveMembers = await prisma.brandMember.count({
+      where: { brandId: membership.brandId, userId: { not: auth.user.id }, isActive: true },
+    });
+    if (otherActiveMembers > 0) {
+      throw new HttpError(
+        409,
+        'conflict',
+        `Transférez ou retirez les autres membres de « ${membership.brand.name} » avant de supprimer votre compte.`
+      );
+    }
+  }
+
+  for (const membership of ownedMemberships) {
+    const scheduledPublications = await prisma.publication.findMany({
+      where: { brandId: membership.brandId, status: 'SCHEDULED', deletedAt: null },
+      include: { schedule: true },
+    });
+    for (const publication of scheduledPublications) {
+      await cancelSchedule(auth.user, publication, request);
+    }
+
+    const socialAccounts = await prisma.socialAccount.findMany({ where: { brandId: membership.brandId } });
+    for (const account of socialAccounts) {
+      await disconnectAccount({ userId: auth.user.id, socialAccountId: account.id }, request);
+    }
+
+    await deleteBrand(membership.brandId, membership, request);
+  }
+
+  // Marques dont l'utilisateur n'est qu'un membre : il ne fait que les
+  // quitter, la marque et ses autres membres ne sont pas affectés.
+  await prisma.brandMember.updateMany({
+    where: { userId: auth.user.id, role: { not: 'OWNER' }, isActive: true },
+    data: { isActive: false },
+  });
+
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.userSession.updateMany({ where: { userId: auth.user.id, revokedAt: null }, data: { revokedAt: now } });
+    await tx.user.update({ where: { id: auth.user.id }, data: { status: 'DISABLED' } });
+    await writeAudit(tx, {
+      userId: auth.user.id,
+      action: 'auth.account_deleted',
+      resourceType: 'user',
+      resourceId: auth.user.id,
+      requestId: request.requestId,
+    });
   });
 }

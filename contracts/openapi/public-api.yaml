@@ -108,6 +108,48 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Session' }
         '401': { $ref: '#/components/responses/AuthenticationRequired' }
+  /api/v1/auth/sessions:
+    get:
+      summary: Lister les sessions actives de l’utilisateur connecté
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/SessionList' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+    delete:
+      summary: Fermer toutes les sessions, y compris la session courante
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Toutes les sessions ont été révoquées }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+  /api/v1/auth/sessions/{id}:
+    delete:
+      summary: Fermer une session précise (jamais la courante depuis l’écran mobile)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Session révoquée }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/auth/account:
+    delete:
+      summary: Supprimer (désactiver) le compte de l’utilisateur connecté
+      description: >
+        Vérifie le mot de passe, annule les publications planifiées et
+        déconnecte les comptes sociaux des marques possédées sans autre
+        membre actif, puis désactive le compte et révoque ses sessions. Refusée
+        si une marque possédée a encore d’autres membres actifs : il faut
+        d’abord les transférer ou les retirer.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeleteAccountRequest' }
+      responses:
+        '204': { description: Compte désactivé et sessions révoquées }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /api/v1/profile:
     get:
       summary: Lire le profil de l’utilisateur connectÃ©
@@ -1274,6 +1316,19 @@ components:
       properties:
         currentPassword: { type: string, format: password }
         newPassword: { type: string, format: password, minLength: 8 }
+    DeleteAccountRequest:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string, format: password }
+    DeviceSession:
+      type: object
+      required: [id, device, lastActiveAt, current]
+      properties:
+        id: { type: string, format: uuid }
+        device: { type: string }
+        lastActiveAt: { type: string, format: date-time }
+        current: { type: boolean }
     SessionData:
       type: object
       required: [accessToken, refreshToken, tokenType, expiresIn, user]
@@ -1393,6 +1448,16 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/SuccessEnvelope' }
+    SessionList:
+      description: Sessions actives de l’utilisateur connecté
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/DeviceSession' } }
     ValidationFailed:
       description: Entrée invalide
       content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }

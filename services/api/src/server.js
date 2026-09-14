@@ -38,6 +38,14 @@ const openApiDocument = {
     '/api/v1/auth/forgot-password': { post: { summary: 'Demander une réinitialisation' } },
     '/api/v1/auth/reset-password': { post: { summary: 'Réinitialiser un mot de passe' } },
     '/api/v1/auth/change-password': { post: { summary: 'Modifier un mot de passe' } },
+    '/api/v1/auth/sessions': {
+      get: { summary: 'Lister les sessions actives' },
+      delete: { summary: 'Fermer toutes les sessions (y compris la courante)' },
+    },
+    '/api/v1/auth/sessions/{id}': { delete: { summary: 'Fermer une session précise' } },
+    '/api/v1/auth/account': {
+      delete: { summary: 'Désactiver le compte (409 si une marque possédée a d’autres membres actifs)' },
+    },
     '/api/v1/profile': { get: { summary: 'Lire le profil' }, patch: { summary: 'Modifier le profil' } },
     '/api/v1/profile/preferences': { get: { summary: 'Lire les prÃ©fÃ©rences' }, patch: { summary: 'Modifier les prÃ©fÃ©rences' } },
     '/api/v1/profile/avatar': { post: { summary: 'Associer un avatar' }, delete: { summary: 'Retirer l’avatar' } },
