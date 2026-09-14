@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { toUserMessage } from '@/data/api';
+import { ApiError, toUserMessage, type ApiErrorCode } from '@/data/api';
 
 export type AsyncState<T> = {
   data: T | undefined;
@@ -89,7 +89,7 @@ export function useAsync<T>(run: () => Promise<T>, deps: React.DependencyList = 
  */
 export type MutationResult<T> =
   | { ok: true; data: T }
-  | { ok: false; error: string | undefined };
+  | { ok: false; error: string | undefined; code?: ApiErrorCode };
 
 export type MutationState = {
   /** Disable the submit button while this is true - prevents double submits. */
@@ -129,7 +129,7 @@ export function useMutation(): MutationState {
     } catch (caught) {
       const message = toUserMessage(caught);
       if (mounted.current) setError(message);
-      return { ok: false, error: message };
+      return { ok: false, error: message, code: caught instanceof ApiError ? caught.code : undefined };
     } finally {
       inFlight.current = false;
       if (mounted.current) setPending(false);

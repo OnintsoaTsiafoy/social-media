@@ -25,7 +25,7 @@ import {
   useFeedback,
 } from '@/components/ui';
 import { accountsApi, analyticsApi, commentsApi, dashboardApi, devSimulation } from '@/data/api';
-import { useAsync, useMutation } from '@/hooks/useAsync';
+import { useAsync } from '@/hooks/useAsync';
 import { formatCompactNumber, formatPercent, formatRelative } from '@/lib/format';
 import { useSession } from '@/store/SessionProvider';
 import { palette, spacing, useResponsive } from '@/theme';
@@ -43,7 +43,6 @@ export default function HomeScreen() {
   const { gutter } = useResponsive();
 
   const [syncing, setSyncing] = useState(false);
-  const treat = useMutation();
 
   const summary = useAsync(() => dashboardApi.summary(brand?.id ?? ''), []);
   const priority = useAsync(() => dashboardApi.priorityComments(brand?.id ?? ''), []);
@@ -72,17 +71,6 @@ export default function HomeScreen() {
     } finally {
       setSyncing(false);
     }
-  };
-
-  const treatComment = async (id: string) => {
-    const result = await treat.run(() => commentsApi.setStatus(id, 'processed'));
-    if (!result.ok) {
-      toast(result.error ?? 'Action impossible.', 'error');
-      return;
-    }
-    toast('Commentaire marqué comme traité.', 'success');
-    void priority.refresh();
-    void summary.refresh();
   };
 
   const staleAccounts = (accounts.data ?? []).filter(
@@ -229,8 +217,7 @@ export default function HomeScreen() {
                 key={comment.id}
                 comment={comment}
                 onPress={() => router.push(`/comments/${comment.id}`)}
-                onTreat={() => treatComment(comment.id)}
-                treating={treat.pending}
+                onTreat={() => router.push(`/comments/${comment.id}/response`)}
               />
             ))}
           </View>

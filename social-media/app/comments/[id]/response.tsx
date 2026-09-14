@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import {
@@ -23,7 +23,7 @@ import {
 } from '@/components/ui';
 import { brandsApi, commentsApi } from '@/data/api';
 import { LANGUAGE_OPTIONS, TONE_OPTIONS } from '@/data/options';
-import { useAsync, useMutation } from '@/hooks/useAsync';
+import { useAsync, useMutation, type MutationResult } from '@/hooks/useAsync';
 import { excerpt } from '@/lib/format';
 import { messages } from '@/lib/validation';
 import { palette, spacing } from '@/theme';
@@ -49,37 +49,29 @@ export default function ResponseEditorScreen() {
   const request = useAsync(() => commentsApi.get(id), [id]);
   const brand = useAsync(() => brandsApi.getActive(), []);
 
-  const [text, setText] = useState('');
-  const [tone, setTone] = useState<BrandTone>('empathetic');
-  const [language, setLanguage] = useState('auto');
+  const [draft, setDraft] = useState<{ commentId: string; text: string; tone: BrandTone; language: string }>();
   const [instruction, setInstruction] = useState('');
   const [reason, setReason] = useState('');
   const [rating, setRating] = useState('');
   const [error, setError] = useState<string | undefined>(undefined);
-  const [bannedHit, setBannedHit] = useState<string | undefined>(undefined);
 
   const comment = request.data;
   const response = comment?.response;
 
-  // Seed the editor from the stored proposal.
-  useEffect(() => {
-    if (!response) return;
-    setText(response.text);
-    setTone(response.tone);
-    setLanguage(response.language);
-  }, [response]);
+  // Derive defaults and validation during render. Writing derived state in
+  // effects creates extra TextInput update cycles during fast Android typing.
+  // A local draft survives a server refresh after a conflict.
+  const localDraft = draft?.commentId === id ? draft : undefined;
+  const text = localDraft?.text ?? response?.text ?? '';
+  const tone = localDraft?.tone ?? response?.tone ?? brand.data?.tone ?? 'empathetic';
+  const language = localDraft?.language ?? response?.language ?? 'auto';
+  const patchDraft = (patch: Partial<NonNullable<typeof draft>>) =>
+    setDraft({ commentId: id, text, tone, language, ...patch });
+  const bannedHit = brand.data?.bannedTerms?.find((term) => text.toLowerCase().includes(term.toLowerCase()));
 
-  // Fall back to the brand's default tone when there is no proposal yet.
-  useEffect(() => {
-    if (!response && brand.data) setTone(brand.data.tone);
-  }, [response, brand.data]);
-
-  // Forbidden-term check, driven by the brand settings.
-  useEffect(() => {
-    const banned = brand.data?.bannedTerms ?? [];
-    const lower = text.toLowerCase();
-    setBannedHit(banned.find((term) => lower.includes(term.toLowerCase())));
-  }, [text, brand.data]);
+  const refreshOnConflict = async (result: MutationResult<unknown>) => {
+    if (!result.ok && result.code === 'conflict') await request.refresh();
+  };
 
   const alreadySent = response?.status === 'sent';
   const decided = alreadySent || response?.status === 'approved' || response?.status === 'rejected';
@@ -92,9 +84,9 @@ export default function ResponseEditorScreen() {
     const result = await generation.run(() =>
       commentsApi.generateResponse(comment.id, { tone, language, instruction, suggestionId: response?.id })
     );
-    if (!result.ok) return;
-    setText(result.data.text);
+    if (!result.ok) { await refreshOnConflict(result); return; }
     request.setData({ ...comment, response: result.data });
+    setDraft(undefined);
     toast('Nouvelle proposition générée.', 'success');
   };
 
@@ -121,8 +113,9 @@ export default function ResponseEditorScreen() {
         response?.id
       )
     );
-    if (!result.ok) return;
+    if (!result.ok) { await refreshOnConflict(result); return; }
     request.setData({ ...comment, response: result.data });
+    setDraft(undefined);
     toast('Réponse enregistrée.', 'success');
   };
 
@@ -137,7 +130,7 @@ export default function ResponseEditorScreen() {
     if (!confirmed) return;
 
     const result = await saving.run(() => commentsApi.rejectResponse(response.id, feedback));
-    if (!result.ok) return;
+    if (!result.ok) { await refreshOnConflict(result); return; }
     toast('Proposition rejetée.', 'info');
     router.back();
   };
@@ -145,8 +138,9 @@ export default function ResponseEditorScreen() {
   const accept = async () => {
     if (!comment || !response || !validate()) return;
     const result = await saving.run(() => commentsApi.acceptResponse(response.id, text.trim(), feedback));
-    if (!result.ok) return;
+    if (!result.ok) { await refreshOnConflict(result); return; }
     request.setData({ ...comment, response: result.data });
+    setDraft(undefined);
     toast('Réponse validée. Vous pouvez maintenant l’envoyer.', 'success');
   };
 
@@ -182,7 +176,7 @@ export default function ResponseEditorScreen() {
     const result = await sending.run(() =>
       commentsApi.approveAndSend(comment.id, text.trim(), response?.id, feedback)
     );
-    if (!result.ok) return;
+    if (!result.ok) { await refreshOnConflict(result); return; }
 
     toast('Réponse envoyée.', 'success');
     router.replace(`/comments/${comment.id}`);
@@ -286,7 +280,7 @@ export default function ResponseEditorScreen() {
             counter={`${text.length} / ${MAX_RESPONSE_LENGTH}`}
             value={text}
             onChangeText={(value) => {
-              setText(value);
+              patchDraft({ text: value });
               setError(undefined);
             }}
             error={error}
@@ -340,7 +334,7 @@ export default function ResponseEditorScreen() {
               label="Ton"
               value={tone}
               options={TONE_OPTIONS}
-              onChange={setTone}
+              onChange={(value) => patchDraft({ tone: value })}
               disabled={alreadySent}
               containerStyle={styles.rowItem}
             />
@@ -348,7 +342,7 @@ export default function ResponseEditorScreen() {
               label="Langue"
               value={language}
               options={[{ value: 'auto', label: 'Langue du commentaire' }, ...LANGUAGE_OPTIONS]}
-              onChange={setLanguage}
+              onChange={(value) => patchDraft({ language: value })}
               disabled={alreadySent}
               containerStyle={styles.rowItem}
             />

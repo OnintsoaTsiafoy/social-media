@@ -94,7 +94,7 @@ def main():
     parser.add_argument('--local', action='store_true', help='Explicit local smoke test, without paid LLM requests')
     parser.add_argument('--fixtures', type=Path, default=Path(__file__).with_name('fixtures.json'))
     parser.add_argument('--output', type=Path, default=Path(__file__).with_name('results'))
-    parser.add_argument('--threshold', type=float, default=0.82)
+    parser.add_argument('--threshold', type=float, default=0.86)
     args = parser.parse_args()
     if not 0 <= args.threshold <= 1:
         parser.error('Threshold must be between 0 and 1.')

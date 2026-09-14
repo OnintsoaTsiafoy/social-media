@@ -22,8 +22,13 @@ test('RAG, permissions, versioned human feedback and concurrent decisions', { sk
     if (String(url).endsWith('/prepare')) {
       if (indexFails) return Response.json({ error: { code: 'ai_error', message: 'Indexation indisponible' } }, { status: 503 });
       result = { model: 'intfloat/multilingual-e5-small', chunks: [{ content: body.content, embedding: vector(), metadata: {} }] };
-    } else if (String(url).endsWith('/embed')) result = { model: 'intfloat/multilingual-e5-small', embeddings: [vector(body.texts[0] === 'absent')] };
-    else if (String(url).endsWith('/safety-check')) result = { blocked: body.text.includes('INTERDIT'), warnings: [] };
+    } else if (String(url).endsWith('/embed')) {
+      const embedding = vector(body.texts[0] === 'absent');
+      if (body.texts[0] === 'hors sujet à 0.84') { embedding[0] = 0.84; embedding[1] = Math.sqrt(1 - 0.84 ** 2); }
+      result = { model: 'intfloat/multilingual-e5-small', embeddings: [embedding] };
+    }
+    else if (String(url).endsWith('/safety-check')) result = { blocked: body.text.includes('INTERDIT'),
+      warnings: body.text.includes('INTERDIT') ? [{ code: 'unauthorised_promise', severity: 'blocking', message: 'Engagement non autorisé.' }] : [] };
     else if (String(url).endsWith('/generate')) {
       prompts.push(body);
       const blocked = body.strategy !== 'llm' && !body.documents.length;
@@ -77,6 +82,9 @@ test('RAG, permissions, versioned human feedback and concurrent decisions', { sk
     assert.ok(found.results[0].score > 0.99); assert.equal(found.results[0].embedding, undefined);
     const absent = await request(owner, '/ai/retrieve', 'POST', { brandId: brand.id, query: 'absent' });
     assert.equal(absent.results.length, 0);
+    const offTopic = await request(owner, '/ai/retrieve', 'POST', { brandId: brand.id, query: 'hors sujet à 0.84' });
+    assert.equal(offTopic.results.length, 0);
+    assert.equal(offTopic.confidenceScore, 0);
     const c1 = await comment();
     const response = await request(owner, '/ai/responses', 'POST', { commentId: c1.id }, 201);
     assert.equal(response.sources[0].documentId, doc.id);
@@ -130,6 +138,18 @@ test('RAG, permissions, versioned human feedback and concurrent decisions', { sk
     const manualFeedback = await prisma.aiFeedback.findUnique({ where: { responseId: manualRoot.id } });
     assert.equal(manualFeedback.feedbackType, 'EDITED');
     assert.equal(manualFeedback.finalResponse, manualText);
+    // A refused last-minute edit is retained; correct that new version next.
+    await request(owner, `/ai/responses/${blocked.id}/edit`, 'POST', { text: 'INTERDIT : remboursement sous 3 jours.' }, 409);
+    const blockedVersions = await request(owner, `/ai/responses?commentId=${missing.id}`);
+    const refusedEdit = blockedVersions.at(-1);
+    assert.notEqual(refusedEdit.id, blocked.id);
+    assert.equal(refusedEdit.warnings[0].code, 'unauthorised_promise');
+    assert.equal(await prisma.aiFeedback.count({ where: { responseId: blocked.id } }), 0);
+    await request(owner, `/ai/responses/${blocked.id}/edit`, 'POST', { text: 'Texte neutre.' }, 409);
+    const corrected = await request(owner, `/ai/responses/${refusedEdit.id}/edit`, 'POST', { text: 'Bonjour, contactez notre équipe en message privé.' });
+    assert.equal(corrected.status, 'approved');
+    assert.equal(corrected.blocked, false);
+    assert.equal((await prisma.aiFeedback.findUnique({ where: { responseId: blocked.id } })).feedbackType, 'EDITED');
     indexFails = true;
     const failed = await request(owner, `/knowledge/${doc.id}/reindex`, 'POST');
     assert.equal(failed.status, 'FAILED');

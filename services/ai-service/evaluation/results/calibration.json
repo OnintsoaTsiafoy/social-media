@@ -1,0 +1,501 @@
+{
+  "embeddingModel": "intfloat/multilingual-e5-small",
+  "synthetic": true,
+  "singleDocumentLibraries": true,
+  "thresholds": [
+    {
+      "threshold": 0.82,
+      "relevantRetrieved": 10,
+      "relevantTotal": 11,
+      "offTopicRetrieved": 24,
+      "offTopicTotal": 64
+    },
+    {
+      "threshold": 0.84,
+      "relevantRetrieved": 10,
+      "relevantTotal": 11,
+      "offTopicRetrieved": 9,
+      "offTopicTotal": 64
+    },
+    {
+      "threshold": 0.85,
+      "relevantRetrieved": 9,
+      "relevantTotal": 11,
+      "offTopicRetrieved": 4,
+      "offTopicTotal": 64
+    },
+    {
+      "threshold": 0.86,
+      "relevantRetrieved": 8,
+      "relevantTotal": 11,
+      "offTopicRetrieved": 2,
+      "offTopicTotal": 64
+    },
+    {
+      "threshold": 0.87,
+      "relevantRetrieved": 8,
+      "relevantTotal": 11,
+      "offTopicRetrieved": 2,
+      "offTopicTotal": 64
+    },
+    {
+      "threshold": 0.88,
+      "relevantRetrieved": 7,
+      "relevantTotal": 11,
+      "offTopicRetrieved": 0,
+      "offTopicTotal": 64
+    }
+  ],
+  "pairs": [
+    {
+      "caseId": "hours-fr",
+      "documentId": "hours",
+      "relevant": true,
+      "score": 0.89609
+    },
+    {
+      "caseId": "hours-fr",
+      "documentId": "delivery",
+      "relevant": false,
+      "score": 0.821102
+    },
+    {
+      "caseId": "hours-fr",
+      "documentId": "returns",
+      "relevant": false,
+      "score": 0.812075
+    },
+    {
+      "caseId": "hours-fr",
+      "documentId": "support",
+      "relevant": false,
+      "score": 0.84846
+    },
+    {
+      "caseId": "hours-fr",
+      "documentId": "refund-policy",
+      "relevant": false,
+      "score": 0.819747
+    },
+    {
+      "caseId": "hours-en",
+      "documentId": "hours",
+      "relevant": true,
+      "score": 0.872115
+    },
+    {
+      "caseId": "hours-en",
+      "documentId": "delivery",
+      "relevant": false,
+      "score": 0.776907
+    },
+    {
+      "caseId": "hours-en",
+      "documentId": "returns",
+      "relevant": false,
+      "score": 0.769103
+    },
+    {
+      "caseId": "hours-en",
+      "documentId": "support",
+      "relevant": false,
+      "score": 0.811998
+    },
+    {
+      "caseId": "hours-en",
+      "documentId": "refund-policy",
+      "relevant": false,
+      "score": 0.792718
+    },
+    {
+      "caseId": "hours-ar",
+      "documentId": "hours",
+      "relevant": true,
+      "score": 0.804388
+    },
+    {
+      "caseId": "hours-ar",
+      "documentId": "delivery",
+      "relevant": false,
+      "score": 0.71474
+    },
+    {
+      "caseId": "hours-ar",
+      "documentId": "returns",
+      "relevant": false,
+      "score": 0.727357
+    },
+    {
+      "caseId": "hours-ar",
+      "documentId": "support",
+      "relevant": false,
+      "score": 0.73634
+    },
+    {
+      "caseId": "hours-ar",
+      "documentId": "refund-policy",
+      "relevant": false,
+      "score": 0.75665
+    },
+    {
+      "caseId": "sunday",
+      "documentId": "hours",
+      "relevant": true,
+      "score": 0.906989
+    },
+    {
+      "caseId": "sunday",
+      "documentId": "delivery",
+      "relevant": false,
+      "score": 0.791623
+    },
+    {
+      "caseId": "sunday",
+      "documentId": "returns",
+      "relevant": false,
+      "score": 0.804562
+    },
+    {
+      "caseId": "sunday",
+      "documentId": "support",
+      "relevant": false,
+      "score": 0.835334
+    },
+    {
+      "caseId": "sunday",
+      "documentId": "refund-policy",
+      "relevant": false,
+      "score": 0.806219
+    },
+    {
+      "caseId": "countries",
+      "documentId": "hours",
+      "relevant": false,
+      "score": 0.801814
+    },
+    {
+      "caseId": "countries",
+      "documentId": "delivery",
+      "relevant": true,
+      "score": 0.848711
+    },
+    {
+      "caseId": "countries",
+      "documentId": "returns",
+      "relevant": false,
+      "score": 0.798959
+    },
+    {
+      "caseId": "countries",
+      "documentId": "support",
+      "relevant": false,
+      "score": 0.831583
+    },
+    {
+      "caseId": "countries",
+      "documentId": "refund-policy",
+      "relevant": false,
+      "score": 0.788115
+    },
+    {
+      "caseId": "tracking",
+      "documentId": "hours",
+      "relevant": false,
+      "score": 0.830445
+    },
+    {
+      "caseId": "tracking",
+      "documentId": "delivery",
+      "relevant": true,
+      "score": 0.851822
+    },
+    {
+      "caseId": "tracking",
+      "documentId": "returns",
+      "relevant": false,
+      "score": 0.825484
+    },
+    {
+      "caseId": "tracking",
+      "documentId": "support",
+      "relevant": false,
+      "score": 0.843115
+    },
+    {
+      "caseId": "tracking",
+      "documentId": "refund-policy",
+      "relevant": false,
+      "score": 0.817558
+    },
+    {
+      "caseId": "return",
+      "documentId": "hours",
+      "relevant": false,
+      "score": 0.839735
+    },
+    {
+      "caseId": "return",
+      "documentId": "delivery",
+      "relevant": false,
+      "score": 0.830125
+    },
+    {
+      "caseId": "return",
+      "documentId": "returns",
+      "relevant": true,
+      "score": 0.883464
+    },
+    {
+      "caseId": "return",
+      "documentId": "support",
+      "relevant": false,
+      "score": 0.854104
+    },
+    {
+      "caseId": "return",
+      "documentId": "refund-policy",
+      "relevant": false,
+      "score": 0.870859
+    },
+    {
+      "caseId": "support",
+      "documentId": "hours",
+      "relevant": false,
+      "score": 0.809203
+    },
+    {
+      "caseId": "support",
+      "documentId": "delivery",
+      "relevant": false,
+      "score": 0.810189
+    },
+    {
+      "caseId": "support",
+      "documentId": "returns",
+      "relevant": false,
+      "score": 0.829838
+    },
+    {
+      "caseId": "support",
+      "documentId": "support",
+      "relevant": true,
+      "score": 0.883553
+    },
+    {
+      "caseId": "support",
+      "documentId": "refund-policy",
+      "relevant": false,
+      "score": 0.835753
+    },
+    {
+      "caseId": "missing-price",
+      "documentId": "hours",
+      "relevant": false,
+      "score": 0.782607
+    },
+    {
+      "caseId": "missing-price",
+      "documentId": "delivery",
+      "relevant": false,
+      "score": 0.751277
+    },
+    {
+      "caseId": "missing-price",
+      "documentId": "returns",
+      "relevant": false,
+      "score": 0.744877
+    },
+    {
+      "caseId": "missing-price",
+      "documentId": "support",
+      "relevant": false,
+      "score": 0.787429
+    },
+    {
+      "caseId": "missing-price",
+      "documentId": "refund-policy",
+      "relevant": false,
+      "score": 0.765287
+    },
+    {
+      "caseId": "missing-stock",
+      "documentId": "hours",
+      "relevant": false,
+      "score": 0.786701
+    },
+    {
+      "caseId": "missing-stock",
+      "documentId": "delivery",
+      "relevant": false,
+      "score": 0.795649
+    },
+    {
+      "caseId": "missing-stock",
+      "documentId": "returns",
+      "relevant": false,
+      "score": 0.782398
+    },
+    {
+      "caseId": "missing-stock",
+      "documentId": "support",
+      "relevant": false,
+      "score": 0.800232
+    },
+    {
+      "caseId": "missing-stock",
+      "documentId": "refund-policy",
+      "relevant": false,
+      "score": 0.791789
+    },
+    {
+      "caseId": "missing-discount",
+      "documentId": "hours",
+      "relevant": false,
+      "score": 0.749775
+    },
+    {
+      "caseId": "missing-discount",
+      "documentId": "delivery",
+      "relevant": false,
+      "score": 0.757915
+    },
+    {
+      "caseId": "missing-discount",
+      "documentId": "returns",
+      "relevant": false,
+      "score": 0.769206
+    },
+    {
+      "caseId": "missing-discount",
+      "documentId": "support",
+      "relevant": false,
+      "score": 0.792066
+    },
+    {
+      "caseId": "missing-discount",
+      "documentId": "refund-policy",
+      "relevant": false,
+      "score": 0.785654
+    },
+    {
+      "caseId": "injection",
+      "documentId": "hours",
+      "relevant": false,
+      "score": 0.787391
+    },
+    {
+      "caseId": "injection",
+      "documentId": "delivery",
+      "relevant": false,
+      "score": 0.78794
+    },
+    {
+      "caseId": "injection",
+      "documentId": "returns",
+      "relevant": false,
+      "score": 0.808228
+    },
+    {
+      "caseId": "injection",
+      "documentId": "support",
+      "relevant": false,
+      "score": 0.831287
+    },
+    {
+      "caseId": "injection",
+      "documentId": "refund-policy",
+      "relevant": false,
+      "score": 0.838578
+    },
+    {
+      "caseId": "refund-process",
+      "documentId": "hours",
+      "relevant": false,
+      "score": 0.815637
+    },
+    {
+      "caseId": "refund-process",
+      "documentId": "delivery",
+      "relevant": false,
+      "score": 0.814758
+    },
+    {
+      "caseId": "refund-process",
+      "documentId": "returns",
+      "relevant": false,
+      "score": 0.875163
+    },
+    {
+      "caseId": "refund-process",
+      "documentId": "support",
+      "relevant": false,
+      "score": 0.844374
+    },
+    {
+      "caseId": "refund-process",
+      "documentId": "refund-policy",
+      "relevant": true,
+      "score": 0.883702
+    },
+    {
+      "caseId": "refund-window",
+      "documentId": "hours",
+      "relevant": false,
+      "score": 0.840794
+    },
+    {
+      "caseId": "refund-window",
+      "documentId": "delivery",
+      "relevant": false,
+      "score": 0.80663
+    },
+    {
+      "caseId": "refund-window",
+      "documentId": "returns",
+      "relevant": false,
+      "score": 0.84526
+    },
+    {
+      "caseId": "refund-window",
+      "documentId": "support",
+      "relevant": false,
+      "score": 0.833893
+    },
+    {
+      "caseId": "refund-window",
+      "documentId": "refund-policy",
+      "relevant": true,
+      "score": 0.894308
+    },
+    {
+      "caseId": "short-hours",
+      "documentId": "hours",
+      "relevant": true,
+      "score": 0.904419
+    },
+    {
+      "caseId": "short-hours",
+      "documentId": "delivery",
+      "relevant": false,
+      "score": 0.820565
+    },
+    {
+      "caseId": "short-hours",
+      "documentId": "returns",
+      "relevant": false,
+      "score": 0.82079
+    },
+    {
+      "caseId": "short-hours",
+      "documentId": "support",
+      "relevant": false,
+      "score": 0.853222
+    },
+    {
+      "caseId": "short-hours",
+      "documentId": "refund-policy",
+      "relevant": false,
+      "score": 0.82644
+    }
+  ]
+}

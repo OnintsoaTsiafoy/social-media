@@ -89,6 +89,8 @@ export const errorMessages: Record<ApiErrorCode, string> = {
 };
 
 export function toUserMessage(error: unknown): string {
+  // Conflict messages are actionable domain errors, including safety blocks.
+  if (error instanceof ApiError && error.code === 'conflict') return error.message;
   if (error instanceof ApiError) return errorMessages[error.code];
   return 'Une erreur est survenue. Réessayez.';
 }
@@ -133,7 +135,7 @@ function fromRemoteUser(user: RemoteUser): User {
 }
 
 function errorFromResponse(status: number, payload: unknown): ApiError {
-  const error = payload as { error?: { code?: string; message?: string } };
+  const error = payload as { error?: { code?: string; message?: string; details?: { severity?: string; message?: string }[] } };
   const code = error.error?.code;
   const message = error.error?.message || 'Une erreur est survenue. Réessayez.';
 
@@ -146,7 +148,11 @@ function errorFromResponse(status: number, payload: unknown): ApiError {
   if (code === 'rate_limited' || status === 429) return new ApiError('too_many_attempts', message);
   if (status === 401 || code === 'authentication_required') return new ApiError('unauthorized', message);
   if (status === 404) return new ApiError('not_found', message);
-  if (status === 409) return new ApiError('conflict', message);
+  if (status === 409) {
+    const details = Array.isArray(error.error?.details) ? error.error.details : [];
+    const blockers = details.filter((detail) => detail.severity === 'blocking' && typeof detail.message === 'string');
+    return new ApiError('conflict', blockers.length ? blockers.map((detail) => detail.message).join('\n') : message);
+  }
   return new ApiError('server', message);
 }
 

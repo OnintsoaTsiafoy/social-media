@@ -5,22 +5,22 @@
     "retrievalHitRate": 0.0,
     "noSourceForUnanswerableRate": 1.0,
     "blockedUnanswerableRate": 0.0,
-    "durationMs": 11
+    "durationMs": 8
   },
   {
     "strategy": "rag",
     "runs": 12,
-    "retrievalHitRate": 0.875,
-    "noSourceForUnanswerableRate": 0.75,
+    "retrievalHitRate": 0.625,
+    "noSourceForUnanswerableRate": 1.0,
     "blockedUnanswerableRate": 1.0,
-    "durationMs": 25
+    "durationMs": 18
   },
   {
     "strategy": "rag_feedback",
     "runs": 12,
-    "retrievalHitRate": 0.875,
-    "noSourceForUnanswerableRate": 0.75,
+    "retrievalHitRate": 0.625,
+    "noSourceForUnanswerableRate": 1.0,
     "blockedUnanswerableRate": 1.0,
-    "durationMs": 24
+    "durationMs": 18
   }
 ]

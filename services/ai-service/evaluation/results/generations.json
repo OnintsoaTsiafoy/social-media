@@ -1,7 +1,7 @@
 {
   "localSmokeTest": true,
   "embeddingModel": "intfloat/multilingual-e5-small",
-  "threshold": 0.82,
+  "threshold": 0.86,
   "results": [
     {
       "caseId": "hours-fr",
@@ -45,9 +45,7 @@
       "answerable": true,
       "retrievalHit": true,
       "retrievedIds": [
-        "hours",
-        "support",
-        "delivery"
+        "hours"
       ],
       "similarExamples": 0,
       "confidence": 0.8960901610849747,
@@ -67,7 +65,7 @@
       "blocked": true,
       "generator": "local-document-extract-1.0.0",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 22,
+      "durationMs": 18,
       "warnings": [
         {
           "code": "low_confidence_analysis",
@@ -89,9 +87,7 @@
       "answerable": true,
       "retrievalHit": true,
       "retrievedIds": [
-        "hours",
-        "support",
-        "delivery"
+        "hours"
       ],
       "similarExamples": 1,
       "confidence": 0.8960901610849747,
@@ -111,7 +107,7 @@
       "blocked": true,
       "generator": "local-document-extract-1.0.0",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 18,
+      "durationMs": 17,
       "warnings": [
         {
           "code": "low_confidence_analysis",
@@ -151,7 +147,7 @@
       "blocked": false,
       "generator": "local-template-1.0.0",
       "promptVersion": "local-template-1.0.0",
-      "durationMs": 9,
+      "durationMs": 8,
       "warnings": [
         {
           "code": "comment_language_differs",
@@ -193,7 +189,7 @@
       "blocked": true,
       "generator": "local-document-extract-1.0.0",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 23,
+      "durationMs": 16,
       "warnings": [
         {
           "code": "low_confidence_analysis",
@@ -235,7 +231,7 @@
       "blocked": true,
       "generator": "local-document-extract-1.0.0",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 21,
+      "durationMs": 17,
       "warnings": [
         {
           "code": "low_confidence_analysis",
@@ -275,7 +271,7 @@
       "blocked": false,
       "generator": "local-template-1.0.0",
       "promptVersion": "local-template-1.0.0",
-      "durationMs": 11,
+      "durationMs": 9,
       "warnings": [
         {
           "code": "low_confidence_analysis",
@@ -289,46 +285,6 @@
       "caseId": "hours-ar",
       "comment": "ما هي ساعات العمل في المتجر؟",
       "strategy": "rag",
-      "answerable": true,
-      "retrievalHit": false,
-      "retrievedIds": [],
-      "similarExamples": 0,
-      "confidence": null,
-      "analysis": {
-        "sentiment": "neutral",
-        "intent": "info_request",
-        "priority": "low",
-        "confidence": 0.2954,
-        "urgent": false,
-        "sensitive": false,
-        "lowConfidence": true,
-        "recommendedAction": "Répondre avec l'information demandée.",
-        "explanation": "Message neutre, classé comme demande d'information. Confiance faible : à vérifier manuellement.",
-        "modelVersion": "fr-linear-1.0.0+v1"
-      },
-      "aiResponse": "المعلومات غير كافية. يجب مراجعة الرد بشرياً قبل الإجابة.",
-      "blocked": true,
-      "generator": "rag-insufficient-context",
-      "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 23,
-      "warnings": [
-        {
-          "code": "low_confidence_analysis",
-          "severity": "info",
-          "message": "L'analyse du commentaire est peu fiable : vérifiez que la réponse est adaptée."
-        },
-        {
-          "code": "insufficient_knowledge",
-          "severity": "blocking",
-          "message": "Aucune source documentaire suffisamment proche. Complétez la base ou rédigez une réponse vérifiée."
-        }
-      ],
-      "errors": []
-    },
-    {
-      "caseId": "hours-ar",
-      "comment": "ما هي ساعات العمل في المتجر؟",
-      "strategy": "rag_feedback",
       "answerable": true,
       "retrievalHit": false,
       "retrievedIds": [],
@@ -366,6 +322,46 @@
       "errors": []
     },
     {
+      "caseId": "hours-ar",
+      "comment": "ما هي ساعات العمل في المتجر؟",
+      "strategy": "rag_feedback",
+      "answerable": true,
+      "retrievalHit": false,
+      "retrievedIds": [],
+      "similarExamples": 0,
+      "confidence": null,
+      "analysis": {
+        "sentiment": "neutral",
+        "intent": "info_request",
+        "priority": "low",
+        "confidence": 0.2954,
+        "urgent": false,
+        "sensitive": false,
+        "lowConfidence": true,
+        "recommendedAction": "Répondre avec l'information demandée.",
+        "explanation": "Message neutre, classé comme demande d'information. Confiance faible : à vérifier manuellement.",
+        "modelVersion": "fr-linear-1.0.0+v1"
+      },
+      "aiResponse": "المعلومات غير كافية. يجب مراجعة الرد بشرياً قبل الإجابة.",
+      "blocked": true,
+      "generator": "rag-insufficient-context",
+      "promptVersion": "comment-reply-rag-2.0.0",
+      "durationMs": 17,
+      "warnings": [
+        {
+          "code": "low_confidence_analysis",
+          "severity": "info",
+          "message": "L'analyse du commentaire est peu fiable : vérifiez que la réponse est adaptée."
+        },
+        {
+          "code": "insufficient_knowledge",
+          "severity": "blocking",
+          "message": "Aucune source documentaire suffisamment proche. Complétez la base ou rédigez une réponse vérifiée."
+        }
+      ],
+      "errors": []
+    },
+    {
       "caseId": "sunday",
       "comment": "Est-ce que la boutique est ouverte le dimanche ?",
       "strategy": "llm",
@@ -401,8 +397,7 @@
       "answerable": true,
       "retrievalHit": true,
       "retrievedIds": [
-        "hours",
-        "support"
+        "hours"
       ],
       "similarExamples": 0,
       "confidence": 0.9069892046482344,
@@ -422,7 +417,7 @@
       "blocked": true,
       "generator": "local-document-extract-1.0.0",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 19,
+      "durationMs": 18,
       "warnings": [
         {
           "code": "document_extract",
@@ -439,10 +434,9 @@
       "answerable": true,
       "retrievalHit": true,
       "retrievedIds": [
-        "hours",
-        "support"
+        "hours"
       ],
-      "similarExamples": 1,
+      "similarExamples": 0,
       "confidence": 0.9069892046482344,
       "analysis": {
         "sentiment": "neutral",
@@ -460,7 +454,7 @@
       "blocked": true,
       "generator": "local-document-extract-1.0.0",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 25,
+      "durationMs": 17,
       "warnings": [
         {
           "code": "document_extract",
@@ -495,7 +489,7 @@
       "blocked": false,
       "generator": "local-template-1.0.0",
       "promptVersion": "local-template-1.0.0",
-      "durationMs": 14,
+      "durationMs": 9,
       "warnings": [],
       "errors": []
     },
@@ -504,13 +498,10 @@
       "comment": "Livrez-vous en Belgique ?",
       "strategy": "rag",
       "answerable": true,
-      "retrievalHit": true,
-      "retrievedIds": [
-        "delivery",
-        "support"
-      ],
+      "retrievalHit": false,
+      "retrievedIds": [],
       "similarExamples": 0,
-      "confidence": 0.848711121949975,
+      "confidence": null,
       "analysis": {
         "sentiment": "neutral",
         "intent": "info_request",
@@ -523,16 +514,16 @@
         "explanation": "Message neutre, classé comme demande d'information. Termes déterminants : « livrez », « vous ».",
         "modelVersion": "fr-linear-1.0.0+v1"
       },
-      "aiResponse": "Dans quels pays livrons-nous ? Nous livrons uniquement en France métropolitaine. Le suivi du colis est communiqué par courriel lors de son expédition.",
+      "aiResponse": "Informations insuffisantes : une validation humaine est nécessaire avant de répondre.",
       "blocked": true,
-      "generator": "local-document-extract-1.0.0",
+      "generator": "rag-insufficient-context",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 29,
+      "durationMs": 17,
       "warnings": [
         {
-          "code": "document_extract",
+          "code": "insufficient_knowledge",
           "severity": "blocking",
-          "message": "Extrait de source : adaptez et vérifiez ce texte avant validation, ou activez la génération LLM."
+          "message": "Aucune source documentaire suffisamment proche. Complétez la base ou rédigez une réponse vérifiée."
         }
       ],
       "errors": []
@@ -542,13 +533,10 @@
       "comment": "Livrez-vous en Belgique ?",
       "strategy": "rag_feedback",
       "answerable": true,
-      "retrievalHit": true,
-      "retrievedIds": [
-        "delivery",
-        "support"
-      ],
-      "similarExamples": 1,
-      "confidence": 0.848711121949975,
+      "retrievalHit": false,
+      "retrievedIds": [],
+      "similarExamples": 0,
+      "confidence": null,
       "analysis": {
         "sentiment": "neutral",
         "intent": "info_request",
@@ -561,16 +549,16 @@
         "explanation": "Message neutre, classé comme demande d'information. Termes déterminants : « livrez », « vous ».",
         "modelVersion": "fr-linear-1.0.0+v1"
       },
-      "aiResponse": "Dans quels pays livrons-nous ? Nous livrons uniquement en France métropolitaine. Le suivi du colis est communiqué par courriel lors de son expédition.",
+      "aiResponse": "Informations insuffisantes : une validation humaine est nécessaire avant de répondre.",
       "blocked": true,
-      "generator": "local-document-extract-1.0.0",
+      "generator": "rag-insufficient-context",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 28,
+      "durationMs": 17,
       "warnings": [
         {
-          "code": "document_extract",
+          "code": "insufficient_knowledge",
           "severity": "blocking",
-          "message": "Extrait de source : adaptez et vérifiez ce texte avant validation, ou activez la génération LLM."
+          "message": "Aucune source documentaire suffisamment proche. Complétez la base ou rédigez une réponse vérifiée."
         }
       ],
       "errors": []
@@ -600,7 +588,7 @@
       "blocked": false,
       "generator": "local-template-1.0.0",
       "promptVersion": "local-template-1.0.0",
-      "durationMs": 14,
+      "durationMs": 8,
       "warnings": [
         {
           "code": "low_confidence_analysis",
@@ -615,15 +603,10 @@
       "comment": "Où puis-je trouver le suivi de mon colis ?",
       "strategy": "rag",
       "answerable": true,
-      "retrievalHit": true,
-      "retrievedIds": [
-        "delivery",
-        "support",
-        "hours",
-        "returns"
-      ],
+      "retrievalHit": false,
+      "retrievedIds": [],
       "similarExamples": 0,
-      "confidence": 0.8518223051057348,
+      "confidence": null,
       "analysis": {
         "sentiment": "negative",
         "intent": "claim",
@@ -636,11 +619,11 @@
         "explanation": "Message négatif, classé comme réclamation sur un cas personnel. Termes déterminants : « mon », « colis », « mon colis ». Confiance faible : à vérifier manuellement.",
         "modelVersion": "fr-linear-1.0.0+v1"
       },
-      "aiResponse": "Dans quels pays livrons-nous ? Nous livrons uniquement en France métropolitaine. Le suivi du colis est communiqué par courriel lors de son expédition.",
+      "aiResponse": "Informations insuffisantes : une validation humaine est nécessaire avant de répondre.",
       "blocked": true,
-      "generator": "local-document-extract-1.0.0",
+      "generator": "rag-insufficient-context",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 34,
+      "durationMs": 18,
       "warnings": [
         {
           "code": "low_confidence_analysis",
@@ -648,9 +631,9 @@
           "message": "L'analyse du commentaire est peu fiable : vérifiez que la réponse est adaptée."
         },
         {
-          "code": "document_extract",
+          "code": "insufficient_knowledge",
           "severity": "blocking",
-          "message": "Extrait de source : adaptez et vérifiez ce texte avant validation, ou activez la génération LLM."
+          "message": "Aucune source documentaire suffisamment proche. Complétez la base ou rédigez une réponse vérifiée."
         }
       ],
       "errors": []
@@ -660,15 +643,10 @@
       "comment": "Où puis-je trouver le suivi de mon colis ?",
       "strategy": "rag_feedback",
       "answerable": true,
-      "retrievalHit": true,
-      "retrievedIds": [
-        "delivery",
-        "support",
-        "hours",
-        "returns"
-      ],
-      "similarExamples": 1,
-      "confidence": 0.8518223051057348,
+      "retrievalHit": false,
+      "retrievedIds": [],
+      "similarExamples": 0,
+      "confidence": null,
       "analysis": {
         "sentiment": "negative",
         "intent": "claim",
@@ -681,11 +659,11 @@
         "explanation": "Message négatif, classé comme réclamation sur un cas personnel. Termes déterminants : « mon », « colis », « mon colis ». Confiance faible : à vérifier manuellement.",
         "modelVersion": "fr-linear-1.0.0+v1"
       },
-      "aiResponse": "Dans quels pays livrons-nous ? Nous livrons uniquement en France métropolitaine. Le suivi du colis est communiqué par courriel lors de son expédition.",
+      "aiResponse": "Informations insuffisantes : une validation humaine est nécessaire avant de répondre.",
       "blocked": true,
-      "generator": "local-document-extract-1.0.0",
+      "generator": "rag-insufficient-context",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 31,
+      "durationMs": 17,
       "warnings": [
         {
           "code": "low_confidence_analysis",
@@ -693,9 +671,9 @@
           "message": "L'analyse du commentaire est peu fiable : vérifiez que la réponse est adaptée."
         },
         {
-          "code": "document_extract",
+          "code": "insufficient_knowledge",
           "severity": "blocking",
-          "message": "Extrait de source : adaptez et vérifiez ce texte avant validation, ou activez la génération LLM."
+          "message": "Aucune source documentaire suffisamment proche. Complétez la base ou rédigez une réponse vérifiée."
         }
       ],
       "errors": []
@@ -725,7 +703,7 @@
       "blocked": false,
       "generator": "local-template-1.0.0",
       "promptVersion": "local-template-1.0.0",
-      "durationMs": 12,
+      "durationMs": 8,
       "warnings": [
         {
           "code": "low_confidence_analysis",
@@ -742,10 +720,7 @@
       "answerable": true,
       "retrievalHit": true,
       "retrievedIds": [
-        "returns",
-        "support",
-        "hours",
-        "delivery"
+        "returns"
       ],
       "similarExamples": 0,
       "confidence": 0.88346362769029,
@@ -765,7 +740,7 @@
       "blocked": true,
       "generator": "local-document-extract-1.0.0",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 31,
+      "durationMs": 27,
       "warnings": [
         {
           "code": "low_confidence_analysis",
@@ -787,12 +762,9 @@
       "answerable": true,
       "retrievalHit": true,
       "retrievedIds": [
-        "returns",
-        "support",
-        "hours",
-        "delivery"
+        "returns"
       ],
-      "similarExamples": 2,
+      "similarExamples": 1,
       "confidence": 0.88346362769029,
       "analysis": {
         "sentiment": "negative",
@@ -810,7 +782,7 @@
       "blocked": true,
       "generator": "local-document-extract-1.0.0",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 33,
+      "durationMs": 21,
       "warnings": [
         {
           "code": "low_confidence_analysis",
@@ -850,7 +822,7 @@
       "blocked": false,
       "generator": "local-template-1.0.0",
       "promptVersion": "local-template-1.0.0",
-      "durationMs": 13,
+      "durationMs": 8,
       "warnings": [
         {
           "code": "low_confidence_analysis",
@@ -867,8 +839,7 @@
       "answerable": true,
       "retrievalHit": true,
       "retrievedIds": [
-        "support",
-        "returns"
+        "support"
       ],
       "similarExamples": 0,
       "confidence": 0.8835530749141918,
@@ -888,7 +859,7 @@
       "blocked": true,
       "generator": "local-document-extract-1.0.0",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 32,
+      "durationMs": 17,
       "warnings": [
         {
           "code": "low_confidence_analysis",
@@ -910,8 +881,7 @@
       "answerable": true,
       "retrievalHit": true,
       "retrievedIds": [
-        "support",
-        "returns"
+        "support"
       ],
       "similarExamples": 0,
       "confidence": 0.8835530749141918,
@@ -931,7 +901,7 @@
       "blocked": true,
       "generator": "local-document-extract-1.0.0",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 28,
+      "durationMs": 17,
       "warnings": [
         {
           "code": "low_confidence_analysis",
@@ -971,7 +941,7 @@
       "blocked": false,
       "generator": "local-template-1.0.0",
       "promptVersion": "local-template-1.0.0",
-      "durationMs": 9,
+      "durationMs": 8,
       "warnings": [],
       "errors": []
     },
@@ -1000,7 +970,7 @@
       "blocked": true,
       "generator": "rag-insufficient-context",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 19,
+      "durationMs": 17,
       "warnings": [
         {
           "code": "insufficient_knowledge",
@@ -1035,7 +1005,7 @@
       "blocked": true,
       "generator": "rag-insufficient-context",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 21,
+      "durationMs": 17,
       "warnings": [
         {
           "code": "insufficient_knowledge",
@@ -1070,7 +1040,7 @@
       "blocked": false,
       "generator": "local-template-1.0.0",
       "promptVersion": "local-template-1.0.0",
-      "durationMs": 11,
+      "durationMs": 7,
       "warnings": [],
       "errors": []
     },
@@ -1099,7 +1069,7 @@
       "blocked": true,
       "generator": "rag-insufficient-context",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 22,
+      "durationMs": 19,
       "warnings": [
         {
           "code": "insufficient_knowledge",
@@ -1134,7 +1104,7 @@
       "blocked": true,
       "generator": "rag-insufficient-context",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 21,
+      "durationMs": 18,
       "warnings": [
         {
           "code": "insufficient_knowledge",
@@ -1169,7 +1139,7 @@
       "blocked": false,
       "generator": "local-template-1.0.0",
       "promptVersion": "local-template-1.0.0",
-      "durationMs": 9,
+      "durationMs": 8,
       "warnings": [
         {
           "code": "low_confidence_analysis",
@@ -1204,7 +1174,7 @@
       "blocked": true,
       "generator": "rag-insufficient-context",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 19,
+      "durationMs": 16,
       "warnings": [
         {
           "code": "low_confidence_analysis",
@@ -1244,7 +1214,7 @@
       "blocked": true,
       "generator": "rag-insufficient-context",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 22,
+      "durationMs": 17,
       "warnings": [
         {
           "code": "low_confidence_analysis",
@@ -1284,7 +1254,7 @@
       "blocked": false,
       "generator": "local-template-1.0.0",
       "promptVersion": "local-template-1.0.0",
-      "durationMs": 11,
+      "durationMs": 8,
       "warnings": [],
       "errors": []
     },
@@ -1294,11 +1264,9 @@
       "strategy": "rag",
       "answerable": false,
       "retrievalHit": false,
-      "retrievedIds": [
-        "support"
-      ],
+      "retrievedIds": [],
       "similarExamples": 0,
-      "confidence": 0.8312873318274463,
+      "confidence": null,
       "analysis": {
         "sentiment": "negative",
         "intent": "claim",
@@ -1311,16 +1279,16 @@
         "explanation": "Message négatif, classé comme réclamation sur un cas personnel. Termes déterminants : « de toknum », « euros », « remboursement ».",
         "modelVersion": "fr-linear-1.0.0+v1"
       },
-      "aiResponse": "Comment contacter le service après-vente ? Notre support répond aux messages privés. Ne communiquez jamais de coordonnées bancaires ni d'adresse personnelle en commentaire public.",
+      "aiResponse": "Informations insuffisantes : une validation humaine est nécessaire avant de répondre.",
       "blocked": true,
-      "generator": "local-document-extract-1.0.0",
+      "generator": "rag-insufficient-context",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 32,
+      "durationMs": 19,
       "warnings": [
         {
-          "code": "document_extract",
+          "code": "insufficient_knowledge",
           "severity": "blocking",
-          "message": "Extrait de source : adaptez et vérifiez ce texte avant validation, ou activez la génération LLM."
+          "message": "Aucune source documentaire suffisamment proche. Complétez la base ou rédigez une réponse vérifiée."
         }
       ],
       "errors": []
@@ -1331,11 +1299,9 @@
       "strategy": "rag_feedback",
       "answerable": false,
       "retrievalHit": false,
-      "retrievedIds": [
-        "support"
-      ],
+      "retrievedIds": [],
       "similarExamples": 0,
-      "confidence": 0.8312873318274463,
+      "confidence": null,
       "analysis": {
         "sentiment": "negative",
         "intent": "claim",
@@ -1348,16 +1314,16 @@
         "explanation": "Message négatif, classé comme réclamation sur un cas personnel. Termes déterminants : « de toknum », « euros », « remboursement ».",
         "modelVersion": "fr-linear-1.0.0+v1"
       },
-      "aiResponse": "Comment contacter le service après-vente ? Notre support répond aux messages privés. Ne communiquez jamais de coordonnées bancaires ni d'adresse personnelle en commentaire public.",
+      "aiResponse": "Informations insuffisantes : une validation humaine est nécessaire avant de répondre.",
       "blocked": true,
-      "generator": "local-document-extract-1.0.0",
+      "generator": "rag-insufficient-context",
       "promptVersion": "comment-reply-rag-2.0.0",
-      "durationMs": 23,
+      "durationMs": 19,
       "warnings": [
         {
-          "code": "document_extract",
+          "code": "insufficient_knowledge",
           "severity": "blocking",
-          "message": "Extrait de source : adaptez et vérifiez ce texte avant validation, ou activez la génération LLM."
+          "message": "Aucune source documentaire suffisamment proche. Complétez la base ou rédigez une réponse vérifiée."
         }
       ],
       "errors": []

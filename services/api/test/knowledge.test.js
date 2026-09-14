@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createKnowledgeSchema, retrieveSchema, updateKnowledgeSchema } from '../src/knowledge/schemas.js';
-import { vectorLiteral, publicDocument } from '../src/knowledge/service.js';
+import { vectorLiteral, publicDocument, minimumSimilarity } from '../src/knowledge/service.js';
 import { editDistance } from '../src/ai-feedback/service.js';
 
 test('knowledge validates UUID ownership, size and optimistic revision', () => {
@@ -16,6 +16,22 @@ test('vectors reject incompatible, empty, nonnumeric or nonfinite embeddings', (
     assert.throws(() => vectorLiteral(vector));
   }
   assert.ok(vectorLiteral([1, ...Array(383).fill(0)]).startsWith('[1,0,'));
+});
+
+test('retrieval rejects a 0.84 match by default, including empty or invalid configuration', () => {
+  const saved = process.env.RAG_MIN_SIMILARITY;
+  try {
+    for (const value of [undefined, '', '  ', 'NaN', '-1', '1.1']) {
+      if (value === undefined) delete process.env.RAG_MIN_SIMILARITY;
+      else process.env.RAG_MIN_SIMILARITY = value;
+      assert.equal(minimumSimilarity(), 0.86);
+    }
+    process.env.RAG_MIN_SIMILARITY = '0.9';
+    assert.equal(minimumSimilarity(), 0.9);
+  } finally {
+    if (saved === undefined) delete process.env.RAG_MIN_SIMILARITY;
+    else process.env.RAG_MIN_SIMILARITY = saved;
+  }
 });
 
 test('document serialization never returns embeddings or internal author IDs', () => {

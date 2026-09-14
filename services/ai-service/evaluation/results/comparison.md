@@ -4,9 +4,9 @@ Corpus synthétique. Aucun score humain ni taux d’acceptation n’a été simu
 
 | Stratégie | Cas | Source attendue retrouvée | Questions absentes sans source | Questions sans réponse bloquées | Temps moyen |
 |---|---:|---:|---:|---:|---:|
-| llm | 12 | 0% | 100% | 0% | 11 ms |
-| rag | 12 | 88% | 75% | 100% | 25 ms |
-| rag_feedback | 12 | 88% | 75% | 100% | 24 ms |
+| llm | 12 | 0% | 100% | 0% | 8 ms |
+| rag | 12 | 62% | 100% | 100% | 18 ms |
+| rag_feedback | 12 | 62% | 100% | 100% | 18 ms |
 
 Le mode local propose des extraits à adapter et bloque leur acceptation directe. Ces taux de blocage ne mesurent pas la capacité d’un LLM à s’abstenir.
 

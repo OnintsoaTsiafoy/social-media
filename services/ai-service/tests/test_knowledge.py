@@ -188,7 +188,12 @@ def test_real_multilingual_semantic_embeddings():
     assert np.allclose(np.linalg.norm(passages, axis=1), 1, atol=1e-5)
     assert all(np.argmax(query @ passages.T) == 0 for query in queries)
     absent = np.array(pipeline.embed(['Quel est le prix du manteau Orion en taille M ?'], 'query')[0])
-    assert max(absent @ passages.T) < 0.82
+    assert max(absent @ passages.T) < 0.86
+    policy = 'Politique de remboursement : les clients peuvent demander un remboursement sous 30 jours après réception de leur commande. Le produit doit être retourné dans son emballage d’origine, non utilisé. Contactez le support en message privé avec votre numéro de commande.'
+    policy_vector = np.array(pipeline.embed([policy], 'passage')[0])
+    questions = np.array(pipeline.embed(["horaires d'ouverture ?", 'Comment demander un remboursement ?'], 'query'))
+    assert questions[0] @ policy_vector < 0.86
+    assert questions[1] @ policy_vector >= 0.86
     prepared = pipeline.prepare('\n'.join(docs * 30))
     assert len(prepared['chunks']) > 1
     assert all(len(c['embedding']) == 384 and c['metadata']['tokens'] <= 480 for c in prepared['chunks'])

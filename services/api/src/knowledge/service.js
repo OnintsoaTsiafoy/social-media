@@ -14,8 +14,9 @@ export function vectorLiteral(vector) {
 }
 
 export function minimumSimilarity() {
-  const value = Number(process.env.RAG_MIN_SIMILARITY ?? 0.82);
-  return Number.isFinite(value) && value >= 0 && value <= 1 ? value : 0.82;
+  const configured = process.env.RAG_MIN_SIMILARITY?.trim();
+  const value = configured ? Number(configured) : NaN;
+  return Number.isFinite(value) && value >= 0 && value <= 1 ? value : 0.86;
 }
 
 export function publicDocument(row, detail = false) {
