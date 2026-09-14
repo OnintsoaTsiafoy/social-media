@@ -3,6 +3,8 @@ import { callAiService } from '../lib/aiServiceClient.js';
 import { writeAuditLog } from '../lib/audit.js';
 import { HttpError } from '../lib/http.js';
 import { createNotification, notifiableBrandMembers } from '../notifications/service.js';
+import { queryEmbedding, retrieve, similarExamples } from '../knowledge/service.js';
+import { indexPendingExamples, lockComment, recordFeedback } from '../ai-feedback/service.js';
 
 // Nombre d'échanges précédents transmis au service de génération. Volontairement
 // bas : « inclure trop d'historique sensible » est un risque explicite du
@@ -25,6 +27,14 @@ export function toPublicSuggestion(suggestion) {
     blocked: suggestion.blocked,
     generator: suggestion.generator,
     promptVersion: suggestion.promptVersion,
+    generatedText: suggestion.generatedText ?? suggestion.originalText,
+    finalText: suggestion.finalText ?? null,
+    confidenceScore: suggestion.confidenceScore ?? null,
+    sources: (suggestion.sources ?? []).map(({ documentId, chunkId, title, score, revision }) => ({ documentId, chunkId, title, score, revision })),
+    similarExamples: (suggestion.similarExamples ?? []).map(({ id, score }) => ({ id, score })),
+    feedbackStatus: suggestion.feedback?.feedbackType ?? (suggestion.approvedAt
+      ? ((suggestion.generatedText ?? suggestion.text) === suggestion.text ? 'ACCEPTED' : 'EDITED') : null),
+    strategy: suggestion.strategy ?? 'llm',
   };
 }
 
@@ -33,6 +43,7 @@ export async function latestSuggestion(commentId) {
   return prisma.responseSuggestion.findFirst({
     where: { commentId },
     orderBy: { version: 'desc' },
+    include: { feedback: true },
   });
 }
 
@@ -43,6 +54,7 @@ export async function latestSuggestionsFor(commentIds) {
   const rows = await prisma.responseSuggestion.findMany({
     where: { commentId: { in: commentIds } },
     orderBy: { version: 'desc' },
+    include: { feedback: true },
   });
   const map = new Map();
   for (const row of rows) {
@@ -96,43 +108,17 @@ async function publicationContext(comment) {
   return { content: target.publication.content ?? '', hashtags: target.publication.hashtags ?? [] };
 }
 
-// Historique borné au fil de CE commentaire : les propositions déjà rédigées
-// et la réponse éventuellement envoyée. Jamais les échanges de l'auteur sur
-// d'autres publications.
+// Only actually sent messages enter conversation history. Rejected drafts
+// must never look like previous brand replies to the generator.
 async function historyContext(commentId) {
   const previous = await prisma.responseSuggestion.findMany({
-    where: { commentId, status: { in: ['REJECTED', 'SENT'] } },
+    where: { commentId, status: 'SENT' },
     orderBy: { version: 'desc' },
     take: HISTORY_LIMIT,
   });
   return previous
     .reverse()
     .map((entry) => ({ author: 'marque', text: entry.text }));
-}
-
-async function nextVersion(commentId) {
-  const last = await prisma.responseSuggestion.findFirst({
-    where: { commentId },
-    orderBy: { version: 'desc' },
-    select: { version: true },
-  });
-  return (last?.version ?? 0) + 1;
-}
-
-// `version` est un compteur monotone protégé par une contrainte unique
-// (commentId, version). Deux community managers d'une même marque qui
-// génèrent en même temps sur le commentaire calculent le même numéro : le
-// second écrirait en violation de contrainte, donc en 500. Un seul nouvel
-// essai suffit — le numéro est relu entre-temps.
-async function createVersion(data) {
-  try {
-    return await prisma.responseSuggestion.create({ data });
-  } catch (error) {
-    if (error?.code !== 'P2002') throw error;
-    return prisma.responseSuggestion.create({
-      data: { ...data, version: await nextVersion(data.commentId) },
-    });
-  }
 }
 
 async function safetyCheck({ text, brand, language }) {
@@ -144,10 +130,16 @@ async function safetyCheck({ text, brand, language }) {
 }
 
 /** Génère une proposition, ou enregistre celle rédigée par l'humain. */
-export async function createSuggestion({ userId, comment, text, tone, language, instruction }, request) {
+export async function createSuggestion({ userId, comment, text, tone, language, instruction, strategy = 'rag_feedback', expectedSuggestionId }, request) {
+  const started = Date.now();
   const brandId = comment.socialAccount.brandId;
   const brand = await brandContext(brandId);
   const resolvedLanguage = language ?? brand.language ?? 'fr';
+  const initial = await latestSuggestion(comment.id);
+  if (initial?.status === 'SENT') throw new HttpError(409, 'conflict', 'Une réponse a déjà été envoyée.');
+  if (expectedSuggestionId && initial?.id !== expectedSuggestionId) throw new HttpError(409, 'conflict', 'Rechargez la dernière proposition.');
+  if (text && initial) return updateSuggestion({ userId, comment, suggestion: initial, text, tone, language }, request);
+  let documents = [], examples = [], confidenceScore = null, analysisSnapshot = {};
 
   let payload;
   if (text) {
@@ -170,6 +162,14 @@ export async function createSuggestion({ userId, comment, text, tone, language, 
       publicationContext(comment),
       historyContext(comment.id),
     ]);
+    if (strategy !== 'llm') {
+      await indexPendingExamples(brandId);
+      const vector = await queryEmbedding(comment.content ?? '');
+      const context = await retrieve({ userId, brandId, query: comment.content ?? '', vector });
+      documents = context.results;
+      confidenceScore = context.confidenceScore;
+      if (strategy === 'rag_feedback') examples = await similarExamples({ brandId, vector, excludeCommentId: comment.id });
+    }
     const result = await callAiService('/internal/v1/responses/generate', {
       scope: 'ai:generate',
       body: {
@@ -181,10 +181,14 @@ export async function createSuggestion({ userId, comment, text, tone, language, 
         history,
         instruction,
         tone,
-        language: resolvedLanguage,
+        language,
+        documents,
+        examples,
+        strategy,
       },
     });
     const suggestion = result?.suggestion;
+    analysisSnapshot = result?.analysis ?? {};
     if (!suggestion) {
       throw new HttpError(503, 'ai_unavailable', 'Le service d’analyse a renvoyé une réponse vide.');
     }
@@ -200,26 +204,44 @@ export async function createSuggestion({ userId, comment, text, tone, language, 
     };
   }
 
-  const previous = await latestSuggestion(comment.id);
-  const created = await createVersion({
-    commentId: comment.id,
-    version: (previous?.version ?? 0) + 1,
-    text: payload.text,
-    // Première proposition d'un commentaire : c'est elle l'originale. Les
-    // versions suivantes reprennent l'originale de la précédente, pour que la
-    // proposition d'origine ne soit jamais perdue après une édition ou une
-    // régénération.
-    originalText: previous?.originalText ?? payload.text,
-    language: payload.language,
-    tone: payload.tone.toUpperCase(),
-    status: payload.generatedByAi ? 'PROPOSED' : 'EDITED',
-    generatedByAi: payload.generatedByAi,
-    generator: payload.generator,
-    promptVersion: payload.promptVersion,
-    warnings: payload.warnings,
-    blocked: payload.blocked,
-    instruction: instruction ?? null,
-    createdByUserId: userId,
+  const created = await prisma.$transaction(async (tx) => {
+    await lockComment(tx, comment.id);
+    const previous = await tx.responseSuggestion.findFirst({ where: { commentId: comment.id }, orderBy: { version: 'desc' } });
+    if ((previous?.id ?? null) !== (initial?.id ?? null) || previous?.status === 'SENT') {
+      throw new HttpError(409, 'conflict', 'Une nouvelle version existe. Rechargez la réponse.');
+    }
+    if (previous && !text) {
+      const rootId = previous.generationId ?? (previous.generatedByAi ? previous.id : null);
+      const verdict = rootId ? await tx.aiFeedback.findUnique({ where: { responseId: rootId } }) : null;
+      if (rootId && !verdict) {
+        await recordFeedback(tx, { suggestion: previous, comment, userId, type: 'REGENERATED' }, request);
+        await tx.responseSuggestion.update({ where: { id: previous.id }, data: { status: 'REJECTED' } });
+      }
+    }
+    return tx.responseSuggestion.create({ data: {
+      commentId: comment.id,
+      version: (previous?.version ?? 0) + 1,
+      text: payload.text,
+      // Preserve both the first proposal and this generation's exact output.
+      originalText: previous?.originalText ?? payload.text,
+      generatedText: payload.generatedByAi ? payload.text : null,
+      confidenceScore,
+      sources: documents,
+      similarExamples: examples,
+      analysisSnapshot,
+      strategy: payload.generatedByAi ? strategy : 'human',
+      durationMs: Date.now() - started,
+      language: payload.language,
+      tone: payload.tone.toUpperCase(),
+      status: payload.generatedByAi ? 'PROPOSED' : 'EDITED',
+      generatedByAi: payload.generatedByAi,
+      generator: payload.generator,
+      promptVersion: payload.promptVersion,
+      warnings: payload.warnings,
+      blocked: payload.blocked,
+      instruction: instruction ?? null,
+      createdByUserId: userId,
+    } });
   });
 
   await writeAuditLog(prisma, {
@@ -263,23 +285,35 @@ export async function updateSuggestion({ userId, comment, suggestion, text, tone
   const resolvedLanguage = language ?? suggestion.language;
   const safety = await safetyCheck({ text, brand, language: resolvedLanguage });
 
-  const created = await createVersion({
-    commentId: comment.id,
-    version: await nextVersion(comment.id),
-    text,
-    originalText: suggestion.originalText,
-    language: resolvedLanguage,
-    tone: (tone ?? suggestion.tone.toLowerCase()).toUpperCase(),
-    status: 'EDITED',
-    // Le texte a été réécrit par un humain : la mention « généré par l'IA »
-    // cesse d'être vraie et l'écran ne doit plus l'afficher.
-    generatedByAi: false,
-    generator: suggestion.generator,
-    promptVersion: suggestion.promptVersion,
-    warnings: safety.warnings,
-    blocked: safety.blocked,
-    instruction: suggestion.instruction,
-    createdByUserId: userId,
+  const created = await prisma.$transaction(async (tx) => {
+    await lockComment(tx, comment.id);
+    const current = await tx.responseSuggestion.findFirst({ where: { commentId: comment.id }, orderBy: { version: 'desc' } });
+    if (current?.id !== suggestion.id || !['PROPOSED', 'EDITED'].includes(current.status)) {
+      throw new HttpError(409, 'conflict', 'Cette version ne peut plus être modifiée. Régénérez une proposition.');
+    }
+    return tx.responseSuggestion.create({ data: {
+      commentId: comment.id,
+      version: current.version + 1,
+      text,
+      originalText: suggestion.originalText,
+      generatedText: suggestion.generatedText ?? (suggestion.generatedByAi ? suggestion.text : null),
+      generationId: suggestion.generationId ?? (suggestion.generatedByAi ? suggestion.id : null),
+      confidenceScore: suggestion.confidenceScore,
+      sources: suggestion.sources ?? [],
+      similarExamples: suggestion.similarExamples ?? [],
+      analysisSnapshot: suggestion.analysisSnapshot ?? {},
+      strategy: suggestion.strategy,
+      language: resolvedLanguage,
+      tone: (tone ?? suggestion.tone.toLowerCase()).toUpperCase(),
+      status: 'EDITED',
+      generatedByAi: false,
+      generator: suggestion.generator,
+      promptVersion: suggestion.promptVersion,
+      warnings: safety.warnings,
+      blocked: safety.blocked,
+      instruction: suggestion.instruction,
+      createdByUserId: userId,
+    } });
   });
 
   await writeAuditLog(prisma, {
@@ -295,7 +329,7 @@ export async function updateSuggestion({ userId, comment, suggestion, text, tone
 }
 
 /** Approbation humaine — le seul chemin qui autorise un envoi. */
-export async function approveSuggestion({ userId, comment, suggestion, text }, request) {
+export async function approveSuggestion({ userId, comment, suggestion, text, reason, rating, feedbackComment }, request) {
   let target = suggestion;
 
   // Retouche de dernière minute : enregistrée comme une version à part entière
@@ -321,9 +355,19 @@ export async function approveSuggestion({ userId, comment, suggestion, text }, r
     throw new HttpError(409, 'conflict', 'Cette proposition a déjà été traitée.');
   }
 
-  const approved = await prisma.responseSuggestion.update({
-    where: { id: target.id },
-    data: { status: 'APPROVED', approvedByUserId: userId, approvedAt: new Date() },
+  const approved = await prisma.$transaction(async (tx) => {
+    await lockComment(tx, comment.id);
+    const current = await tx.responseSuggestion.findFirst({ where: { commentId: comment.id }, orderBy: { version: 'desc' } });
+    if (current?.id !== target.id || !['PROPOSED', 'EDITED', 'APPROVED', 'FAILED'].includes(current.status)) {
+      throw new HttpError(409, 'conflict', 'Cette version ne peut plus être approuvée.');
+    }
+    if (current.status === 'APPROVED') return current;
+    const type = (target.generatedText ?? target.text) === target.text ? 'ACCEPTED' : 'EDITED';
+    await recordFeedback(tx, { suggestion: target, comment, userId, type, finalResponse: target.text, reason, rating, feedbackComment }, request);
+    return tx.responseSuggestion.update({
+      where: { id: target.id },
+      data: { status: 'APPROVED', approvedByUserId: userId, approvedAt: new Date(), finalText: target.text },
+    });
   });
 
   await writeAuditLog(prisma, {
@@ -338,14 +382,20 @@ export async function approveSuggestion({ userId, comment, suggestion, text }, r
   return toPublicSuggestion(approved);
 }
 
-export async function rejectSuggestion({ userId, comment, suggestion, reason }, request) {
+export async function rejectSuggestion({ userId, comment, suggestion, reason, rating, feedbackComment }, request) {
   if (suggestion.status === 'SENT') {
     throw new HttpError(409, 'conflict', 'Cette réponse a déjà été envoyée.');
   }
 
-  const rejected = await prisma.responseSuggestion.update({
-    where: { id: suggestion.id },
-    data: { status: 'REJECTED' },
+  const rejected = await prisma.$transaction(async (tx) => {
+    await lockComment(tx, comment.id);
+    const current = await tx.responseSuggestion.findFirst({ where: { commentId: comment.id }, orderBy: { version: 'desc' } });
+    if (current?.id !== suggestion.id || !['PROPOSED', 'EDITED', 'REJECTED'].includes(current.status)) {
+      throw new HttpError(409, 'conflict', 'Cette proposition a déjà été traitée.');
+    }
+    if (current.status === 'REJECTED') return current;
+    await recordFeedback(tx, { suggestion: current, comment, userId, type: 'REJECTED', reason, rating, feedbackComment }, request);
+    return tx.responseSuggestion.update({ where: { id: suggestion.id }, data: { status: 'REJECTED' } });
   });
 
   await writeAuditLog(prisma, {
@@ -364,6 +414,7 @@ export async function listSuggestions(commentId) {
   const rows = await prisma.responseSuggestion.findMany({
     where: { commentId },
     orderBy: { version: 'asc' },
+    include: { feedback: true },
   });
   return rows.map(toPublicSuggestion);
 }

@@ -16,6 +16,7 @@ export function loadSuggestion(minimumRole = 'COMMUNITY_MANAGER') {
       const suggestion = await prisma.responseSuggestion.findUnique({
         where: { id: parsed.data },
         include: {
+          feedback: true,
           comment: {
             include: {
               socialAccount: { select: { id: true, brandId: true, provider: true } },
@@ -26,7 +27,8 @@ export function loadSuggestion(minimumRole = 'COMMUNITY_MANAGER') {
       if (!suggestion) throw new HttpError(404, 'not_found', 'Proposition introuvable.');
 
       const membership = await prisma.brandMember.findFirst({
-        where: { brandId: suggestion.comment.socialAccount.brandId, userId: request.auth.user.id },
+        where: { brandId: suggestion.comment.socialAccount.brandId, userId: request.auth.user.id,
+          brand: { deletedAt: null, status: 'ACTIVE' } },
       });
       if (!membership || !hasBrandRole(membership.role, minimumRole)) {
         throw new HttpError(404, 'not_found', 'Proposition introuvable.');

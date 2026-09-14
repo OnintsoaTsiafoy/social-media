@@ -52,6 +52,9 @@ def generate(
     language: str,
     tone: str,
     instruction: str | None,
+    documents: list[dict] | None = None,
+    examples: list[dict] | None = None,
+    strategy: str = "llm",
 ) -> tuple[str, list[dict]]:
     """Retourne `(texte, avertissements)` ou lève `LlmUnavailable`."""
     import anthropic
@@ -66,6 +69,9 @@ def generate(
         language=language,
         tone=tone,
         instruction=instruction,
+        documents=documents,
+        examples=examples,
+        strategy=strategy,
     )
 
     try:

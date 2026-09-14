@@ -27,7 +27,8 @@ export function loadComment(minimumRole = 'VIEWER') {
       if (!comment) throw new HttpError(404, 'not_found', 'Commentaire introuvable.');
 
       const membership = await prisma.brandMember.findFirst({
-        where: { brandId: comment.socialAccount.brandId, userId: request.auth.user.id },
+        where: { brandId: comment.socialAccount.brandId, userId: request.auth.user.id,
+          brand: { deletedAt: null, status: 'ACTIVE' } },
       });
       if (!membership || !hasBrandRole(membership.role, minimumRole)) {
         throw new HttpError(404, 'not_found', 'Commentaire introuvable.');

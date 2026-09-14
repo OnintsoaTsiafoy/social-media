@@ -14,3 +14,5 @@ await import('./notification-push.test.js');
 await import('./service-auth.test.js');
 await import('./analytics.test.js');
 await import('./socialMetrics.test.js');
+await import('./knowledge.test.js');
+await import('./rag.integration.test.js');

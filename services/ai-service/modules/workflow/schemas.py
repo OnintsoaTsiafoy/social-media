@@ -5,6 +5,7 @@ ai-service reste sans état et ne lit aucune table, exactement comme pour
 l'analyse du Sprint 09. C'est aussi ce qui borne l'historique — le service ne
 peut pas en réclamer davantage que ce qu'Express a décidé d'envoyer.
 """
+from typing import Literal
 from pydantic import BaseModel, Field
 
 
@@ -48,6 +49,9 @@ class AssistanceRequest(BaseModel):
     instruction: str | None = Field(default=None, max_length=1000)
     tone: str | None = None
     language: str | None = None
+    documents: list[dict] = Field(default_factory=list, max_length=10)
+    examples: list[dict] = Field(default_factory=list, max_length=3)
+    strategy: Literal['llm', 'rag', 'rag_feedback'] = 'llm'
 
 
 class WarningPayload(BaseModel):
@@ -71,6 +75,7 @@ class SuggestionPayload(BaseModel):
 class GenerateResponseResult(BaseModel):
     commentId: str | None = None
     suggestion: SuggestionPayload
+    analysis: dict | None = None
 
 
 class AssistanceResult(BaseModel):

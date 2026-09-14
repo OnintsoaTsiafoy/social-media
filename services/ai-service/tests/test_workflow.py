@@ -230,7 +230,7 @@ def test_the_llm_is_used_when_configured(client, llm_enabled, monkeypatch):
 
     assert result["draft"] == "Bonjour Alice, nous vérifions."
     assert result["generator"] == "claude"
-    assert result["promptVersion"] == "comment-reply-1.0.0"
+    assert result["promptVersion"] == "comment-reply-rag-2.0.0"
 
 
 def test_an_unavailable_llm_falls_back_to_the_local_generator(client, llm_enabled, monkeypatch):

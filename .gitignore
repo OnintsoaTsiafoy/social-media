@@ -6,3 +6,4 @@ sprint_listing/
 **/.pytest_cache/
 /services/api/node_modules/
 /services/worker/node_modules/
+/rag-*.log

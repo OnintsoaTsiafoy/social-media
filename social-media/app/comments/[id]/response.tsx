@@ -51,8 +51,10 @@ export default function ResponseEditorScreen() {
 
   const [text, setText] = useState('');
   const [tone, setTone] = useState<BrandTone>('empathetic');
-  const [language, setLanguage] = useState('fr');
+  const [language, setLanguage] = useState('auto');
   const [instruction, setInstruction] = useState('');
+  const [reason, setReason] = useState('');
+  const [rating, setRating] = useState('');
   const [error, setError] = useState<string | undefined>(undefined);
   const [bannedHit, setBannedHit] = useState<string | undefined>(undefined);
 
@@ -80,12 +82,15 @@ export default function ResponseEditorScreen() {
   }, [text, brand.data]);
 
   const alreadySent = response?.status === 'sent';
+  const decided = alreadySent || response?.status === 'approved' || response?.status === 'rejected';
+  const busy = generation.pending || saving.pending || sending.pending;
+  const feedback = { reason: reason || undefined, rating: rating ? Number(rating) : undefined };
   const tooLong = text.length > MAX_RESPONSE_LENGTH;
 
   const generate = async () => {
     if (!comment) return;
     const result = await generation.run(() =>
-      commentsApi.generateResponse(comment.id, { tone, language, instruction })
+      commentsApi.generateResponse(comment.id, { tone, language, instruction, suggestionId: response?.id })
     );
     if (!result.ok) return;
     setText(result.data.text);
@@ -112,7 +117,7 @@ export default function ResponseEditorScreen() {
       commentsApi.saveResponse(
         comment.id,
         text.trim(),
-        { tone, language: language as 'fr' | 'en' },
+        { tone, language: language === 'auto' ? undefined : language as 'fr' | 'en' | 'ar' },
         response?.id
       )
     );
@@ -131,10 +136,18 @@ export default function ResponseEditorScreen() {
     });
     if (!confirmed) return;
 
-    const result = await saving.run(() => commentsApi.rejectResponse(response.id));
+    const result = await saving.run(() => commentsApi.rejectResponse(response.id, feedback));
     if (!result.ok) return;
     toast('Proposition rejetée.', 'info');
     router.back();
+  };
+
+  const accept = async () => {
+    if (!comment || !response || !validate()) return;
+    const result = await saving.run(() => commentsApi.acceptResponse(response.id, text.trim(), feedback));
+    if (!result.ok) return;
+    request.setData({ ...comment, response: result.data });
+    toast('Réponse validée. Vous pouvez maintenant l’envoyer.', 'success');
   };
 
   const approveAndSend = async () => {
@@ -167,7 +180,7 @@ export default function ResponseEditorScreen() {
     if (!confirmed) return;
 
     const result = await sending.run(() =>
-      commentsApi.approveAndSend(comment.id, text.trim(), response?.id)
+      commentsApi.approveAndSend(comment.id, text.trim(), response?.id, feedback)
     );
     if (!result.ok) return;
 
@@ -198,24 +211,32 @@ export default function ResponseEditorScreen() {
                 variant="danger"
                 size="sm"
                 onPress={reject}
-                disabled={saving.pending || sending.pending || !response}
+                disabled={busy || decided || !response}
                 style={styles.footerButton}
               />
               <Button
-                label="Enregistrer"
+                label="Enregistrer le brouillon"
                 variant="secondary"
                 size="sm"
                 onPress={save}
                 loading={saving.pending}
+                disabled={busy || decided}
                 style={styles.footerButton}
               />
             </View>
             <Button
-              label="Approuver & envoyer"
+              label={response?.status === 'approved' ? 'Réponse validée' : text.trim() === response?.text ? 'Accepter' : 'Valider la modification'}
+              variant="secondary"
+              onPress={accept}
+              disabled={busy || decided || !response || !text.trim() || tooLong || (response.blocked && text.trim() === response.text)}
+              block
+            />
+            <Button
+              label={response?.status === 'approved' ? 'Envoyer la réponse validée' : 'Approuver & envoyer'}
               variant="accent"
               onPress={approveAndSend}
               loading={sending.pending}
-              disabled={!text.trim() || tooLong}
+              disabled={busy || !text.trim() || tooLong || response?.status === 'rejected' || (response?.blocked && text.trim() === response.text)}
               block
             />
           </View>
@@ -271,7 +292,7 @@ export default function ResponseEditorScreen() {
             error={error}
             placeholder="Rédigez ou ajustez la réponse…"
             multiline
-            editable={!alreadySent}
+            editable={!decided && !busy}
           />
 
           {bannedHit ? (
@@ -294,6 +315,26 @@ export default function ResponseEditorScreen() {
             </Callout>
           ))}
 
+          {response?.confidenceScore != null ? (
+            <Card>
+              <Text weight="bold">Confiance documentaire : {Math.round(response.confidenceScore * 100)} %</Text>
+              <Text variant="footnote">{response.confidenceScore >= 0.85 ? 'Élevée' : response.confidenceScore >= 0.70 ? 'Moyenne' : 'Faible'} · proximité des sources, à vérifier avant envoi.</Text>
+              {(response.sources ?? []).map((source) => (
+                <Text key={source.chunkId} variant="footnote">• {source.title} · {Math.round(source.score * 100)} %</Text>
+              ))}
+              {response.similarExamples?.length ? <Text variant="footnote">{response.similarExamples.length} réponses validées similaires utilisées pour le style.</Text> : null}
+            </Card>
+          ) : null}
+
+          {!decided ? <>
+            <SelectField label="Motif du feedback (facultatif)" value={reason} onChange={setReason} options={[
+              { value: '', label: 'Sans motif' }, ...['Trop longue', 'Trop courte', 'Ton incorrect', 'Information incorrecte', 'Manque de personnalisation', 'Pas assez empathique', 'Réponse non pertinente', 'Mauvaise langue', 'Autre'].map((value) => ({ value, label: value })),
+            ]} />
+            <SelectField label="Satisfaction (facultative)" value={rating} onChange={setRating} options={[
+              { value: '', label: 'Sans note' }, ...[1, 2, 3, 4, 5].map((value) => ({ value: String(value), label: `${value} / 5` })),
+            ]} />
+          </> : null}
+
           <View style={styles.row}>
             <SelectField
               label="Ton"
@@ -306,7 +347,7 @@ export default function ResponseEditorScreen() {
             <SelectField
               label="Langue"
               value={language}
-              options={LANGUAGE_OPTIONS}
+              options={[{ value: 'auto', label: 'Langue du commentaire' }, ...LANGUAGE_OPTIONS]}
               onChange={setLanguage}
               disabled={alreadySent}
               containerStyle={styles.rowItem}
@@ -317,18 +358,18 @@ export default function ResponseEditorScreen() {
             label="Instruction complémentaire"
             value={instruction}
             onChangeText={setInstruction}
-            placeholder="Ex. « proposer un geste commercial »"
+            placeholder="Ex. « utiliser un ton plus empathique »"
             multiline
             editable={!alreadySent}
           />
 
           <Button
-            label="Régénérer la réponse"
+            label={response ? 'Régénérer la réponse' : 'Générer une réponse'}
             variant="secondary"
             icon="regenerate"
             onPress={generate}
             loading={generation.pending}
-            disabled={alreadySent}
+            disabled={alreadySent || busy}
             block
           />
 
@@ -343,7 +384,7 @@ export default function ResponseEditorScreen() {
 
           {response && response.originalText !== text ? (
             <Card tone="muted" style={styles.originalCard}>
-              <Text variant="eyebrow">Proposition d’origine (v1)</Text>
+                <Text variant="eyebrow">Proposition d’origine (v1)</Text>
               <Text variant="footnote" color={palette.inkMuted}>
                 « {response.originalText} »
               </Text>

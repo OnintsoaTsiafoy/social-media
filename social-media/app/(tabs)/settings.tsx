@@ -64,6 +64,10 @@ export default function SettingsScreen() {
       <Group label="Marque & IA">
         <ListRow label="Marque & ton IA" onPress={() => router.push('/settings/brand')} />
         <Divider />
+        <ListRow label="Base de connaissances" onPress={() => router.push('/knowledge')} />
+        <Divider />
+        <ListRow label="Qualité des réponses IA" onPress={() => router.push('/ai-feedback')} />
+        <Divider />
         <ListRow
           label="Comptes sociaux"
           onPress={() => router.push('/settings/social-accounts')}

@@ -2,7 +2,9 @@ name: hootly
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: hootly-postgres-vector:16
+    build:
+      context: ./services/postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -43,6 +45,7 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       SOCIAL_SERVICE_URL: ${SOCIAL_SERVICE_URL}
       AI_SERVICE_URL: ${AI_SERVICE_URL}
+      RAG_MIN_SIMILARITY: ${RAG_MIN_SIMILARITY:-0.82}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_ISSUER: ${JWT_ISSUER}
       JWT_AUDIENCE: ${JWT_AUDIENCE}
@@ -177,11 +180,14 @@ services:
       # for want of a key.
       AI_GENERATION_MODE: ${AI_GENERATION_MODE}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      FASTEMBED_CACHE_PATH: /models
       # Same shared secret as graph-api, different audience: ai-service only
       # accepts tokens minted for it (see its core/security.py).
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET}
     ports:
       - "8080:8080"
+    volumes:
+      - embedding_models:/models
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health')\""]
       interval: 5s
@@ -189,5 +195,6 @@ services:
       retries: 10
 
 volumes:
+  embedding_models:
   postgres_data:
   minio_data:

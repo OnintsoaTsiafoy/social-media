@@ -55,6 +55,9 @@ class AssistanceState(TypedDict, total=False):
     instruction: str | None
     requestedTone: str | None
     requestedLanguage: str | None
+    documents: list[dict[str, Any]]
+    examples: list[dict[str, Any]]
+    strategy: str
 
     # --- Produits par les nœuds ---
     language: str

@@ -9,6 +9,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from api.routes.assistance_routes import router as assistance_router
 from api.routes.health import router as health_router
 from api.routes.internal_routes import router as internal_router
+from api.routes.knowledge_routes import router as knowledge_router
 from core.config import settings
 from core.exceptions import default_code_for_status
 from core.middleware import RequestIdMiddleware
@@ -80,3 +81,4 @@ async def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded)
 app.include_router(health_router)
 app.include_router(internal_router)
 app.include_router(assistance_router)
+app.include_router(knowledge_router)

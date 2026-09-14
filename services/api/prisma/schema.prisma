@@ -233,6 +233,8 @@ model User {
   notifications           Notification[]
   deviceTokens            DeviceToken[]
   notificationSettings    NotificationSetting?
+  knowledgeDocuments      KnowledgeDocument[]
+  aiFeedback              AiFeedback[]
 
   @@index([status])
   @@map("users")
@@ -257,6 +259,8 @@ model Brand {
   socialAccounts  SocialAccount[]
   oauthStates     OAuthState[]
   notifications   Notification[]
+  knowledgeDocuments KnowledgeDocument[]
+  validatedExamples ValidatedResponseExample[]
 
   @@index([ownerUserId])
   @@index([deletedAt])
@@ -752,6 +756,17 @@ model ResponseSuggestion {
   version          Int
   text             String                   @db.Text
   originalText     String                   @map("original_text") @db.Text
+  generatedText    String?                  @map("generated_text") @db.Text
+  finalText        String?                  @map("final_text") @db.Text
+  generationId    String?                  @map("generation_id") @db.Uuid
+  confidenceScore Float?                   @map("confidence_score")
+  sources         Json                     @default("[]")
+  similarExamples Json                     @default("[]") @map("similar_examples")
+  analysisSnapshot Json                    @default("{}") @map("analysis_snapshot")
+  strategy        String                   @default("llm") @db.VarChar(32)
+  durationMs      Int?                     @map("duration_ms")
+  feedback        AiFeedback?
+  validatedExample ValidatedResponseExample?
   language         String                   @default("fr") @db.VarChar(8)
   tone             AiTone                   @default(PROFESSIONAL)
   status           ResponseSuggestionStatus @default(PROPOSED)
@@ -780,7 +795,108 @@ model ResponseSuggestion {
   @@unique([commentId, version])
   @@index([commentId, createdAt])
   @@index([status])
+  @@index([generationId])
   @@map("response_suggestions")
+}
+
+enum KnowledgeDocumentType {
+  FAQ
+  PRODUCT
+  SERVICE
+  POLICY
+  SAV
+  GUIDELINE
+  BRAND_TONE
+  OTHER
+}
+
+enum KnowledgeStatus {
+  PENDING
+  INDEXING
+  READY
+  FAILED
+}
+
+enum AiFeedbackType {
+  ACCEPTED
+  EDITED
+  REJECTED
+  REGENERATED
+}
+
+model KnowledgeDocument {
+  id               String                @id @default(uuid()) @db.Uuid
+  userId           String                @map("user_id") @db.Uuid
+  brandId          String                @map("brand_id") @db.Uuid
+  title            String                @db.VarChar(200)
+  documentType     KnowledgeDocumentType @map("document_type")
+  source           String                @default("manual") @db.VarChar(32)
+  originalFilename String?               @map("original_filename") @db.VarChar(255)
+  content          String                @db.Text
+  internal         Boolean               @default(false)
+  status           KnowledgeStatus       @default(PENDING)
+  revision         Int                   @default(1)
+  embeddingModel   String?               @map("embedding_model") @db.VarChar(120)
+  error            String?               @db.Text
+  indexedAt        DateTime?             @map("indexed_at") @db.Timestamptz(6)
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand            Brand                 @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  chunks           KnowledgeChunk[]
+
+  @@index([userId, brandId, createdAt])
+  @@map("knowledge_documents")
+}
+
+model KnowledgeChunk {
+  id          String                 @id @default(uuid()) @db.Uuid
+  documentId  String                 @map("document_id") @db.Uuid
+  content     String                 @db.Text
+  embedding   Unsupported("vector(384)")
+  chunkIndex  Int                    @map("chunk_index")
+  metadata    Json                   @default("{}")
+  createdAt   DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  document    KnowledgeDocument      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, chunkIndex])
+  @@map("knowledge_chunks")
+}
+
+// One terminal decision per AI generation, even if several draft edits exist.
+model AiFeedback {
+  id                String             @id @default(uuid()) @db.Uuid
+  responseId        String             @unique @map("response_id") @db.Uuid
+  finalSuggestionId String?            @map("final_suggestion_id") @db.Uuid
+  userId            String             @map("user_id") @db.Uuid
+  feedbackType      AiFeedbackType     @map("feedback_type")
+  reason            String?            @db.VarChar(500)
+  rating            Int?
+  comment           String?            @db.VarChar(1000)
+  finalResponse     String?            @map("final_response") @db.Text
+  editDistance      Int?               @map("edit_distance")
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  response          ResponseSuggestion @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  user              User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@map("ai_feedback")
+}
+
+model ValidatedResponseExample {
+  id            String                 @id @default(uuid()) @db.Uuid
+  brandId       String                 @map("brand_id") @db.Uuid
+  responseId    String                 @unique @map("response_id") @db.Uuid
+  commentText   String                 @map("comment_text") @db.Text
+  finalResponse String                 @map("final_response") @db.Text
+  analysis      Json                   @default("{}")
+  embedding     Unsupported("vector(384)")?
+  embeddingModel String?               @map("embedding_model") @db.VarChar(120)
+  createdAt     DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  brand         Brand                  @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  response      ResponseSuggestion     @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@index([brandId, createdAt])
+  @@map("validated_response_examples")
 }
 
 // Append-only. Écrit par Express (actions manuelles : ignorer/escalader/

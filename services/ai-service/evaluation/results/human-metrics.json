@@ -1,0 +1,41 @@
+{
+  "llm": {
+    "generated": 12,
+    "rated": 0,
+    "acceptedRate": null,
+    "editedRate": null,
+    "rejectedRate": null,
+    "relevance": null,
+    "accuracy": null,
+    "tone": null,
+    "brandRules": null,
+    "satisfaction": null,
+    "rating": null
+  },
+  "rag": {
+    "generated": 12,
+    "rated": 0,
+    "acceptedRate": null,
+    "editedRate": null,
+    "rejectedRate": null,
+    "relevance": null,
+    "accuracy": null,
+    "tone": null,
+    "brandRules": null,
+    "satisfaction": null,
+    "rating": null
+  },
+  "rag_feedback": {
+    "generated": 12,
+    "rated": 0,
+    "acceptedRate": null,
+    "editedRate": null,
+    "rejectedRate": null,
+    "relevance": null,
+    "accuracy": null,
+    "tone": null,
+    "brandRules": null,
+    "satisfaction": null,
+    "rating": null
+  }
+}

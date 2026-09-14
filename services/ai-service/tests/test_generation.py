@@ -175,7 +175,7 @@ def test_the_prompt_carries_the_brand_constraints():
 def test_the_prompt_version_is_stable():
     """Il est stocké avec chaque proposition : le changer sans le vouloir
     rendrait l'historique incohérent."""
-    assert PROMPT_VERSION == "comment-reply-1.0.0"
+    assert PROMPT_VERSION == "comment-reply-rag-2.0.0"
 
 
 # --- Hashtags ---------------------------------------------------------------

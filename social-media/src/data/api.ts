@@ -904,11 +904,12 @@ export type UploadCandidate = { uri: string; fileName: string; mimeType: string 
 async function sendMultipart(
   token: string,
   form: FormData,
-  onProgress?: (ratio: number) => void
+  onProgress?: (ratio: number) => void,
+  path = '/api/v1/media'
 ): Promise<{ status: number; payload: unknown }> {
   return new Promise((resolve, reject) => {
     const request_ = new XMLHttpRequest();
-    request_.open('POST', apiUrl('/api/v1/media'));
+    request_.open('POST', apiUrl(path));
     request_.setRequestHeader('authorization', `Bearer ${token}`);
     request_.setRequestHeader('accept', 'application/json');
 
@@ -1069,16 +1070,16 @@ export const commentsApi = {
    * précédente, elle reste dans l'historique du commentaire. */
   async generateResponse(
     commentId: string,
-    options: { tone: string; language: string; instruction?: string }
+    options: { tone: string; language: string; instruction?: string; suggestionId?: string }
   ): Promise<AiResponse> {
     return fetchApi<AiResponse>(
-      '/api/v1/response-suggestions',
+      options.suggestionId ? `/api/v1/ai/responses/${options.suggestionId}/regenerate` : '/api/v1/response-suggestions',
       {
         method: 'POST',
         body: JSON.stringify({
           commentId,
           tone: options.tone,
-          language: options.language,
+          language: options.language === 'auto' ? undefined : options.language,
           instruction: options.instruction?.trim() || undefined,
         }),
       },
@@ -1114,8 +1115,13 @@ export const commentsApi = {
     );
   },
 
-  async rejectResponse(suggestionId: string): Promise<void> {
-    await fetchApi<AiResponse>(`/api/v1/response-suggestions/${suggestionId}/reject`, { method: 'POST' }, true);
+  async rejectResponse(suggestionId: string, feedback: ResponseFeedback = {}): Promise<void> {
+    await fetchApi<AiResponse>(`/api/v1/response-suggestions/${suggestionId}/reject`, { method: 'POST', body: JSON.stringify(feedback) }, true);
+  },
+
+  async acceptResponse(suggestionId: string, text: string, feedback: ResponseFeedback = {}): Promise<AiResponse> {
+    return fetchApi<AiResponse>(`/api/v1/ai/responses/${suggestionId}/accept`,
+      { method: 'POST', body: JSON.stringify({ text, ...feedback }) }, true);
   },
 
   /** La validation humaine est obligatoire et vérifiée côté serveur : l'envoi
@@ -1127,7 +1133,7 @@ export const commentsApi = {
    * côté serveur (et deux entrées d'audit distinctes). Une ultime retouche
    * est transmise à l'approbation, qui l'enregistre comme une version avant
    * de la valider. */
-  async approveAndSend(commentId: string, text: string, suggestionId?: string): Promise<Comment> {
+  async approveAndSend(commentId: string, text: string, suggestionId?: string, feedback: ResponseFeedback = {}): Promise<Comment> {
     let target = suggestionId;
     if (!target) {
       const created = await fetchApi<AiResponse>(
@@ -1140,11 +1146,72 @@ export const commentsApi = {
 
     await fetchApi<AiResponse>(
       `/api/v1/response-suggestions/${target}/approve`,
-      { method: 'POST', body: JSON.stringify({ text }) },
+      { method: 'POST', body: JSON.stringify({ text, ...feedback }) },
       true
     );
 
     return fetchApi<Comment>(`/api/v1/comments/${commentId}/reply`, { method: 'POST' }, true);
+  },
+};
+
+export type ResponseFeedback = { reason?: string; rating?: number; feedbackComment?: string };
+export type KnowledgeDocument = {
+  id: string; brandId: string; title: string; documentType: string; content?: string;
+  source: string; originalFilename: string | null; internal: boolean;
+  status: 'PENDING' | 'INDEXING' | 'READY' | 'FAILED'; revision: number;
+  error: string | null; chunkCount: number; indexedAt: string | null;
+};
+export type KnowledgeInput = { title: string; documentType: string; content: string; internal: boolean };
+export type FeedbackStats = {
+  generated: number; accepted: number; edited: number; rejected: number; regenerated: number;
+  acceptanceRate: number; editRate: number; rejectionRate: number; averageConfidence: number | null;
+  averageEditDistance: number | null; averageDurationMs: number | null; averageRating: number | null;
+  sentiments: Record<string, number>; intents: Record<string, number>;
+};
+
+export const knowledgeApi = {
+  list(brandId: string, page = 1): Promise<{ items: KnowledgeDocument[]; page: number; pageSize: number; total: number }> {
+    return fetchApi(`/api/v1/knowledge?${new URLSearchParams({ brandId, page: String(page) })}`, {}, true);
+  },
+  get(id: string): Promise<KnowledgeDocument> {
+    return fetchApi(`/api/v1/knowledge/${id}`, {}, true);
+  },
+  create(brandId: string, input: KnowledgeInput): Promise<KnowledgeDocument> {
+    return fetchApi('/api/v1/knowledge', { method: 'POST', body: JSON.stringify({ brandId, ...input }) }, true);
+  },
+  update(id: string, revision: number, input: KnowledgeInput): Promise<KnowledgeDocument> {
+    return fetchApi(`/api/v1/knowledge/${id}`, { method: 'PUT', body: JSON.stringify({ revision, ...input }) }, true);
+  },
+  reindex(id: string): Promise<KnowledgeDocument> {
+    return fetchApi(`/api/v1/knowledge/${id}/reindex`, { method: 'POST' }, true);
+  },
+  remove(id: string): Promise<void> {
+    return fetchApi(`/api/v1/knowledge/${id}`, { method: 'DELETE' }, true);
+  },
+  async upload(brandId: string, input: Omit<KnowledgeInput, 'content'>,
+    file: { uri: string; name: string; mimeType?: string; size?: number }): Promise<KnowledgeDocument> {
+    if ((file.size ?? 0) > 10 * 1024 * 1024) throw new ApiError('unsupported_media', 'Fichier trop lourd : maximum 10 Mo.');
+    const types: Record<string, string> = { pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', txt: 'text/plain', csv: 'text/csv' };
+    const mimeType = file.mimeType || types[file.name.split('.').pop()?.toLowerCase() ?? ''] || 'application/octet-stream';
+    const form = new FormData();
+    form.append('brandId', brandId);
+    form.append('title', input.title);
+    form.append('documentType', input.documentType);
+    form.append('internal', String(input.internal));
+    if (Platform.OS === 'web') form.append('file', new Blob([await (await fetch(file.uri)).blob()], { type: mimeType }), file.name);
+    else form.append('file', { uri: file.uri, name: file.name, type: mimeType } as unknown as Blob);
+    let token = await readToken();
+    if (!token) throw new ApiError('unauthorized', errorMessages.unauthorized);
+    let result = await sendMultipart(token, form, undefined, '/api/v1/knowledge/upload');
+    if (result.status === 401) {
+      token = await refreshAccessToken();
+      result = await sendMultipart(token, form, undefined, '/api/v1/knowledge/upload');
+    }
+    if (result.status !== 201) throw errorFromResponse(result.status, result.payload);
+    return (result.payload as ApiEnvelope<KnowledgeDocument>).data;
+  },
+  stats(brandId: string): Promise<FeedbackStats> {
+    return fetchApi(`/api/v1/ai/feedback/stats?${new URLSearchParams({ brandId })}`, {}, true);
   },
 };
 

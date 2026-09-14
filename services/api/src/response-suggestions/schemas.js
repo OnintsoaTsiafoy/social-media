@@ -26,6 +26,7 @@ export const createSuggestionSchema = z.object({
   tone: z.enum(TONES).optional(),
   language: z.enum(LANGUAGES).optional(),
   instruction: z.string().trim().max(1000).optional(),
+  strategy: z.enum(['llm', 'rag', 'rag_feedback']).default('rag_feedback'),
 });
 
 export const updateSuggestionSchema = z.object({
@@ -39,11 +40,18 @@ export const updateSuggestionSchema = z.object({
 // n'oblige pas à enregistrer avant d'approuver.
 export const approveSuggestionSchema = z.object({
   text: z.string().trim().min(1).max(MAX_RESPONSE_LENGTH).optional(),
+  reason: z.string().trim().max(500).optional(),
+  rating: z.number().int().min(1).max(5).optional(),
+  feedbackComment: z.string().trim().max(1000).optional(),
 });
 
 export const rejectSuggestionSchema = z.object({
   reason: z.string().trim().max(500).optional(),
+  rating: z.number().int().min(1).max(5).optional(),
+  feedbackComment: z.string().trim().max(1000).optional(),
 });
+
+export const regenerateSuggestionSchema = createSuggestionSchema.omit({ commentId: true, text: true });
 
 export const generateHashtagsSchema = z.object({
   brandId: z.uuid(),

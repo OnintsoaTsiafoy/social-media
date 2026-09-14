@@ -1,0 +1,26 @@
+[
+  {
+    "strategy": "llm",
+    "runs": 12,
+    "retrievalHitRate": 0.0,
+    "noSourceForUnanswerableRate": 1.0,
+    "blockedUnanswerableRate": 0.0,
+    "durationMs": 11
+  },
+  {
+    "strategy": "rag",
+    "runs": 12,
+    "retrievalHitRate": 0.875,
+    "noSourceForUnanswerableRate": 0.75,
+    "blockedUnanswerableRate": 1.0,
+    "durationMs": 25
+  },
+  {
+    "strategy": "rag_feedback",
+    "runs": 12,
+    "retrievalHitRate": 0.875,
+    "noSourceForUnanswerableRate": 0.75,
+    "blockedUnanswerableRate": 1.0,
+    "durationMs": 24
+  }
+]

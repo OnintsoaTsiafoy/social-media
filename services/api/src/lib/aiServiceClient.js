@@ -38,6 +38,7 @@ export async function callAiService(path, { method = 'POST', scope = 'ai:analyze
       method,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(path.includes('/knowledge/') ? 180_000 : 90_000),
     });
   } catch {
     throw new HttpError(503, 'ai_unavailable', 'Le service d’analyse est injoignable.');

@@ -11,6 +11,7 @@ import {
   generateHashtagsSchema,
   listSuggestionsQuerySchema,
   rejectSuggestionSchema,
+  regenerateSuggestionSchema,
   updateSuggestionSchema,
 } from './schemas.js';
 import {
@@ -51,11 +52,11 @@ function loadCommentFromBody(request, _response, next) {
 }
 
 router.post('/', loadCommentFromBody, loadComment('COMMUNITY_MANAGER'), async (request, response) => {
-  const { text, tone, language, instruction } = parse(createSuggestionSchema, request.body);
+  const { text, tone, language, instruction, strategy } = parse(createSuggestionSchema, request.body);
   sendSuccess(
     response,
     await createSuggestion(
-      { userId: request.auth.user.id, comment: request.comment, text, tone, language, instruction },
+      { userId: request.auth.user.id, comment: request.comment, text, tone, language, instruction, strategy },
       request
     ),
     201
@@ -96,26 +97,33 @@ router.patch('/:suggestionId', loadSuggestion(), async (request, response) => {
 // L'approbation est le seul chemin qui autorise ensuite un envoi
 // (voir comments/service.js::replyToComment). Elle est refusée tant que le
 // contrôle de sécurité signale un problème bloquant.
-router.post('/:suggestionId/approve', loadSuggestion(), async (request, response) => {
-  const { text } = parse(approveSuggestionSchema, request.body ?? {});
+router.post(['/:suggestionId/approve', '/:suggestionId/accept', '/:suggestionId/edit'], loadSuggestion(), async (request, response) => {
+  const payload = parse(approveSuggestionSchema, request.body ?? {});
+  if (request.path.endsWith('/edit') && !payload.text) throw new HttpError(400, 'validation_failed', 'La réponse finale est requise.');
   sendSuccess(
     response,
     await approveSuggestion(
-      { userId: request.auth.user.id, comment: request.comment, suggestion: request.suggestion, text },
+      { userId: request.auth.user.id, comment: request.comment, suggestion: request.suggestion, ...payload },
       request
     )
   );
 });
 
 router.post('/:suggestionId/reject', loadSuggestion(), async (request, response) => {
-  const { reason } = parse(rejectSuggestionSchema, request.body ?? {});
+  const payload = parse(rejectSuggestionSchema, request.body ?? {});
   sendSuccess(
     response,
     await rejectSuggestion(
-      { userId: request.auth.user.id, comment: request.comment, suggestion: request.suggestion, reason },
+      { userId: request.auth.user.id, comment: request.comment, suggestion: request.suggestion, ...payload },
       request
     )
   );
+});
+
+router.post('/:suggestionId/regenerate', loadSuggestion(), async (request, response) => {
+  const payload = parse(regenerateSuggestionSchema, request.body ?? {});
+  sendSuccess(response, await createSuggestion({ userId: request.auth.user.id, comment: request.comment,
+    expectedSuggestionId: request.suggestion.id, ...payload }, request), 201);
 });
 
 export { router as responseSuggestionRouter };

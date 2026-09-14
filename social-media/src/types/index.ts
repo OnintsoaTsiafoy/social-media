@@ -224,6 +224,13 @@ export type AiResponse = {
   /** `local-template-x` ou `claude` : dit quelle source a produit le texte. */
   generator?: string;
   promptVersion?: string;
+  generatedText?: string;
+  finalText?: string | null;
+  confidenceScore?: number | null;
+  sources?: { documentId: string; chunkId: string; title: string; score: number; revision: number }[];
+  similarExamples?: { id: string; score: number }[];
+  feedbackStatus?: 'ACCEPTED' | 'EDITED' | 'REJECTED' | 'REGENERATED' | null;
+  strategy?: 'llm' | 'rag' | 'rag_feedback' | 'human';
 };
 
 export type Comment = {

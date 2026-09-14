@@ -13,6 +13,7 @@ import logging
 
 from core.config import settings
 from modules.generation import provider
+from modules.generation.language import response_language
 from modules.nlp import pipeline
 from modules.nlp.language import detect_language
 from modules.safety import checks
@@ -58,6 +59,8 @@ def resolve_language(state: AssistanceState) -> dict:
         language = "fr"
 
     detected, _ = detect_language(state.get("commentText", ""))
+    if state.get('strategy', 'llm') != 'llm' and not requested:
+        language = response_language(state.get('commentText', ''), language)
     warnings = []
     if detected == "other" and language == "fr":
         warnings.append(
@@ -166,6 +169,8 @@ def build_context(state: AssistanceState) -> dict:
     analysis = state.get("analysis")
     if analysis:
         parts.append(f"analyse={analysis.get('sentiment')}/{analysis.get('intent')}")
+    parts.append(f"documents={len(state.get('documents') or [])}")
+    parts.append(f"exemples_validés={len(state.get('examples') or [])}")
     return {"context": ", ".join(parts)}
 
 
@@ -184,6 +189,9 @@ def generate(state: AssistanceState) -> dict:
             language=state.get("language", "fr"),
             tone=tone,
             instruction=state.get("instruction"),
+            documents=state.get("documents") or [],
+            examples=state.get("examples") or [],
+            strategy=state.get("strategy", "llm"),
         )
     except Exception as error:  # noqa: BLE001
         logger.warning("workflow_generation_failed error=%s", error)
@@ -203,6 +211,12 @@ def generate(state: AssistanceState) -> dict:
 def safety(state: AssistanceState) -> dict:
     draft = state.get("draft", "")
     warnings = list(state.get("warnings", []))
+    if state.get('strategy', 'llm') != 'llm':
+        lower = draft.lower()
+        if any(phrase in lower for phrase in ['validation humaine', 'human review is required', 'informations insuffisantes', 'insufficient information']):
+            if not any(w['code'] == 'insufficient_knowledge' for w in warnings):
+                warnings.append({'code': 'insufficient_knowledge', 'severity': 'blocking',
+                                 'message': "Le générateur indique que le contexte est insuffisant. Vérifiez et adaptez la réponse."})
     warnings.extend(
         checks.check(
             text=draft,

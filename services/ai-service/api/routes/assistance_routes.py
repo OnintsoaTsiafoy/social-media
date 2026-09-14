@@ -47,6 +47,9 @@ def _run(payload: AssistanceRequest) -> dict:
         instruction=payload.instruction,
         requestedTone=payload.tone,
         requestedLanguage=payload.language,
+        documents=payload.documents,
+        examples=payload.examples,
+        strategy=payload.strategy,
     )
 
     errors = state.get("errors") or []
@@ -93,7 +96,7 @@ def generate_response(
         len(state.get("warnings", [])),
         getattr(request.state, "request_id", None),
     )
-    return GenerateResponseResult(commentId=payload.commentId, suggestion=_suggestion(payload, state))
+    return GenerateResponseResult(commentId=payload.commentId, suggestion=_suggestion(payload, state), analysis=state.get('analysis'))
 
 
 @router.post("/workflows/comment-assistance", response_model=AssistanceResult)

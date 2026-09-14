@@ -2,6 +2,8 @@ import express from 'express';
 import { fileURLToPath } from 'node:url';
 
 import { analyticsRouter } from './analytics/routes.js';
+import { aiRouter } from './ai-feedback/routes.js';
+import { knowledgeRouter } from './knowledge/routes.js';
 import { authRouter } from './auth/routes.js';
 import { brandRouter } from './brands/routes.js';
 import { commentRouter } from './comments/routes.js';
@@ -131,6 +133,29 @@ const openApiDocument = {
       get: { summary: 'Lister toutes les versions d’une proposition (?commentId=)' },
       post: { summary: 'Générer ou rédiger une proposition de réponse' },
     },
+    '/api/v1/knowledge': {
+      get: { summary: 'Documents personnels de la marque (brandId, page, pageSize)' },
+      post: { summary: 'Ajouter et indexer un texte (brandId, title, documentType, content, internal)' },
+    },
+    '/api/v1/knowledge/upload': { post: { summary: 'Importer PDF/DOCX/TXT/CSV (multipart, 10 Mo maximum)' } },
+    '/api/v1/knowledge/{id}': {
+      get: { summary: 'Lire un document personnel' },
+      put: { summary: 'Modifier et réindexer un document (revision obligatoire)' },
+      delete: { summary: 'Supprimer le document et tous ses embeddings' },
+    },
+    '/api/v1/knowledge/{id}/reindex': { post: { summary: 'Relancer l’indexation de la dernière version' } },
+    '/api/v1/ai/retrieve': { post: { summary: 'Top K passages publics personnels de la marque, score cosinus et seuil minimal' } },
+    '/api/v1/ai/responses': {
+      post: { summary: 'Générer une réponse (commentId, strategy=llm|rag|rag_feedback)' },
+      get: { summary: 'Toutes les versions d’un commentaire (commentId)' },
+    },
+    '/api/v1/ai/responses/{id}': { get: { summary: 'Texte original, version finale, sources et confiance documentaire' } },
+    '/api/v1/ai/responses/{id}/accept': { post: { summary: 'Valider sans envoi ; feedback facultatif reason, rating (1–5), feedbackComment' } },
+    '/api/v1/ai/responses/{id}/edit': { post: { summary: 'Enregistrer et valider une correction humaine (text obligatoire), sans envoi' } },
+    '/api/v1/ai/responses/{id}/reject': { post: { summary: 'Rejeter une génération avec feedback facultatif' } },
+    '/api/v1/ai/responses/{id}/regenerate': { post: { summary: 'Nouvelle version, conserve la précédente et sa décision' } },
+    '/api/v1/ai/feedback/stats': { get: { summary: 'Compteurs, taux, confiance, sentiment et intention pour brandId' } },
+    '/api/v1/ai/feedback/dataset': { get: { summary: 'Export JSON paginé des générations et décisions de la marque' } },
     '/api/v1/response-suggestions/{suggestionId}': {
       get: { summary: 'Détail d’une version' },
       patch: { summary: 'Enregistrer une réécriture humaine (crée une nouvelle version)' },
@@ -247,6 +272,9 @@ app.use('/api/v1/calendar', calendarRouter);
 app.use('/api/v1/social-accounts', socialAccountRouter);
 app.use('/api/v1/comments', commentRouter);
 app.use('/api/v1/response-suggestions', responseSuggestionRouter);
+app.use('/api/v1/knowledge', knowledgeRouter);
+app.use('/api/v1/ai', aiRouter);
+app.use('/api/v1/ai/responses', responseSuggestionRouter);
 app.use('/api/v1/notifications', notificationRouter);
 app.use('/api/v1/device-tokens', deviceTokenRouter);
 app.use('/api/v1/notification-settings', notificationSettingsRouter);
