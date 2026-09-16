@@ -278,6 +278,25 @@ Indicateurs disponibles lorsque Meta les fournit : réactions, commentaires, par
 
 La page d’une publication reprend ses métriques par réseau, ses commentaires, le sentiment, les urgences et les réponses. Les métriques non accessibles sont explicitement signalées comme indisponibles.
 
+
+#### Analyse concurrentielle
+
+Écrans : `/competitors`, `/competitors/new`, `/competitors/[id]`, `/analytics/competitors`.
+
+Un community manager ajoute des Pages Facebook et des comptes Instagram professionnels concurrents, à partir d’une URL de profil ou d’un nom d’utilisateur. L’ajout se fait en deux temps : **Vérifier** interroge Meta sans rien enregistrer et affiche ce qui sera réellement lisible, **Ajouter** enregistre et déclenche la première collecte. Un doublon est refusé pour la marque et le réseau considérés.
+
+La collecte n’utilise que les API officielles Meta : aucun scraping HTML, aucun contournement de contrôle d’accès. Elle dépend donc de ce que Meta autorise — **Page Public Content Access** côté Facebook, **Business Discovery** côté Instagram, ce dernier exigeant que la marque ait un compte Instagram professionnel connecté et que le concurrent en soit un aussi. La portée, les impressions et les données d’audience d’un concurrent ne sont jamais accessibles.
+
+Quatre statuts rendent compte de cette dépendance : **Suivi**, **Autorisation requise** (App Review à obtenir), **Inaccessible** (compte personnel, privé ou supprimé) et **Synchronisation en erreur** (transitoire). Dans les trois derniers cas, les dernières données connues restent affichées avec leur date, et la ligne reste visible avec son explication.
+
+Indicateurs par concurrent sur 7, 30 ou 90 jours : nombre de publications, fréquence hebdomadaire, réactions, commentaires, partages et interactions moyens par publication, taux d’engagement et son évolution, publication la plus performante, jour et heure de publication les plus fréquents.
+
+La comparaison avec la marque se fait réseau par réseau. Deux règles la gouvernent : une métrique absente s’affiche **Non disponible** et jamais 0, et les interactions sont réduites aux composantes présentes **des deux côtés** avant tout écart — comparer un total incluant les partages à un total qui n’en a pas produirait un écart qui ne mesure rien. L’exclusion est dite explicitement.
+
+L’analyse IA est facultative et ne calcule aucun chiffre : elle reçoit les métriques déjà calculées, ne voit pas les métriques indisponibles, et toute sortie contenant un nombre absent des faits transmis est rejetée au profit d’un gabarit local. Trois recommandations au maximum.
+
+Détail complet : [Analyse concurrentielle](ANALYSE_CONCURRENTIELLE.md).
+
 ### 4.12 Notifications
 
 Écrans : `/notifications`, `/settings/notifications`.
@@ -327,6 +346,7 @@ Toutes les routes mobiles sont préfixées par `/api/v1`. Une réussite utilise 
 | IA / RAG | `/ai/retrieve`, `/ai/feedback/stats`, `/ai/feedback/dataset` |
 | Notifications | `/notifications`, `/notifications/unread-count`, `/notifications/:id/read`, `/notifications/read-all`, `/device-tokens`, `/notification-settings` |
 | Analytics | `/analytics/sync`, `/analytics/summary`, `/analytics/timeline`, `/analytics/top-publications`, `/analytics/networks-comparison`, `/analytics/sentiments`, `/analytics/priorities`, `/analytics/publications/:publicationId` |
+| Concurrents | `/competitors`, `/competitors/verify`, `/competitors/comparison`, `/competitors/comparison/explain`, `/competitors/:id`, `/competitors/:id/sync`, `/competitors/:id/posts`, `/competitors/:id/analytics` |
 | Dashboard | `/dashboard/summary`, `/dashboard/priority-comments`, `/dashboard/upcoming-publications` |
 
 Codes d’erreur fréquents : `validation_failed` (400), `authentication_required` ou `token_expired` (401), `forbidden` (403), `not_found` (404), `conflict` ou `idempotency_conflict` (409), `unprocessable` (422), `rate_limited` (429), `provider_unavailable` (502–504), `media_too_large` (413), `media_type_not_allowed` (415), `media_not_ready` (422), `storage_unavailable` (503) et `ai_unavailable` (503).
@@ -344,11 +364,12 @@ Le worker utilise pg-boss et les files suivantes :
 - `refresh-expiring-oauth-tokens` ;
 - `sync-social-comments` ;
 - `analyze-social-comments` ;
-- `sync-social-metrics`.
+- `sync-social-metrics` ;
+- `sync-competitor`, `sync-competitor-posts`, `sync-competitor-metrics`.
 
 Les publications sont verrouillées par cible, avec une clé d’idempotence par tentative. Les erreurs temporaires sont réessayées avec un délai de 1 minute, 5 minutes, 15 minutes puis 1 heure, jusqu’à cinq tentatives. Les états intermédiaires restent visibles dans l’application.
 
-La synchronisation des commentaires combine les webhooks Meta et une tâche de rattrapage périodique (environ 15 minutes). Les synchronisations de métriques sont lancées depuis l’analytics. Les notifications sont créées par l’API via une route interne appelée par le worker.
+La synchronisation des commentaires combine les webhooks Meta et une tâche de rattrapage périodique (environ 15 minutes). Les synchronisations de métriques sont lancées depuis l’analytics. Les notifications sont créées par l’API via une route interne appelée par le worker. Les concurrents sont balayés deux fois par jour, en trois étapes enchaînées (profil, publications, relevé agrégé) ; un concurrent devenu illisible est retesté beaucoup plus rarement, sans jamais être abandonné.
 
 ## 7. IA, modèles et sécurité
 
@@ -435,3 +456,4 @@ Les routes d’identification sont limitées à 10 tentatives sur 15 minutes ; l
 - [Notifications Firebase](SPRINT_11_FIREBASE_NOTIFICATIONS.md).
 - [Analytics](SPRINT_12_ANALYTICS_REPORTING.md).
 - [RAG et feedback humain](RAG_FEEDBACK_HUMAIN.md).
+- [Analyse concurrentielle](ANALYSE_CONCURRENTIELLE.md).

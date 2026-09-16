@@ -8,10 +8,289 @@ info:
     comptes sociaux et OAuth Meta (Sprint 06/07), commentaires et réponses
     contrôlées (Sprint 08), analyse de sentiment (Sprint 09), propositions de
     réponse et hashtags (Sprint 10), notifications et Firebase Cloud
-    Messaging (Sprint 11).
+    Messaging (Sprint 11), analyse concurrentielle (TODO PLUS).
 servers:
   - url: http://localhost:3000
 paths:
+  /api/v1/competitors:
+    get:
+      summary: Concurrents suivis par la marque
+      description: >
+        Un concurrent inaccessible reste listé, avec son statut et ses dernières
+        données connues : masquer la ligne ferait disparaître l'explication.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: './competitors.yaml#/components/parameters/BrandId' }
+        - { $ref: './competitors.yaml#/components/parameters/PlatformFilter' }
+        - { $ref: './competitors.yaml#/components/parameters/StatusFilter' }
+        - { in: query, name: page, schema: { type: integer, minimum: 1, default: 1 } }
+        - { in: query, name: pageSize, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+      responses:
+        '200':
+          description: Liste paginée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: './competitors.yaml#/components/schemas/Competitor' }
+                      page:
+                        type: object
+                        properties:
+                          page: { type: integer }
+                          pageSize: { type: integer }
+                          total: { type: integer }
+        '404': { description: Marque inconnue ou non accessible }
+    post:
+      summary: "Ajouter un concurrent (rôle minimum : COMMUNITY_MANAGER)"
+      description: >
+        Vérifie le compte auprès de Meta puis l'enregistre, et déclenche une
+        première collecte (job pg-boss). Un compte illisible est refusé en 409 ;
+        un compte en attente d'autorisation Meta est accepté, parce que c'est
+        réparable par une App Review.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [brandId, platform, handle]
+              properties:
+                brandId: { type: string, format: uuid }
+                platform: { type: string, enum: [facebook, instagram] }
+                handle:
+                  type: string
+                  description: URL de profil ou nom d'utilisateur ; normalisé côté serveur.
+      responses:
+        '201':
+          description: Concurrent créé, avec le résultat de la vérification
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    allOf:
+                      - { $ref: './competitors.yaml#/components/schemas/Competitor' }
+                      - type: object
+                        properties:
+                          queued: { type: boolean }
+                          verification: { $ref: './competitors.yaml#/components/schemas/CompetitorVerification' }
+        '400': { description: URL ou nom d'utilisateur invalide }
+        '403': { description: Rôle insuffisant }
+        '409': { description: Déjà suivi, compte illisible, ou aucun compte social connecté sur ce réseau }
+
+  /api/v1/competitors/verify:
+    post:
+      summary: "Vérifier un compte sans l'enregistrer (rôle minimum : COMMUNITY_MANAGER)"
+      description: >
+        Toujours 200, y compris pour un compte inaccessible : « ce compte n'est
+        pas analysable » est une réponse que l'écran doit afficher avec sa
+        raison, pas une erreur.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [brandId, platform, handle]
+              properties:
+                brandId: { type: string, format: uuid }
+                platform: { type: string, enum: [facebook, instagram] }
+                handle: { type: string }
+      responses:
+        '200':
+          description: Résultat de la vérification, y compris pour un compte inaccessible
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: './competitors.yaml#/components/schemas/CompetitorVerification' }
+        '409': { description: Aucun compte social connecté sur ce réseau pour cette marque }
+
+  /api/v1/competitors/comparison:
+    get:
+      summary: Comparaison de la marque avec ses concurrents
+      description: >
+        Les interactions sont réduites aux composantes disponibles des deux
+        côtés avant tout écart. Une métrique manquante d'un côté reste une
+        ligne, marquée unavailable.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: './competitors.yaml#/components/parameters/BrandId' }
+        - { $ref: './competitors.yaml#/components/parameters/Period' }
+        - { $ref: './competitors.yaml#/components/parameters/PlatformFilter' }
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 10, default: 5 } }
+      responses:
+        '200':
+          description: Comparaison par concurrent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: './competitors.yaml#/components/schemas/CompetitorComparisonResult' }
+
+  /api/v1/competitors/comparison/explain:
+    post:
+      summary: Synthèse IA de la comparaison
+      description: >
+        Les chiffres sont recalculés côté serveur : le client n'envoie que les
+        filtres. Le service IA rejette sa propre sortie si elle contient un
+        nombre absent des faits transmis.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [brandId]
+              properties:
+                brandId: { type: string, format: uuid }
+                period: { type: string, enum: ['7d', '30d', '90d'] }
+                platform: { type: string, enum: [all, facebook, instagram] }
+                limit: { type: integer, minimum: 1, maximum: 10 }
+      responses:
+        '200':
+          description: Synthèse, recommandations et faits ayant servi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: './competitors.yaml#/components/schemas/CompetitorExplanation' }
+        '409': { description: Aucun concurrent à comparer }
+        '503': { description: Service d'analyse indisponible (ai_unavailable) }
+
+  /api/v1/competitors/{competitorId}:
+    get:
+      summary: Détail d'un concurrent
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: './competitors.yaml#/components/parameters/CompetitorId' }
+        - { $ref: './competitors.yaml#/components/parameters/BrandId' }
+      responses:
+        '200':
+          description: Concurrent, dernier relevé, volumes stockés
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: './competitors.yaml#/components/schemas/Competitor' }
+        '404': { description: Concurrent inconnu ou appartenant à une autre marque }
+    patch:
+      summary: "Renommer localement ou corriger le compte suivi (rôle minimum : COMMUNITY_MANAGER)"
+      description: >
+        Changer `handle` réinitialise l'identifiant Meta et le statut : le compte
+        visé n'est plus le même, la prochaine synchronisation tranchera.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: './competitors.yaml#/components/parameters/CompetitorId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [brandId]
+              properties:
+                brandId: { type: string, format: uuid }
+                name: { type: string, maxLength: 255 }
+                handle: { type: string }
+      responses:
+        '200': { description: Concurrent modifié }
+        '409': { description: Le compte visé est déjà suivi pour cette marque }
+    delete:
+      summary: "Retirer un concurrent (rôle minimum : COMMUNITY_MANAGER)"
+      description: Suppression physique ; publications et relevés partent en cascade.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: './competitors.yaml#/components/parameters/CompetitorId' }
+        - { $ref: './competitors.yaml#/components/parameters/BrandId' }
+      responses:
+        '204': { description: Supprimé }
+        '404': { description: Concurrent inconnu ou appartenant à une autre marque }
+
+  /api/v1/competitors/{competitorId}/sync:
+    post:
+      summary: "Demander une synchronisation (rôle minimum : COMMUNITY_MANAGER)"
+      description: 202 immédiat ; la collecte est exécutée par le worker.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: './competitors.yaml#/components/parameters/CompetitorId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [brandId]
+              properties:
+                brandId: { type: string, format: uuid }
+      responses:
+        '202': { description: Job enfilé (queued=false si une demande est déjà en attente) }
+        '503': { description: File de travaux indisponible }
+
+  /api/v1/competitors/{competitorId}/posts:
+    get:
+      summary: Publications collectées du concurrent
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: './competitors.yaml#/components/parameters/CompetitorId' }
+        - { $ref: './competitors.yaml#/components/parameters/BrandId' }
+        - { $ref: './competitors.yaml#/components/parameters/Period' }
+        - { in: query, name: page, schema: { type: integer, minimum: 1, default: 1 } }
+        - { in: query, name: pageSize, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+      responses:
+        '200':
+          description: Publications paginées et date de dernière synchronisation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: './competitors.yaml#/components/schemas/CompetitorPost' }
+                      lastSyncedAt: { type: [string, 'null'], format: date-time }
+
+  /api/v1/competitors/{competitorId}/analytics:
+    get:
+      summary: Indicateurs du concurrent sur la période
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: './competitors.yaml#/components/parameters/CompetitorId' }
+        - { $ref: './competitors.yaml#/components/parameters/BrandId' }
+        - { $ref: './competitors.yaml#/components/parameters/Period' }
+      responses:
+        '200':
+          description: Indicateurs, historique des relevés et top publications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      indicators: { $ref: './competitors.yaml#/components/schemas/CompetitorIndicators' }
+                      history: { type: array, items: { type: object } }
+                      topPosts: { type: array, items: { type: object } }
+                      warnings: { type: array, items: { type: string } }
+
   /api/v1/analytics/insights:
     get:
       summary: Métriques sources, faits, variations et anomalies calculés par Express

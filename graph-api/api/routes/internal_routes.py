@@ -11,6 +11,15 @@ from modules.facebook.schemas.internal import (
     PublishRequest,
     PublishResponse,
 )
+from modules.competitors import service as competitor_service
+from modules.competitors.schemas import (
+    AccountAudienceRequest,
+    AccountAudienceResponse,
+    CompetitorPostsRequest,
+    CompetitorPostsResponse,
+    CompetitorProfileRequest,
+    CompetitorProfileResponse,
+)
 from modules.facebook.services import internal_service
 from modules.facebook.services.idempotency import get_cached_response, store_response
 from modules.oauth import service as oauth_service
@@ -82,3 +91,37 @@ async def metrics_sync(
     _auth: dict = Depends(require_service_jwt("social:read")),
 ):
     return await internal_service.sync_metrics(body)
+
+
+# --- Analyse concurrentielle -------------------------------------------------
+# Lecture seule et scope `social:read` : ces routes n'écrivent jamais chez Meta
+# ni en base. Elles répondent 200 même quand Meta refuse — le refus est dans
+# `status` (voir modules/competitors/service.py).
+
+
+@router.post("/competitors/profile", response_model=CompetitorProfileResponse)
+async def competitor_profile(
+    body: CompetitorProfileRequest,
+    _auth: dict = Depends(require_service_jwt("social:read")),
+):
+    """Résout et lit les informations publiques accessibles d'un concurrent."""
+    return await competitor_service.profile(body)
+
+
+@router.post("/competitors/posts", response_model=CompetitorPostsResponse)
+async def competitor_posts(
+    body: CompetitorPostsRequest,
+    _auth: dict = Depends(require_service_jwt("social:read")),
+):
+    """Publications publiques accessibles, paginées par curseur."""
+    return await competitor_service.posts(body)
+
+
+@router.post("/accounts/audience", response_model=AccountAudienceResponse)
+async def account_audience(
+    body: AccountAudienceRequest,
+    _auth: dict = Depends(require_service_jwt("social:read")),
+):
+    """Audience du compte de la marque lui-même, relevée pour que la
+    comparaison avec un concurrent porte sur des taux calculés identiquement."""
+    return await competitor_service.account_audience(body)

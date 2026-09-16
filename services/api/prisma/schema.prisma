@@ -253,6 +253,7 @@ model User {
   knowledgeDocuments      KnowledgeDocument[]
   aiFeedback              AiFeedback[]
   analyticsInsightFeedback AnalyticsInsightFeedback[]
+  competitorsAdded Competitor[]  @relation("CompetitorAuthor")
 
   @@index([status])
   @@map("users")
@@ -280,6 +281,7 @@ model Brand {
   knowledgeDocuments KnowledgeDocument[]
   validatedExamples ValidatedResponseExample[]
   analyticsInsights AnalyticsInsight[]
+  competitors     Competitor[]
 
   @@index([ownerUserId])
   @@index([deletedAt])
@@ -648,6 +650,13 @@ model SocialAccount {
   connectedByUserId  String                  @map("connected_by_user_id") @db.Uuid
   lastCommentsSyncAt DateTime?               @map("last_comments_sync_at") @db.Timestamptz(6)
   lastMetricsSyncAt  DateTime?               @map("last_metrics_sync_at") @db.Timestamptz(6)
+  // Audience du compte de la marque, relevée par la même passe que celle des
+  // concurrents (TODO analyse concurrentielle, section 8). Sans elle, le taux
+  // d'engagement de la marque et celui d'un concurrent ne se calculeraient pas
+  // de la même façon — interdit par le TODO — et la comparaison resterait
+  // définitivement « Non disponible ».
+  followersCount     Int?                    @map("followers_count")
+  followersSyncedAt  DateTime?               @map("followers_synced_at") @db.Timestamptz(6)
   createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
   brand              Brand                   @relation(fields: [brandId], references: [id], onDelete: Cascade)
@@ -1140,4 +1149,104 @@ model NotificationSetting {
   user                 User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notification_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Analyse concurrentielle (sprint_listing/PLUS/TODO_ANALYSE_CONCURRENTIELLE_MISE_A_JOUR.md)
+// ---------------------------------------------------------------------------
+
+// Les quatre états demandés par le TODO, et rien de plus. La distinction qui
+// compte à l'écran : UNAVAILABLE (le compte lui-même n'est plus lisible —
+// supprimé, passé en privé, repassé en compte personnel) est définitif tant
+// que rien ne change côté Meta, PERMISSION_REQUIRED est réparable par une
+// App Review ou une reconnexion, SYNC_ERROR est transitoire et la prochaine
+// exécution retentera. Aucun de ces trois états n'efface les dernières
+// données connues : elles restent affichées avec leur date (section 11).
+enum CompetitorStatus {
+  ACTIVE
+  UNAVAILABLE
+  PERMISSION_REQUIRED
+  SYNC_ERROR
+}
+
+model Competitor {
+  id           String            @id @default(uuid()) @db.Uuid
+  brandId      String            @map("brand_id") @db.Uuid
+  platform     SocialProvider
+  // Identifiant Meta résolu. Nullable : une Page Facebook ajoutée sans Page
+  // Public Content Access n'est pas résoluble, et le TODO demande d'accepter
+  // l'ajout en l'indiquant clairement plutôt que de le refuser en bloc.
+  externalId   String?           @map("external_id") @db.VarChar(255)
+  username     String            @db.VarChar(255)
+  name         String            @db.VarChar(255)
+  profileUrl   String?           @map("profile_url") @db.VarChar(1024)
+  avatarUrl    String?           @map("avatar_url") @db.VarChar(1024)
+  status       CompetitorStatus  @default(ACTIVE)
+  // Dernier échec de synchronisation, conservé pour l'écran de détail —
+  // même rôle que OAuthToken.lastErrorCode.
+  lastErrorCode    String?       @map("last_error_code") @db.VarChar(80)
+  lastErrorMessage String?       @map("last_error_message") @db.Text
+  lastSyncedAt DateTime?         @map("last_synced_at") @db.Timestamptz(6)
+  addedByUserId String           @map("added_by_user_id") @db.Uuid
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  brand        Brand             @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  addedByUser  User              @relation("CompetitorAuthor", fields: [addedByUserId], references: [id], onDelete: Restrict)
+  metrics      CompetitorMetric[]
+  posts        CompetitorPost[]
+
+  // Un même concurrent ne peut être ajouté qu'une fois par marque et par
+  // réseau (section 2 « Empêcher les doublons »). Porte sur `username`
+  // normalisé en minuscules par le service, pas sur `externalId` : celui-ci
+  // peut rester nul quand Meta ne le résout pas, et deux NULL ne
+  // s'entrechoquent jamais dans un index unique PostgreSQL.
+  @@unique([brandId, platform, username])
+  @@index([brandId, status])
+  @@index([brandId, platform, lastSyncedAt])
+  @@map("competitors")
+}
+
+// Historique append-only, même principe que SocialMetric : jamais d'UPDATE,
+// une ligne par relevé, y compris quand tout est nul (une tentative qui ne
+// ramène rien reste un fait daté). C'est ce qui permet de tracer l'évolution
+// de l'engagement demandée en section 8 sans jamais supprimer d'ancien relevé.
+model CompetitorMetric {
+  id             String     @id @default(uuid()) @db.Uuid
+  competitorId   String     @map("competitor_id") @db.Uuid
+  collectedAt    DateTime   @map("collected_at") @db.Timestamptz(6)
+  followersCount Int?       @map("followers_count")
+  postsCount     Int?       @map("posts_count")
+  reactionsCount Int?       @map("reactions_count")
+  commentsCount  Int?       @map("comments_count")
+  sharesCount    Int?       @map("shares_count")
+  // Décimal plutôt que flottant : un taux affiché puis recomparé ne doit pas
+  // dériver au fil des arrondis binaires. 5,4 chiffres = 99,9999 % maximum.
+  engagementRate Decimal?   @map("engagement_rate") @db.Decimal(6, 4)
+  competitor     Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+
+  @@index([competitorId, collectedAt])
+  @@map("competitor_metrics")
+}
+
+model CompetitorPost {
+  id             String     @id @default(uuid()) @db.Uuid
+  competitorId   String     @map("competitor_id") @db.Uuid
+  externalPostId String     @map("external_post_id") @db.VarChar(255)
+  message        String?    @db.Text
+  mediaType      String?    @map("media_type") @db.VarChar(32)
+  permalink      String?    @db.VarChar(1024)
+  publishedAt    DateTime?  @map("published_at") @db.Timestamptz(6)
+  reactionsCount Int?       @map("reactions_count")
+  commentsCount  Int?       @map("comments_count")
+  sharesCount    Int?       @map("shares_count")
+  engagementRate Decimal?   @map("engagement_rate") @db.Decimal(6, 4)
+  syncedAt       DateTime   @default(now()) @map("synced_at") @db.Timestamptz(6)
+  competitor     Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+
+  // Section 4 : « Ne pas dupliquer les publications lors d'une nouvelle
+  // synchronisation ». C'est cette contrainte qui rend la déduplication
+  // vraie, pas la prudence du code appelant.
+  @@unique([competitorId, externalPostId])
+  @@index([competitorId, publishedAt])
+  @@map("competitor_posts")
 }

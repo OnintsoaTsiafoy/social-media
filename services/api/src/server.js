@@ -8,6 +8,7 @@ import { knowledgeRouter } from './knowledge/routes.js';
 import { authRouter } from './auth/routes.js';
 import { brandRouter } from './brands/routes.js';
 import { commentRouter } from './comments/routes.js';
+import { competitorRouter } from './competitors/routes.js';
 import { dashboardRouter } from './dashboard/routes.js';
 import { mediaRouter } from './media/routes.js';
 import { internalNotificationRouter } from './notifications/internal-routes.js';
@@ -245,6 +246,33 @@ const openApiDocument = {
           'Explication IA courte du meilleur créneau (mêmes paramètres que /best-times, dans le corps) — faits recalculés côté serveur, jamais fournis par le client',
       },
     },
+    '/api/v1/competitors': {
+      get: { summary: 'Concurrents suivis par la marque (?brandId=, platform, status, pagination)' },
+      post: { summary: 'COMMUNITY_MANAGER : ajouter un concurrent (brandId, platform, handle URL ou nom d’utilisateur)' },
+    },
+    '/api/v1/competitors/verify': {
+      post: { summary: 'COMMUNITY_MANAGER : vérifier un compte auprès de Meta sans l’enregistrer' },
+    },
+    '/api/v1/competitors/comparison': {
+      get: { summary: 'Comparaison marque / concurrents (?brandId=, period, platform, limit) — métriques calculées à l’identique des deux côtés' },
+    },
+    '/api/v1/competitors/comparison/explain': {
+      post: { summary: 'Résumé IA de la comparaison — faits recalculés côté serveur, chiffres inventés rejetés' },
+    },
+    '/api/v1/competitors/{competitorId}': {
+      get: { summary: 'Détail d’un concurrent (?brandId=)' },
+      patch: { summary: 'COMMUNITY_MANAGER : renommer localement ou corriger le nom d’utilisateur suivi' },
+      delete: { summary: 'COMMUNITY_MANAGER : retirer un concurrent (204, publications et relevés en cascade)' },
+    },
+    '/api/v1/competitors/{competitorId}/sync': {
+      post: { summary: 'COMMUNITY_MANAGER : demander une synchronisation (202, exécutée par le worker)' },
+    },
+    '/api/v1/competitors/{competitorId}/posts': {
+      get: { summary: 'Publications collectées du concurrent (?brandId=, period, pagination)' },
+    },
+    '/api/v1/competitors/{competitorId}/analytics': {
+      get: { summary: 'Indicateurs du concurrent sur la période (?brandId=, period) — fréquence, moyennes, évolution, top publications' },
+    },
     '/api/v1/dashboard/summary': {
       get: { summary: 'Compteurs agrégés pour l’écran d’accueil (?brandId=) — recompose comments/service.js::commentsCounts' },
     },
@@ -302,6 +330,7 @@ app.use('/api/v1/approvals', approvalsRouter);
 app.use('/api/v1/calendar', calendarRouter);
 app.use('/api/v1/social-accounts', socialAccountRouter);
 app.use('/api/v1/comments', commentRouter);
+app.use('/api/v1/competitors', competitorRouter);
 app.use('/api/v1/response-suggestions', responseSuggestionRouter);
 app.use('/api/v1/knowledge', knowledgeRouter);
 app.use('/api/v1/ai', aiRouter);

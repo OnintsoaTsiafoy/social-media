@@ -44,6 +44,75 @@ paths:
         '401': { description: JWT de service invalide }
         '403': { description: Scope ai:generate absent }
         '422': { description: Schéma ou références des faits invalides }
+  /internal/v1/analytics/competitors/explain:
+    post:
+      summary: Synthèse en langage naturel d'une comparaison concurrentielle
+      description: >
+        Le service ne calcule aucun KPI : Express lui transmet des métriques
+        déjà calculées. Deux garde-fous, pas un seul. Une métrique
+        indisponible n'est pas transmise à null, elle n'est pas transmise du
+        tout (seulement son libellé, dans `unavailableMetrics`) — le modèle ne
+        peut pas commenter ce qu'il ne voit pas. Et la sortie du modèle est
+        rejetée au profit du gabarit local si elle contient un nombre absent
+        des faits reçus.
+      security: [{ serviceJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [period, periodStart, periodEnd, competitors]
+              properties:
+                period: { type: string, enum: ['7d', '30d', '90d'] }
+                periodStart: { type: string }
+                periodEnd: { type: string }
+                competitors:
+                  type: array
+                  maxItems: 10
+                  items:
+                    type: object
+                    properties:
+                      name: { type: string }
+                      network: { type: string }
+                      postsCount: { type: integer }
+                      brandPostsCount: { type: integer }
+                      interactionComponents: { type: array, items: { type: string } }
+                      metrics:
+                        type: array
+                        description: Uniquement les métriques disponibles des deux côtés.
+                        items:
+                          type: object
+                          properties:
+                            key: { type: string }
+                            label: { type: string }
+                            unit: { type: string, enum: [count, percent] }
+                            brand: { type: number }
+                            competitor: { type: number }
+                            differencePercent: { type: [number, 'null'] }
+                      unavailableMetrics: { type: array, items: { type: string } }
+                      notes: { type: array, items: { type: string } }
+      responses:
+        '200':
+          description: Synthèse, au plus trois recommandations, et avertissements
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  text: { type: string }
+                  recommendations: { type: array, maxItems: 3, items: { type: string } }
+                  generator: { type: string }
+                  warnings:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code: { type: string, enum: [low_sample, no_comparable_metric, llm_fallback] }
+                        severity: { type: string }
+                        message: { type: string }
+        '403': { description: Scope ai:generate absent }
+
   /health:
     get:
       summary: Sonde de vivacité

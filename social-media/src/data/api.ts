@@ -9,6 +9,16 @@
 import type { Href } from 'expo-router';
 import { Platform } from 'react-native';
 import type { AnalyticsInsight, AnalyticsInsightFeedbackStats, AnalyticsInsightHistory, AnalyticsPeriod, AnalyticsSummary } from '@/types/analytics';
+import type {
+  Competitor,
+  CompetitorAnalytics,
+  CompetitorComparisonResult,
+  CompetitorDetail,
+  CompetitorExplanation,
+  CompetitorPost,
+  CompetitorStatus,
+  CompetitorVerification,
+} from '@/types/competitors';
 
 import {
   clearSessionTokens,
@@ -1499,5 +1509,78 @@ export const analyticsApi = {
       { method: 'POST', body: JSON.stringify({ brandId, network, period, ...(timezone ? { timezone } : {}) }) },
       true
     );
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Analyse concurrentielle
+// ---------------------------------------------------------------------------
+
+export type CompetitorFilters = {
+  platform?: SocialNetwork | 'all';
+  status?: CompetitorStatus | 'all';
+  page?: number;
+  pageSize?: number;
+};
+
+export const competitorsApi = {
+  list(brandId: string, filters: CompetitorFilters = {}): Promise<{ items: Competitor[]; page: { page: number; pageSize: number; total: number } }> {
+    const query = new URLSearchParams({
+      brandId,
+      platform: filters.platform ?? 'all',
+      status: filters.status ?? 'all',
+      page: String(filters.page ?? 1),
+      pageSize: String(filters.pageSize ?? 20),
+    });
+    return fetchApi(`/api/v1/competitors?${query.toString()}`, {}, true);
+  },
+
+  detail(brandId: string, id: string): Promise<CompetitorDetail> {
+    return fetchApi(`/api/v1/competitors/${encodeURIComponent(id)}?${new URLSearchParams({ brandId })}`, {}, true);
+  },
+
+  /** Interroge Meta sans rien enregistrer : le bouton « Vérifier » de l'écran
+   * d'ajout. Un compte inaccessible revient en réponse normale, avec sa
+   * raison — ce n'est pas une erreur à afficher en rouge. */
+  verify(brandId: string, platform: SocialNetwork, handle: string): Promise<CompetitorVerification> {
+    return fetchApi('/api/v1/competitors/verify', { method: 'POST', body: JSON.stringify({ brandId, platform, handle }) }, true);
+  },
+
+  create(brandId: string, platform: SocialNetwork, handle: string): Promise<Competitor & { queued: boolean; verification: CompetitorVerification }> {
+    return fetchApi('/api/v1/competitors', { method: 'POST', body: JSON.stringify({ brandId, platform, handle }) }, true);
+  },
+
+  update(brandId: string, id: string, patch: { name?: string; handle?: string }): Promise<Competitor> {
+    return fetchApi(`/api/v1/competitors/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ brandId, ...patch }) }, true);
+  },
+
+  remove(brandId: string, id: string): Promise<void> {
+    return fetchApi(`/api/v1/competitors/${encodeURIComponent(id)}?${new URLSearchParams({ brandId })}`, { method: 'DELETE' }, true);
+  },
+
+  /** 202 : la collecte est faite par le worker, jamais pendant la requête. */
+  sync(brandId: string, id: string): Promise<{ queued: boolean; lastSyncedAt: string | null }> {
+    return fetchApi(`/api/v1/competitors/${encodeURIComponent(id)}/sync`, { method: 'POST', body: JSON.stringify({ brandId }) }, true);
+  },
+
+  posts(brandId: string, id: string, period: AnalyticsPeriod = '30d', page = 1): Promise<{ items: CompetitorPost[]; page: { page: number; pageSize: number; total: number }; lastSyncedAt: string | null }> {
+    const query = new URLSearchParams({ brandId, period, page: String(page), pageSize: '10' });
+    return fetchApi(`/api/v1/competitors/${encodeURIComponent(id)}/posts?${query.toString()}`, {}, true);
+  },
+
+  analytics(brandId: string, id: string, period: AnalyticsPeriod = '30d'): Promise<CompetitorAnalytics> {
+    const query = new URLSearchParams({ brandId, period });
+    return fetchApi(`/api/v1/competitors/${encodeURIComponent(id)}/analytics?${query.toString()}`, {}, true);
+  },
+
+  comparison(brandId: string, period: AnalyticsPeriod = '30d', platform: SocialNetwork | 'all' = 'all', limit = 5): Promise<CompetitorComparisonResult> {
+    const query = new URLSearchParams({ brandId, period, platform, limit: String(limit) });
+    return fetchApi(`/api/v1/competitors/comparison?${query.toString()}`, {}, true);
+  },
+
+  /** Synthèse IA de la comparaison. Les chiffres sont recalculés côté serveur :
+   * le mobile n'envoie que les filtres, jamais de métriques. */
+  explainComparison(brandId: string, period: AnalyticsPeriod = '30d', platform: SocialNetwork | 'all' = 'all', limit = 5): Promise<CompetitorExplanation> {
+    return fetchApi('/api/v1/competitors/comparison/explain', { method: 'POST', body: JSON.stringify({ brandId, period, platform, limit }) }, true);
   },
 };

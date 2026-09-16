@@ -193,6 +193,145 @@ paths:
         '401': { description: JWT de service absent, invalide ou expiré }
         '403': { description: Scope social:write manquant }
         '404': { description: Compte social introuvable }
+  /internal/v1/competitors/profile:
+    post:
+      summary: Informations publiques accessibles d'un concurrent (analyse concurrentielle)
+      description: >
+        Résout et lit un concurrent au nom du compte social de la marque.
+        Facebook : lecture de la Page via Page Public Content Access. Instagram :
+        Business Discovery, la requête partant toujours du compte Instagram de
+        la marque.
+
+        Répond 200 MÊME QUAND META REFUSE : le refus est porté par `status`
+        (ACTIVE / UNAVAILABLE / PERMISSION_REQUIRED / SYNC_ERROR), parce que
+        c'est un fait que l'appelant doit persister, pas une panne à retenter
+        en boucle. Seules les erreurs d'infrastructure restent des erreurs HTTP.
+      security: [{ serviceJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [socialAccountId, platform, handle]
+              properties:
+                socialAccountId: { type: string, format: uuid }
+                platform: { type: string, enum: [FACEBOOK, INSTAGRAM] }
+                handle:
+                  type: string
+                  description: Nom d'utilisateur, identifiant numérique ou nom de vanité de Page.
+      responses:
+        '200':
+          description: Profil, ou refus classé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [ACTIVE, UNAVAILABLE, PERMISSION_REQUIRED, SYNC_ERROR] }
+                  externalId: { type: [string, 'null'] }
+                  username: { type: [string, 'null'] }
+                  name: { type: [string, 'null'] }
+                  profileUrl: { type: [string, 'null'] }
+                  avatarUrl: { type: [string, 'null'] }
+                  accountType: { type: [string, 'null'] }
+                  followersCount: { type: [integer, 'null'] }
+                  postsCount: { type: [integer, 'null'] }
+                  unavailableFields:
+                    type: array
+                    items: { type: string }
+                    description: Champs demandés que Meta n'a pas rendus, nommés un par un.
+                  errorCode: { type: [string, 'null'] }
+                  errorMessage: { type: [string, 'null'] }
+        '403': { description: Scope social:read absent }
+        '404': { description: Compte social introuvable }
+        '409': { description: Aucun token actif pour ce compte (TOKEN_EXPIRED) }
+        '422': { description: Réseau non pris en charge }
+
+  /internal/v1/competitors/posts:
+    post:
+      summary: Publications publiques accessibles d'un concurrent, paginées par curseur
+      description: >
+        Parcourt jusqu'à `maxPages` pages. Un refus survenu APRÈS une première
+        page réussie ne jette pas ce qui a déjà été lu : les publications
+        collectées sont renvoyées avec le statut du refus.
+      security: [{ serviceJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [socialAccountId, platform, handle]
+              properties:
+                socialAccountId: { type: string, format: uuid }
+                platform: { type: string, enum: [FACEBOOK, INSTAGRAM] }
+                handle: { type: string }
+                limit: { type: integer, default: 25 }
+                cursor: { type: [string, 'null'] }
+                maxPages: { type: integer, default: 4 }
+      responses:
+        '200':
+          description: Publications, curseur suivant et refus éventuel
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [ACTIVE, UNAVAILABLE, PERMISSION_REQUIRED, SYNC_ERROR] }
+                  posts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        externalPostId: { type: string }
+                        message: { type: [string, 'null'] }
+                        mediaType: { type: [string, 'null'] }
+                        permalink: { type: [string, 'null'] }
+                        publishedAt: { type: [string, 'null'] }
+                        reactionsCount: { type: [integer, 'null'] }
+                        commentsCount: { type: [integer, 'null'] }
+                        sharesCount:
+                          type: [integer, 'null']
+                          description: Toujours null sur Instagram — Business Discovery n'expose pas les partages.
+                  nextCursor: { type: [string, 'null'] }
+                  hasMore: { type: boolean }
+                  unavailableFields: { type: array, items: { type: string } }
+                  errorCode: { type: [string, 'null'] }
+                  errorMessage: { type: [string, 'null'] }
+
+  /internal/v1/accounts/audience:
+    post:
+      summary: Audience du compte de la marque lui-même (analyse concurrentielle)
+      description: >
+        Pas un concurrent : le compte administré par l'application, lu sans PPCA
+        ni Business Discovery. Relevé dans la même passe pour que le taux
+        d'engagement de la marque et celui d'un concurrent soient calculés de la
+        même façon — sans quoi la comparaison resterait « non disponible ».
+      security: [{ serviceJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [socialAccountId]
+              properties:
+                socialAccountId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Abonnés et nombre de publications, quand Meta les expose
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  followersCount: { type: [integer, 'null'] }
+                  postsCount: { type: [integer, 'null'] }
+                  errorCode: { type: [string, 'null'] }
+                  errorMessage: { type: [string, 'null'] }
+
   /health:
     get:
       responses: { '200': { description: Processus actif } }

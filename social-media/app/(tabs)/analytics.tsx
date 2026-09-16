@@ -191,6 +191,17 @@ export default function AnalyticsScreen() {
 
           <View style={styles.section}>
             <SectionHeader
+              title="Analyse concurrentielle"
+              actionLabel="Comparer"
+              onActionPress={() => router.push('/analytics/competitors')}
+            />
+            <Text variant="footnote" color={palette.inkFaint}>
+              Situez vos performances publiques face aux concurrents suivis, réseau par réseau.
+            </Text>
+          </View>
+
+          <View style={styles.section}>
+            <SectionHeader
               title="Meilleures publications"
               actionLabel="Voir"
               onActionPress={() => router.push('/publications')}

@@ -11,10 +11,16 @@ import http from 'node:http';
 import PgBoss from 'pg-boss';
 
 import { mockSocialProvider } from '../shared/social-provider.js';
-import { ALL_QUEUES, QUEUES } from '../shared/jobs.js';
+import { ALL_QUEUES, QUEUES, competitorSingletonKey } from '../shared/jobs.js';
 import { defaultAnalyseComment } from './src/ai-client.js';
 import { createCommentAnalysis } from './src/comment-analysis.js';
 import { createCommentSync } from './src/comment-sync.js';
+import { createCompetitorSync } from './src/competitor-sync.js';
+import {
+  defaultFetchAccountAudience,
+  defaultFetchCompetitorPosts,
+  defaultFetchCompetitorProfile,
+} from './src/competitor-client.js';
 import { createMediaCleanup } from './src/cleanup-media.js';
 import { createDeliveryService } from './src/delivery.js';
 import { closePool, query } from './src/db.js';
@@ -70,6 +76,22 @@ async function startBoss() {
   const tokenRefresh = createTokenRefresh({ query, refreshToken: defaultRefreshToken, notifyUser: defaultNotifyUser });
   const commentSync = createCommentSync({ query, syncComments: defaultSyncComments });
   const metricsSync = createMetricsSync({ query, syncMetrics: defaultSyncMetrics });
+  // `enqueue` est fourni par ce fichier plutôt que construit dans le module :
+  // celui-ci ne connaît que des noms de file, et reste testable avec un double
+  // qui enregistre les enchaînements au lieu de démarrer pg-boss.
+  const competitorSync = createCompetitorSync({
+    query,
+    fetchProfile: defaultFetchCompetitorProfile,
+    fetchPosts: defaultFetchCompetitorPosts,
+    fetchAudience: defaultFetchAccountAudience,
+    enqueue: (queue, data) =>
+      boss.send(queue, data, {
+        singletonKey: competitorSingletonKey(data.competitorId),
+        singletonSeconds: 60,
+        retryLimit: 0,
+      }),
+  });
+
   const commentAnalysis = createCommentAnalysis({
     query,
     analyseComment: defaultAnalyseComment,
@@ -156,6 +178,38 @@ async function startBoss() {
   // /api/v1/analytics/sync) envoie sur la même file, clé singleton par
   // marque — voir services/api/src/lib/jobs.js::enqueueMetricsSync.
   await boss.schedule(QUEUES.syncSocialMetrics, '*/30 * * * *', {});
+
+  // Un `competitorId` dans la charge = une synchronisation ciblée (ajout d'un
+  // concurrent, bouton « Synchroniser ») ; son absence = le balayage
+  // périodique, qui ne fait qu'élire des candidats.
+  await boss.work(QUEUES.syncCompetitor, async (jobs) => {
+    for (const job of jobs) {
+      const data = job.data ?? {};
+      const result = data.competitorId ? await competitorSync.syncProfile(data) : await competitorSync.sweep(data);
+      console.log({ scope: 'competitor-sync', ...result });
+    }
+  });
+
+  await boss.work(QUEUES.syncCompetitorPosts, async (jobs) => {
+    for (const job of jobs) {
+      const result = await competitorSync.syncPosts(job.data ?? {});
+      console.log({ scope: 'competitor-posts', ...result });
+    }
+  });
+
+  await boss.work(QUEUES.syncCompetitorMetrics, async (jobs) => {
+    for (const job of jobs) {
+      const result = await competitorSync.syncMetrics(job.data ?? {});
+      console.log({ scope: 'competitor-metrics', ...result });
+    }
+  });
+
+  // Deux fois par jour. Beaucoup plus lent que les métriques de la marque
+  // (*/30) : les données publiques d'un concurrent bougent lentement, chaque
+  // concurrent coûte jusqu'à six appels Graph API (profil, audience, quatre
+  // pages de publications), et le quota Meta est partagé avec la publication
+  // et la synchronisation des commentaires — qui, elles, sont critiques.
+  await boss.schedule(QUEUES.syncCompetitor, '0 4,16 * * *', {});
 
   state.boss = boss;
   state.queues = ALL_QUEUES;

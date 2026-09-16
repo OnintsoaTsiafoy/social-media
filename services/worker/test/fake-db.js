@@ -21,6 +21,9 @@ export function createFakeDb(initial = {}) {
     comments: initial.comments ?? [],
     analyses: initial.analyses ?? [],
     brandMembers: initial.brandMembers ?? [],
+    competitors: initial.competitors ?? [],
+    competitorPosts: initial.competitorPosts ?? [],
+    competitorMetrics: initial.competitorMetrics ?? [],
     calls: [],
   };
 
@@ -327,6 +330,163 @@ export function createFakeDb(initial = {}) {
     if (text.includes('SELECT status FROM social_accounts WHERE id')) {
       const account = (state.socialAccounts ?? []).find((row) => row.id === params[0]);
       return account ? [{ status: account.status }] : [];
+    }
+
+    // --- Analyse concurrentielle (competitor-sync.js) ---------------------
+    // Même règle que plus haut : on matche le fragment le plus spécifique de
+    // chaque requête, pas le nom de la table — trois d'entre elles touchent
+    // `competitors` et deux `competitor_posts`.
+
+    if (text.includes('LEFT JOIN LATERAL')) {
+      const competitor = state.competitors.find((row) => row.id === params[0]);
+      if (!competitor) return [];
+      const account = (state.socialAccounts ?? []).find(
+        (row) =>
+          row.brand_id === competitor.brand_id &&
+          row.provider === competitor.platform &&
+          ['CONNECTED', 'EXPIRING'].includes(row.status)
+      );
+      return [{ ...competitor, social_account_id: account?.id ?? null }];
+    }
+
+    if (text.includes("status <> 'UNAVAILABLE'")) {
+      const [staleAfterMinutes, unavailableStaleAfterMinutes, limit] = params;
+      const isStale = (row, minutes) =>
+        !row.last_synced_at || new Date(row.last_synced_at).getTime() < Date.now() - minutes * 60 * 1000;
+      return state.competitors
+        .filter((row) =>
+          row.status === 'UNAVAILABLE' ? isStale(row, unavailableStaleAfterMinutes) : isStale(row, staleAfterMinutes)
+        )
+        .sort((a, b) => {
+          if (!a.last_synced_at) return -1;
+          if (!b.last_synced_at) return 1;
+          return new Date(a.last_synced_at).getTime() - new Date(b.last_synced_at).getTime();
+        })
+        .slice(0, limit)
+        .map((row) => ({ id: row.id }));
+    }
+
+    if (text.includes('external_id = COALESCE')) {
+      const competitor = state.competitors.find((row) => row.id === params[0]);
+      if (!competitor) return [];
+      // COALESCE : une valeur nulle renvoyée par Meta ne doit pas effacer ce
+      // qui est déjà connu — c'est précisément ce que le test vérifie.
+      Object.assign(competitor, {
+        external_id: params[1] ?? competitor.external_id,
+        name: params[2] ?? competitor.name,
+        profile_url: params[3] ?? competitor.profile_url,
+        avatar_url: params[4] ?? competitor.avatar_url,
+        status: params[5],
+        last_error_code: params[6],
+        last_error_message: params[7],
+        last_synced_at: new Date().toISOString(),
+      });
+      return [];
+    }
+
+    if (text.includes('followers_count = $2')) {
+      const account = (state.socialAccounts ?? []).find((row) => row.id === params[0]);
+      if (account) Object.assign(account, { followers_count: params[1], followers_synced_at: new Date().toISOString() });
+      return [];
+    }
+
+    if (text.includes('INSERT INTO competitor_posts')) {
+      const [competitorId, externalPostId, message, mediaType, permalink, publishedAt, reactions, comments, shares, engagement] = params;
+      const existing = state.competitorPosts.find(
+        (row) => row.competitor_id === competitorId && row.external_post_id === externalPostId
+      );
+      if (!existing) {
+        state.competitorPosts.push({
+          id: `post-${state.competitorPosts.length + 1}`,
+          competitor_id: competitorId,
+          external_post_id: externalPostId,
+          message,
+          media_type: mediaType,
+          permalink,
+          published_at: publishedAt,
+          reactions_count: reactions,
+          comments_count: comments,
+          shares_count: shares,
+          engagement_rate: engagement,
+        });
+        return [{ inserted: true }];
+      }
+      // Reproduit le WHERE du DO UPDATE : sans changement, aucune ligne rendue.
+      const changed =
+        existing.reactions_count !== reactions ||
+        existing.comments_count !== comments ||
+        existing.shares_count !== shares ||
+        existing.message !== message;
+      if (!changed) return [];
+      Object.assign(existing, {
+        message,
+        media_type: mediaType,
+        permalink,
+        published_at: publishedAt,
+        reactions_count: reactions,
+        comments_count: comments,
+        shares_count: shares,
+        engagement_rate: engagement,
+      });
+      return [{ inserted: false }];
+    }
+
+    if (text.includes('FROM competitor_posts')) {
+      const [competitorId, days] = params;
+      const since = Date.now() - days * 24 * 60 * 60 * 1000;
+      const rows = state.competitorPosts.filter(
+        (row) => row.competitor_id === competitorId && row.published_at && new Date(row.published_at).getTime() >= since
+      );
+      // SUM rend NULL quand aucune valeur n'est connue : le double doit le
+      // reproduire, sinon le test ne prouverait rien sur la règle null-vs-zéro.
+      const sum = (key) => {
+        const values = rows.map((row) => row[key]).filter((value) => value !== null && value !== undefined);
+        return values.length === 0 ? null : values.reduce((total, value) => total + value, 0);
+      };
+      return [
+        {
+          posts: rows.length,
+          reactions: sum('reactions_count'),
+          comments: sum('comments_count'),
+          shares: sum('shares_count'),
+        },
+      ];
+    }
+
+    if (text.includes('FROM competitor_metrics')) {
+      const row = state.competitorMetrics
+        .filter((metric) => metric.competitor_id === params[0] && metric.followers_count !== null)
+        .sort((a, b) => new Date(b.collected_at).getTime() - new Date(a.collected_at).getTime())[0];
+      return row ? [{ followers_count: row.followers_count }] : [];
+    }
+
+    if (text.includes('INSERT INTO competitor_metrics')) {
+      const metric = {
+        id: `metric-${state.competitorMetrics.length + 1}`,
+        competitor_id: params[0],
+        collected_at: new Date().toISOString(),
+        followers_count: params[1],
+        posts_count: params[2],
+        reactions_count: params[3],
+        comments_count: params[4],
+        shares_count: params[5],
+        engagement_rate: params[6],
+      };
+      state.competitorMetrics.push(metric);
+      return [{ id: metric.id }];
+    }
+
+    if (text.includes('UPDATE competitors')) {
+      const competitor = state.competitors.find((row) => row.id === params[0]);
+      if (competitor) {
+        Object.assign(competitor, {
+          status: params[1],
+          last_error_code: params[2],
+          last_error_message: params[3],
+          last_synced_at: new Date().toISOString(),
+        });
+      }
+      return [];
     }
 
     throw new Error(`Requête non gérée par le double de base : ${text.trim().slice(0, 60)}`);

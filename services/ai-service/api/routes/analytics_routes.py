@@ -10,7 +10,11 @@ import logging
 from fastapi import APIRouter, Depends, Request
 
 from core.security import require_service_jwt
-from modules.analytics import best_times_explainer
+from modules.analytics import best_times_explainer, competitor_explainer
+from modules.analytics.competitor_schemas import (
+    CompetitorExplainRequest,
+    CompetitorExplanationResult,
+)
 from modules.analytics.schemas import BestTimesExplainRequest, BestTimesExplanationResult
 from modules.analytics import insight_explainer
 from modules.analytics.insight_schemas import AnalyticsExplainRequest, AnalyticsExplanationResult
@@ -40,3 +44,25 @@ def explain_best_times(
     text, generator, warnings = best_times_explainer.generate(facts=payload.model_dump())
     logger.info("best_times_explained network=%s generator=%s", payload.network, generator)
     return BestTimesExplanationResult(text=text, generator=generator, warnings=warnings)
+
+
+@router.post("/analytics/competitors/explain", response_model=CompetitorExplanationResult)
+def explain_competitors(
+    payload: CompetitorExplainRequest,
+    _claims: dict = Depends(require_service_jwt("ai:generate")),
+) -> CompetitorExplanationResult:
+    """Synthèse d'une comparaison concurrentielle déjà calculée par Express.
+
+    Aucun KPI n'est recalculé ici : tout chiffre du texte doit provenir du
+    corps reçu, sans quoi la sortie du modèle est rejetée au profit du gabarit
+    local (voir competitor_explainer._validate_numbers).
+    """
+    text, recommendations, generator, warnings = competitor_explainer.generate(
+        facts=payload.model_dump()
+    )
+    logger.info(
+        "competitors_explained count=%d generator=%s", len(payload.competitors), generator
+    )
+    return CompetitorExplanationResult(
+        text=text, recommendations=recommendations, generator=generator, warnings=warnings
+    )

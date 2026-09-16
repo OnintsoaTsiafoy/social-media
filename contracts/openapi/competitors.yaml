@@ -1,0 +1,271 @@
+openapi: 3.1.0
+info:
+  title: Hootly Competitors API
+  version: 0.1.0
+  description: >
+    Analyse concurrentielle (sprint_listing/PLUS/TODO_ANALYSE_CONCURRENTIELLE_MISE_A_JOUR.md).
+    Composants partagés par le contrat public (public-api.yaml) et le contrat
+    interne graph-api (social-internal.yaml).
+
+    Règle transverse : une métrique que Meta ne fournit pas vaut null et son nom
+    remonte dans unavailableFields — jamais 0. Une moyenne calculée sur une
+    partie seulement des publications porte availability=partial.
+paths: {}
+components:
+  parameters:
+    BrandId:
+      in: query
+      name: brandId
+      required: true
+      schema: { type: string, format: uuid }
+    Period:
+      in: query
+      name: period
+      schema: { type: string, enum: ['7d', '30d', '90d'], default: '30d' }
+    PlatformFilter:
+      in: query
+      name: platform
+      schema: { type: string, enum: [all, facebook, instagram], default: all }
+    StatusFilter:
+      in: query
+      name: status
+      schema:
+        type: string
+        enum: [all, active, unavailable, permission_required, sync_error]
+        default: all
+    CompetitorId:
+      in: path
+      name: competitorId
+      required: true
+      schema: { type: string, format: uuid }
+
+  schemas:
+    CompetitorStatus:
+      type: string
+      description: >
+        active : lecture réussie. permission_required : le compte existe mais
+        l'application Meta n'a pas l'autorisation de le lire (App Review ou
+        reconnexion). unavailable : compte illisible (personnel, privé,
+        supprimé). sync_error : échec transitoire, retenté au prochain balayage.
+        Aucun de ces trois derniers états n'efface les dernières données connues.
+      enum: [active, unavailable, permission_required, sync_error]
+
+    MetricAvailability:
+      type: string
+      enum: [available, partial, unavailable]
+
+    CompetitorMetricSnapshot:
+      type: object
+      properties:
+        collectedAt: { type: string, format: date-time }
+        followersCount: { type: [integer, 'null'] }
+        postsCount: { type: [integer, 'null'] }
+        reactionsCount: { type: [integer, 'null'] }
+        commentsCount: { type: [integer, 'null'] }
+        sharesCount: { type: [integer, 'null'] }
+        engagementRate:
+          type: [number, 'null']
+          description: Pourcentage. interactions moyennes par publication / abonnés × 100.
+
+    Competitor:
+      type: object
+      required: [id, brandId, platform, username, name, status]
+      properties:
+        id: { type: string, format: uuid }
+        brandId: { type: string, format: uuid }
+        platform: { type: string, enum: [facebook, instagram] }
+        externalId:
+          type: [string, 'null']
+          description: Identifiant Meta, nul tant que Meta ne l'a pas résolu.
+        username: { type: string }
+        name: { type: string }
+        profileUrl: { type: [string, 'null'] }
+        avatarUrl: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/CompetitorStatus' }
+        lastSyncedAt: { type: [string, 'null'], format: date-time }
+        lastErrorCode: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        latestMetric:
+          oneOf:
+            - { $ref: '#/components/schemas/CompetitorMetricSnapshot' }
+            - { type: 'null' }
+
+    CompetitorVerification:
+      type: object
+      description: >
+        Réponse de POST /verify et bloc `verification` de POST /competitors.
+        Toujours 200, y compris pour un compte inaccessible : « ce compte n'est
+        pas analysable » est une réponse, pas une erreur.
+      properties:
+        status: { $ref: '#/components/schemas/CompetitorStatus' }
+        platform: { type: string, enum: [facebook, instagram] }
+        handle:
+          type: string
+          description: Identifiant normalisé côté serveur à partir de l'URL ou du nom saisi.
+        externalId: { type: [string, 'null'] }
+        username: { type: string }
+        name: { type: [string, 'null'] }
+        profileUrl: { type: [string, 'null'] }
+        avatarUrl: { type: [string, 'null'] }
+        accountType: { type: [string, 'null'] }
+        followersCount: { type: [integer, 'null'] }
+        postsCount: { type: [integer, 'null'] }
+        unavailableFields:
+          type: array
+          items: { type: string }
+        reason:
+          type: [string, 'null']
+          description: Message destiné à l'utilisateur, dérivé du statut — jamais le texte d'erreur Meta.
+        alreadyAdded: { type: boolean }
+        competitorId: { type: [string, 'null'], format: uuid }
+
+    CompetitorPost:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        externalPostId: { type: string }
+        message: { type: [string, 'null'] }
+        mediaType: { type: [string, 'null'] }
+        permalink: { type: [string, 'null'] }
+        publishedAt: { type: [string, 'null'], format: date-time }
+        reactionsCount: { type: [integer, 'null'] }
+        commentsCount: { type: [integer, 'null'] }
+        sharesCount: { type: [integer, 'null'] }
+        engagementRate: { type: [number, 'null'] }
+        syncedAt: { type: string, format: date-time }
+
+    AveragedMetric:
+      type: object
+      properties:
+        value: { type: [number, 'null'] }
+        availability: { $ref: '#/components/schemas/MetricAvailability' }
+        sampleSize: { type: integer }
+        total: { type: [number, 'null'] }
+
+    CompetitorIndicators:
+      type: object
+      properties:
+        periodStart: { type: string, format: date-time }
+        periodEnd: { type: string, format: date-time }
+        postsCount: { type: integer }
+        postsPerWeek: { type: number }
+        followersCount: { type: [integer, 'null'] }
+        interactionComponents:
+          type: array
+          description: Composantes retenues pour le total d'interactions sur ce calcul.
+          items: { type: string, enum: [reactions, comments, shares] }
+        avgReactions: { $ref: '#/components/schemas/AveragedMetric' }
+        avgComments: { $ref: '#/components/schemas/AveragedMetric' }
+        avgShares: { $ref: '#/components/schemas/AveragedMetric' }
+        avgInteractions: { $ref: '#/components/schemas/AveragedMetric' }
+        engagementRate:
+          type: object
+          properties:
+            value: { type: [number, 'null'] }
+            availability: { $ref: '#/components/schemas/MetricAvailability' }
+        engagementTrend:
+          type: object
+          properties:
+            current: { type: [number, 'null'] }
+            previous: { type: [number, 'null'] }
+            changePercent: { type: [number, 'null'] }
+        topPost:
+          oneOf:
+            - { $ref: '#/components/schemas/CompetitorPost' }
+            - { type: 'null' }
+        mostFrequentWeekday:
+          type: [object, 'null']
+          properties:
+            value: { type: integer, minimum: 0, maximum: 6 }
+            label: { type: string }
+            count: { type: integer }
+        mostFrequentHour:
+          type: [object, 'null']
+          properties:
+            value: { type: integer, minimum: 0, maximum: 23 }
+            label: { type: string }
+            count: { type: integer }
+        unavailable:
+          type: array
+          items: { type: string }
+        warnings:
+          type: array
+          items: { type: string }
+
+    ComparedMetric:
+      type: object
+      properties:
+        key: { type: string }
+        label: { type: string }
+        unit: { type: string, enum: [count, percent] }
+        brand: { type: [number, 'null'] }
+        competitor: { type: [number, 'null'] }
+        differencePercent:
+          type: [number, 'null']
+          description: Écart de la marque par rapport au concurrent. Positif = la marque fait mieux.
+        availability: { $ref: '#/components/schemas/MetricAvailability' }
+
+    CompetitorComparison:
+      type: object
+      properties:
+        competitor: { $ref: '#/components/schemas/Competitor' }
+        network: { type: string }
+        interactionComponents:
+          type: array
+          description: >
+            Intersection des composantes disponibles des deux côtés. Les deux
+            jeux d'indicateurs sont recalculés dessus avant tout écart — c'est
+            ce qui interdit de comparer deux métriques calculées différemment.
+          items: { type: string }
+        brand: { $ref: '#/components/schemas/CompetitorIndicators' }
+        competitorIndicators: { $ref: '#/components/schemas/CompetitorIndicators' }
+        metrics:
+          type: array
+          items: { $ref: '#/components/schemas/ComparedMetric' }
+        topPosts:
+          type: object
+          properties:
+            brand: { type: [object, 'null'] }
+            competitor: { type: [object, 'null'] }
+        notes:
+          type: array
+          items: { type: string }
+
+    CompetitorComparisonResult:
+      type: object
+      properties:
+        period: { type: string, enum: ['7d', '30d', '90d'] }
+        platform: { type: string, enum: [all, facebook, instagram] }
+        periodStart: { type: string, format: date-time }
+        periodEnd: { type: string, format: date-time }
+        comparisons:
+          type: array
+          items: { $ref: '#/components/schemas/CompetitorComparison' }
+        warnings:
+          type: array
+          items: { type: string }
+
+    CompetitorExplanation:
+      type: object
+      properties:
+        period: { type: string }
+        platform: { type: string }
+        text: { type: string }
+        recommendations:
+          type: array
+          maxItems: 3
+          items: { type: string }
+        generator:
+          type: string
+          description: claude, ou local-template-x.y.z lorsque le repli local a servi.
+        warnings:
+          type: array
+          items:
+            type: object
+            properties:
+              code: { type: string }
+              severity: { type: string }
+              message: { type: string }
+        facts:
+          type: object
+          description: Valeurs exactes transmises au service IA, conservées pour vérification.

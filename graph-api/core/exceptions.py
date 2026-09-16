@@ -27,10 +27,19 @@ class GraphAPIError(HTTPException):
         detail: str,
         code: str | None = None,
         retry_after: str | None = None,
+        meta_code: int | None = None,
+        meta_subcode: int | None = None,
     ):
         super().__init__(status_code=status_code, detail=detail)
         self.code = code or default_code_for_status(status_code)
         self.retry_after = retry_after
+        # Codes numériques bruts de Meta (`error.code`, `error.error_subcode`),
+        # conservés en plus du code stable ci-dessus. Le message les mentionne
+        # déjà en texte, mais l'analyse concurrentielle doit *brancher* dessus
+        # (distinguer une permission manquante d'un compte illisible) — et
+        # relire un message formaté pour ça serait fragile.
+        self.meta_code = meta_code
+        self.meta_subcode = meta_subcode
 
     @classmethod
     def from_response(
@@ -42,4 +51,10 @@ class GraphAPIError(HTTPException):
         err_type = error.get("type")
         if code is not None or err_type is not None:
             message = f"{message} (type={err_type}, code={code})"
-        return cls(status_code=status_code, detail=message, retry_after=retry_after)
+        return cls(
+            status_code=status_code,
+            detail=message,
+            retry_after=retry_after,
+            meta_code=code if isinstance(code, int) else None,
+            meta_subcode=error.get("error_subcode") if isinstance(error.get("error_subcode"), int) else None,
+        )

@@ -8,7 +8,7 @@
 
 import PgBoss from 'pg-boss';
 
-import { ALL_QUEUES, QUEUES, singletonKeyFor } from '../../../shared/jobs.js';
+import { ALL_QUEUES, QUEUES, competitorSingletonKey, singletonKeyFor } from '../../../shared/jobs.js';
 import { HttpError } from './http.js';
 
 export { QUEUES };
@@ -115,6 +115,31 @@ export function enqueueMetricsSync({ brandId, requestedBy }) {
     QUEUES.syncSocialMetrics,
     { brandId, requestedBy },
     { singletonKey: `metrics-sync:${brandId}`, singletonSeconds: 60, retryLimit: 0 }
+  );
+}
+
+/**
+ * Analyse concurrentielle : synchronisation à la demande d'un concurrent
+ * (POST /api/v1/competitors/:id/sync), sur la même file que la reprise
+ * périodique du worker.
+ *
+ * Le job n'emporte que l'identifiant : le worker relit l'état du concurrent au
+ * moment de l'exécution plutôt que de travailler sur une copie figée à
+ * l'instant de la demande — un concurrent supprimé entre-temps ne doit pas être
+ * synchronisé quand même.
+ *
+ * `singletonSeconds` accompagne `singletonKey` pour la même raison qu'avec
+ * `enqueueMetricsSync` : sans lui, pg-boss 10 laisse la clé inerte et deux
+ * demandes rapprochées appelleraient Meta deux fois pour rien.
+ *
+ * @returns {Promise<string|null>} identifiant du job, ou `null` si une
+ *   synchronisation est déjà en attente pour ce concurrent.
+ */
+export function enqueueCompetitorSync({ competitorId, requestedBy }) {
+  return send(
+    QUEUES.syncCompetitor,
+    { competitorId, requestedBy },
+    { singletonKey: competitorSingletonKey(competitorId), singletonSeconds: 60, retryLimit: 0 }
   );
 }
 
