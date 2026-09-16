@@ -8,6 +8,7 @@
 
 import type { Href } from 'expo-router';
 import { Platform } from 'react-native';
+import type { AnalyticsInsight, AnalyticsInsightFeedbackStats, AnalyticsInsightHistory, AnalyticsPeriod, AnalyticsSummary } from '@/types/analytics';
 
 import {
   clearSessionTokens,
@@ -1399,6 +1400,25 @@ type PublicationAnalytics = {
 };
 
 export const analyticsApi = {
+  insights(brandId: string, period: AnalyticsPeriod, network: SocialNetwork | 'all'): Promise<AnalyticsSummary> {
+    return fetchApi(`/api/v1/analytics/insights?${new URLSearchParams({ brandId, period, network })}`, {}, true);
+  },
+  generateInsight(brandId: string, period: AnalyticsPeriod, network: SocialNetwork | 'all'): Promise<AnalyticsInsight> {
+    return fetchApi('/api/v1/analytics/insights', { method: 'POST', body: JSON.stringify({ brandId, period, network }) }, true);
+  },
+  insightHistory(brandId: string, period: AnalyticsPeriod, network: SocialNetwork | 'all', page = 1): Promise<AnalyticsInsightHistory> {
+    return fetchApi(`/api/v1/analytics/insights/history?${new URLSearchParams({ brandId, period, network, page: String(page), pageSize: '5' })}`, {}, true);
+  },
+  insightDetail(brandId: string, id: string): Promise<AnalyticsInsight> {
+    return fetchApi(`/api/v1/analytics/insights/${encodeURIComponent(id)}?${new URLSearchParams({ brandId })}`, {}, true);
+  },
+  insightFeedback(brandId: string, id: string, useful: boolean, comment: string): Promise<{ useful: boolean; comment: string }> {
+    return fetchApi(`/api/v1/analytics/insights/${encodeURIComponent(id)}/feedback?${new URLSearchParams({ brandId })}`,
+      { method: 'PUT', body: JSON.stringify({ useful, comment }) }, true);
+  },
+  insightFeedbackStats(brandId: string, period: AnalyticsPeriod, network: SocialNetwork | 'all'): Promise<AnalyticsInsightFeedbackStats> {
+    return fetchApi(`/api/v1/analytics/insights/feedback/stats?${new URLSearchParams({ brandId, period, network })}`, {}, true);
+  },
   /** Composeur côté client : les quatre routes /analytics/* (Sprint 12) sont
    * indépendantes côté serveur (jamais de synchronisation lourde déclenchée
    * par une lecture), assemblées ici dans la forme AnalyticsOverview que

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { PublicationRow } from '@/components/domain/PublicationCard';
+import { AnalyticsInsightPanel } from '@/components/domain/AnalyticsInsightPanel';
 import {
   AppHeader,
   Callout,
@@ -44,7 +45,7 @@ export default function AnalyticsScreen() {
   const [period, setPeriod] = useState<Period>('30d');
   const [network, setNetwork] = useState<SocialNetwork | 'all'>('all');
 
-  const request = useAsync(() => analyticsApi.overview(brand?.id ?? '', period, network), [period, network]);
+  const request = useAsync(() => analyticsApi.overview(brand?.id ?? '', period, network), [brand?.id, period, network]);
   const overview = request.data;
   const totals = overview?.totals;
 
@@ -113,7 +114,7 @@ export default function AnalyticsScreen() {
               unavailable={totals.engagementRate === null}
               delta={
                 totals.deltas.engagementRate !== undefined
-                  ? formatDelta(totals.deltas.engagementRate, 'pt')
+                  ? formatDelta(totals.deltas.engagementRate)
                   : undefined
               }
               minWidth={104}
@@ -137,6 +138,9 @@ export default function AnalyticsScreen() {
               minWidth={104}
             />
           </MetricGrid>
+
+          {brand ? <AnalyticsInsightPanel key={`${brand.id}:${period}:${network}`} brandId={brand.id} period={period} network={network}
+            canGenerate={['OWNER', 'ADMIN', 'COMMUNITY_MANAGER'].includes(brand.role ?? '')} /> : null}
 
           <Card style={styles.card}>
             <SectionHeader title="Interactions" />

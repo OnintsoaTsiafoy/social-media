@@ -12,6 +12,151 @@ info:
 servers:
   - url: http://localhost:3000
 paths:
+  /api/v1/analytics/insights:
+    get:
+      summary: Métriques sources, faits, variations et anomalies calculés par Express
+      description: Lecture seule. Performances cumulées des publications de chaque période, sans sollicitation IA.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: './analytics-insights.yaml#/components/parameters/BrandId' }
+        - { $ref: './analytics-insights.yaml#/components/parameters/Period' }
+        - { $ref: './analytics-insights.yaml#/components/parameters/Network' }
+      responses:
+        '200':
+          description: AnalyticsSummary et état IA not_requested
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: './analytics-insights.yaml#/components/schemas/AnalyticsSummary' }
+        '400': { description: Filtres invalides }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Générer et historiser une analyse (COMMUNITY_MANAGER ou supérieur)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: './analytics-insights.yaml#/components/schemas/Filters' }
+      responses:
+        '201':
+          description: Analyse conservée, ou repli local si l’IA échoue
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: './analytics-insights.yaml#/components/schemas/Insight' }
+        '400': { description: Filtres invalides ; le mobile ne peut pas fournir de métriques }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/analytics/insights/history:
+    get:
+      summary: Historique paginé, filtré par marque, durée et réseau
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: './analytics-insights.yaml#/components/parameters/BrandId' }
+        - { $ref: './analytics-insights.yaml#/components/parameters/Period' }
+        - { $ref: './analytics-insights.yaml#/components/parameters/Network' }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, maximum: 10000, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 20, default: 10 } }
+      responses:
+        '200':
+          description: Analyses historiques, plus récentes en premier
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      items: { type: array, items: { $ref: './analytics-insights.yaml#/components/schemas/Insight' } }
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/analytics/insights/{insightId}:
+    get:
+      summary: Consulter une analyse historique et ses métriques conservées
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: './analytics-insights.yaml#/components/parameters/BrandId' }
+        - { $ref: './analytics-insights.yaml#/components/parameters/InsightId' }
+      responses:
+        '200':
+          description: historical=true ; feedback du lecteur uniquement
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: './analytics-insights.yaml#/components/schemas/Insight' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/analytics/insights/{insightId}/feedback:
+    put:
+      summary: Enregistrer ou remplacer son avis sur une analyse
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: './analytics-insights.yaml#/components/parameters/BrandId' }
+        - { $ref: './analytics-insights.yaml#/components/parameters/InsightId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: './analytics-insights.yaml#/components/schemas/Feedback' }
+      responses:
+        '200':
+          description: Avis persisté, unique pour le couple utilisateur/analyse
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      useful: { type: boolean }
+                      comment: { type: string }
+                      updatedAt: { type: string, format: date-time }
+        '400': { description: Vote non booléen, commentaire trop long ou champs inconnus }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/analytics/insights/feedback/stats:
+    get:
+      summary: Taux de satisfaction et analyses les plus rejetées pour ces filtres
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: './analytics-insights.yaml#/components/parameters/BrandId' }
+        - { $ref: './analytics-insights.yaml#/components/parameters/Period' }
+        - { $ref: './analytics-insights.yaml#/components/parameters/Network' }
+      responses:
+        '200':
+          description: Statistiques sur l’historique des analyses correspondant aux filtres
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      positive: { type: integer }
+                      negative: { type: integer }
+                      satisfactionRate: { type: [number, 'null'], description: Pourcentage ; null sans avis }
+                      mostRejected:
+                        type: array
+                        maxItems: 5
+                        items:
+                          type: object
+                          properties:
+                            insightId: { type: string, format: uuid }
+                            rejections: { type: integer }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/approvals:
     get:
       summary: Demandes des marques administrées par l’utilisateur

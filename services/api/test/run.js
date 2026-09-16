@@ -1,20 +1,12 @@
-await import('./health.test.js');
-await import('./auth.test.js');
-await import('./brands.test.js');
-await import('./profile.test.js');
-await import('./media.test.js');
-await import('./publications.test.js');
-await import('./approvals.test.js');
-await import('./approvals.integration.test.js');
-await import('./social-accounts.test.js');
-await import('./social-service-client.test.js');
-await import('./ai-service-client.test.js');
-await import('./comments.test.js');
-await import('./response-suggestions.test.js');
-await import('./notifications.test.js');
-await import('./notification-push.test.js');
-await import('./service-auth.test.js');
-await import('./analytics.test.js');
-await import('./socialMetrics.test.js');
-await import('./knowledge.test.js');
-await import('./rag.integration.test.js');
+import { spawnSync } from 'node:child_process';
+import { readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+// Isolate environment variables, fetch mocks and Prisma clients between files.
+// Importing every file in one process lets health/auth setup race with each other.
+const directory = new URL('./', import.meta.url);
+const files = readdirSync(directory).filter((name) => name.endsWith('.test.js')).sort()
+  .map((name) => fileURLToPath(new URL(name, directory)));
+const result = spawnSync(process.execPath, ['--test', ...files], { stdio: 'inherit' });
+if (result.error) console.error(result.error.message);
+process.exitCode = result.status ?? 1;

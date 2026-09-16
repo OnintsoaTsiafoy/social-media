@@ -155,6 +155,7 @@ export function subscribeToForegroundNotifications(onReceived: (data: PushData) 
  * l'écouteur seul ne voit pas toujours la réponse qui a rouvert l'app,
  * selon le moment où il est posé). */
 export function subscribeToNotificationTaps(onOpen: (data: PushData) => void): () => void {
+  if (Platform.OS === 'web') return () => {};
   const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
     const data = (response.notification.request.content.data ?? {}) as PushData;
     if (alreadySeen(data.eventId)) return;

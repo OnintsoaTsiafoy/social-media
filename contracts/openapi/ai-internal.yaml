@@ -21,6 +21,29 @@ info:
     un adaptateur Claude prend le relais quand ANTHROPIC_API_KEY est
     configurée, avec repli automatique sur le local en cas d'indisponibilité.
 paths:
+  /internal/v1/analytics/explain:
+    post:
+      summary: Expliquer des faits Analytics calculés par Express
+      description: >
+        JWT de service avec scope ai:generate. Entrée structurée sans contenu personnel.
+        Le LLM sélectionne des identifiants de faits ; toute référence inconnue, métrique
+        partielle, chiffre invérifiable ou réponse mal formée entraîne un repli local.
+        Le rendu est validé à nouveau par Express avant enregistrement.
+      security: [{ serviceJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: './analytics-insights.yaml#/components/schemas/ExplainRequest' }
+      responses:
+        '200':
+          description: Analyse vérifiable, ou repli déterministe avec aiStatus=fallback
+          content:
+            application/json:
+              schema: { $ref: './analytics-insights.yaml#/components/schemas/ExplainResult' }
+        '401': { description: JWT de service invalide }
+        '403': { description: Scope ai:generate absent }
+        '422': { description: Schéma ou références des faits invalides }
   /health:
     get:
       summary: Sonde de vivacité

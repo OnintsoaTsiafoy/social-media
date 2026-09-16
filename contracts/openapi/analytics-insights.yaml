@@ -1,0 +1,201 @@
+# Shared schemas for public-api.yaml and ai-internal.yaml.
+components:
+  parameters:
+    BrandId:
+      name: brandId
+      in: query
+      required: true
+      schema: { type: string, format: uuid }
+    Period:
+      name: period
+      in: query
+      schema: { type: string, enum: [7d, 30d, 90d], default: 30d }
+    Network:
+      name: network
+      in: query
+      schema: { type: string, enum: [all, facebook, instagram], default: all }
+    InsightId:
+      name: insightId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    Filters:
+      type: object
+      additionalProperties: false
+      required: [brandId]
+      properties:
+        brandId: { type: string, format: uuid }
+        period: { type: string, enum: [7d, 30d, 90d], default: 30d }
+        network: { type: string, enum: [all, facebook, instagram], default: all }
+    Metric:
+      type: object
+      additionalProperties: false
+      required: [label, value, unit, availability]
+      properties:
+        label: { type: string, minLength: 1, maxLength: 350 }
+        value: { type: [number, 'null'] }
+        unit: { type: string, enum: [count, percent, percentage_points] }
+        availability: { type: string, enum: [available, partial, unavailable] }
+    Fact:
+      type: object
+      additionalProperties: false
+      required: [id, type, metric, value, unit, polarity, message, recommendation]
+      properties:
+        id: { type: string, maxLength: 80 }
+        type: { type: string, maxLength: 80 }
+        metric: { type: string, maxLength: 80 }
+        value: { type: number }
+        unit: { type: string, enum: [count, percent, percentage_points] }
+        polarity: { type: string, enum: [neutral, positive, attention] }
+        message: { type: string, minLength: 1, maxLength: 350 }
+        recommendation: { type: [string, 'null'], maxLength: 350 }
+    Metrics:
+      type: object
+      maxProperties: 80
+      description: Clés current.*, previous.*, variation.* et métriques dérivées ; pourcentages déjà calculés.
+      additionalProperties: { $ref: '#/components/schemas/Metric' }
+    Facts:
+      type: array
+      maxItems: 32
+      items: { $ref: '#/components/schemas/Fact' }
+    Warnings:
+      type: array
+      maxItems: 10
+      items: { type: string, maxLength: 500 }
+    AnalyticsSummary:
+      type: object
+      required: [period, network, periodStart, periodEnd, previousPeriodStart, previousPeriodEnd, lastSyncAt, metrics, facts, variations, anomalies, topPublications, bestNetwork, interactionPeak, unavailableMetrics, partialMetrics, warnings, coverage, ai]
+      properties:
+        period: { type: string, enum: [7d, 30d, 90d] }
+        network: { type: string, enum: [all, facebook, instagram] }
+        periodStart: { type: string, format: date-time }
+        periodEnd: { type: string, format: date-time }
+        previousPeriodStart: { type: string, format: date-time }
+        previousPeriodEnd: { type: string, format: date-time }
+        lastSyncAt: { type: [string, 'null'], format: date-time }
+        metrics: { $ref: '#/components/schemas/Metrics' }
+        facts: { $ref: '#/components/schemas/Facts' }
+        anomalies: { $ref: '#/components/schemas/Facts' }
+        variations:
+          type: array
+          items:
+            type: object
+            required: [metric, current, previous, changePercent, reason]
+            properties:
+              metric: { type: string }
+              current: { type: [number, 'null'] }
+              previous: { type: [number, 'null'] }
+              changePercent: { type: [number, 'null'] }
+              reason: { enum: [null, incomplete_metrics, insufficient_data, zero_baseline] }
+        unavailableMetrics: { type: array, items: { type: string } }
+        partialMetrics: { type: array, items: { type: string } }
+        warnings: { $ref: '#/components/schemas/Warnings' }
+        coverage:
+          type: object
+          required: [currentPublications, previousPublications, currentComments, previousComments, currentAnalyzedComments, previousAnalyzedComments]
+          additionalProperties: { type: integer, minimum: 0 }
+        topPublications:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            required: [publicationId, publishedAt, interactions, rank, sharePercent]
+            properties:
+              publicationId: { type: string, format: uuid }
+              publishedAt: { type: string, format: date-time }
+              interactions: { type: number }
+              rank: { type: integer, minimum: 1, maximum: 5 }
+              sharePercent: { type: [number, 'null'] }
+        bestNetwork:
+          type: [object, 'null']
+          properties:
+            network: { type: string, enum: [facebook, instagram] }
+            interactions: { type: number }
+        interactionPeak:
+          type: [object, 'null']
+          properties:
+            date: { type: string, format: date }
+            interactions: { type: number }
+        ai:
+          type: object
+          properties:
+            status: { const: not_requested, description: GET ne sollicite pas le service IA. La disponibilité réelle est connue lors de POST. }
+    Explanation:
+      type: object
+      required: [summary, importantFacts, positivePoints, attentionPoints, recommendations, referencedMetrics, warnings]
+      properties:
+        summary: { type: string, maxLength: 700 }
+        importantFacts: { type: array, maxItems: 4, items: { type: string, maxLength: 350 } }
+        positivePoints: { type: array, maxItems: 3, items: { type: string, maxLength: 350 } }
+        attentionPoints: { type: array, maxItems: 3, items: { type: string, maxLength: 350 } }
+        recommendations: { type: array, maxItems: 3, items: { type: string, maxLength: 350 } }
+        referencedMetrics: { type: array, maxItems: 15, items: { type: string, maxLength: 80 } }
+        warnings: { $ref: '#/components/schemas/Warnings' }
+    Insight:
+      allOf:
+        - { $ref: '#/components/schemas/Explanation' }
+        - type: object
+          required: [id, brandId, network, period, periodStart, periodEnd, createdAt, historical, metricsSnapshot, model, ai, feedback]
+          properties:
+            id: { type: string, format: uuid }
+            brandId: { type: string, format: uuid }
+            network: { type: string, enum: [all, facebook, instagram] }
+            period: { type: string, enum: [7d, 30d, 90d] }
+            periodStart: { type: string, format: date-time }
+            periodEnd: { type: string, format: date-time }
+            createdAt: { type: string, format: date-time }
+            historical: { type: boolean, description: Toujours true pour les lectures de l’historique/détail. }
+            metricsSnapshot: { $ref: '#/components/schemas/AnalyticsSummary' }
+            model: { type: string, maxLength: 120 }
+            ai:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [available, fallback] }
+            feedback:
+              oneOf:
+                - { type: 'null' }
+                - { $ref: '#/components/schemas/Feedback' }
+    Feedback:
+      type: object
+      additionalProperties: false
+      required: [useful]
+      properties:
+        useful: { type: boolean }
+        comment: { type: string, maxLength: 1000, default: '' }
+    ExplainRequest:
+      type: object
+      additionalProperties: false
+      required: [period, network, periodStart, periodEnd, metrics, facts, warnings]
+      properties:
+        period: { type: string, enum: [7d, 30d, 90d] }
+        network: { type: string, enum: [all, facebook, instagram] }
+        periodStart: { type: string, format: date-time }
+        periodEnd: { type: string, format: date-time }
+        metrics: { $ref: '#/components/schemas/Metrics' }
+        facts: { $ref: '#/components/schemas/Facts' }
+        warnings:
+          allOf:
+            - { $ref: '#/components/schemas/Warnings' }
+            - { maxItems: 9 }
+    Plan:
+      type: object
+      additionalProperties: false
+      required: [summary, importantFacts, positivePoints, attentionPoints, recommendations]
+      description: Identifiants de faits exclusivement ; leurs références, polarités, unités et valeurs sont validées.
+      properties:
+        summary: { type: array, maxItems: 2, uniqueItems: true, items: { type: string, maxLength: 80 } }
+        importantFacts: { type: array, maxItems: 4, uniqueItems: true, items: { type: string, maxLength: 80 } }
+        positivePoints: { type: array, maxItems: 3, uniqueItems: true, items: { type: string, maxLength: 80 } }
+        attentionPoints: { type: array, maxItems: 3, uniqueItems: true, items: { type: string, maxLength: 80 } }
+        recommendations: { type: array, maxItems: 3, uniqueItems: true, items: { type: string, maxLength: 80 } }
+    ExplainResult:
+      type: object
+      additionalProperties: false
+      required: [plan, explanation, model, aiStatus]
+      properties:
+        plan: { $ref: '#/components/schemas/Plan' }
+        explanation: { $ref: '#/components/schemas/Explanation' }
+        model: { type: string, maxLength: 120 }
+        aiStatus: { type: string, enum: [available, fallback] }

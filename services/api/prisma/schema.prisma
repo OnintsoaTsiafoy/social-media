@@ -252,6 +252,7 @@ model User {
   notificationSettings    NotificationSetting?
   knowledgeDocuments      KnowledgeDocument[]
   aiFeedback              AiFeedback[]
+  analyticsInsightFeedback AnalyticsInsightFeedback[]
 
   @@index([status])
   @@map("users")
@@ -278,10 +279,49 @@ model Brand {
   notifications   Notification[]
   knowledgeDocuments KnowledgeDocument[]
   validatedExamples ValidatedResponseExample[]
+  analyticsInsights AnalyticsInsight[]
 
   @@index([ownerUserId])
   @@index([deletedAt])
   @@map("brands")
+}
+
+model AnalyticsInsight {
+  id              String   @id @default(uuid()) @db.Uuid
+  brandId         String   @map("brand_id") @db.Uuid
+  network         String   @db.VarChar(16)
+  period          String   @db.VarChar(4)
+  periodStart     DateTime @map("period_start") @db.Timestamptz(6)
+  periodEnd       DateTime @map("period_end") @db.Timestamptz(6)
+  metricsSnapshot Json     @map("metrics_snapshot")
+  summary         String   @db.Text
+  recommendations Json
+  explanation     Json
+  model           String   @db.VarChar(120)
+  aiStatus        String   @map("ai_status") @db.VarChar(16)
+  requestId       String   @map("request_id") @db.VarChar(100)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  brand           Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  feedback        AnalyticsInsightFeedback[]
+
+  @@index([brandId, network, period, createdAt])
+  @@map("analytics_insights")
+}
+
+model AnalyticsInsightFeedback {
+  id        String   @id @default(uuid()) @db.Uuid
+  insightId String   @map("insight_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  useful    Boolean
+  comment   String   @default("") @db.VarChar(1000)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  insight   AnalyticsInsight @relation(fields: [insightId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([insightId, userId])
+  @@index([userId])
+  @@map("analytics_insight_feedback")
 }
 
 model BrandMember {

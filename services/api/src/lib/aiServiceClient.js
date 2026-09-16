@@ -25,7 +25,7 @@ const CODE_TRANSLATIONS = {
   provider_unavailable: 'ai_unavailable',
 };
 
-export async function callAiService(path, { method = 'POST', scope = 'ai:analyze', body } = {}) {
+export async function callAiService(path, { method = 'POST', scope = 'ai:analyze', body, requestId, timeoutMs } = {}) {
   const token = mintServiceJwt(scope ? [scope] : [], AI_SERVICE_AUDIENCE);
   // Résolu AVANT le try : une URL absente est un défaut de configuration
   // (`provider_unavailable`), pas une panne réseau, et le `catch` ci-dessous
@@ -36,9 +36,10 @@ export async function callAiService(path, { method = 'POST', scope = 'ai:analyze
   try {
     response = await fetch(target, {
       method,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`,
+        ...(requestId ? { 'x-request-id': requestId } : {}) },
       body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(path.includes('/knowledge/') ? 180_000 : 90_000),
+      signal: AbortSignal.timeout(timeoutMs ?? (path.includes('/knowledge/') ? 180_000 : 90_000)),
     });
   } catch {
     throw new HttpError(503, 'ai_unavailable', 'Le service d’analyse est injoignable.');

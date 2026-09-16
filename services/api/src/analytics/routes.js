@@ -5,6 +5,11 @@ import { requireBrandAccess } from '../brands/middleware.js';
 import { HttpError, sendSuccess } from '../lib/http.js';
 import {
   analyticsQuerySchema,
+  insightBrandSchema,
+  insightFeedbackSchema,
+  insightHistorySchema,
+  insightIdSchema,
+  insightQuerySchema,
   bestTimesQuerySchema,
   publicationAnalyticsQuerySchema,
   syncAnalyticsSchema,
@@ -23,6 +28,8 @@ import {
   publicationAnalytics,
   syncBrandMetrics,
 } from './service.js';
+import { analyticsInsights, generateAnalyticsInsight, insightDetail, insightFeedbackStats,
+  insightHistory, saveInsightFeedback } from './insights.js';
 
 const router = express.Router();
 
@@ -53,6 +60,38 @@ function withBrandQuery(schema) {
 }
 
 router.use(requireAuthentication);
+
+router.get('/insights', withBrandQuery(insightQuerySchema), requireBrandAccess(), async (request, response) => {
+  sendSuccess(response, await analyticsInsights(parse(insightQuerySchema, request.query)));
+});
+
+router.post('/insights', (request, _response, next) => {
+  try {
+    request.brandId = parse(insightQuerySchema, request.body).brandId;
+    next();
+  } catch (error) { next(error); }
+}, requireBrandAccess('COMMUNITY_MANAGER'), async (request, response) => {
+  sendSuccess(response, await generateAnalyticsInsight(parse(insightQuerySchema, request.body), request), 201);
+});
+
+router.get('/insights/history', withBrandQuery(insightHistorySchema), requireBrandAccess(), async (request, response) => {
+  sendSuccess(response, await insightHistory(parse(insightHistorySchema, request.query), request.auth.user.id));
+});
+
+router.get('/insights/feedback/stats', withBrandQuery(insightQuerySchema), requireBrandAccess(), async (request, response) => {
+  sendSuccess(response, await insightFeedbackStats(parse(insightQuerySchema, request.query)));
+});
+
+router.get('/insights/:insightId', withBrandQuery(insightBrandSchema), requireBrandAccess(), async (request, response) => {
+  const { insightId } = parse(insightIdSchema, request.params);
+  sendSuccess(response, await insightDetail(request.brandId, insightId, request.auth.user.id));
+});
+
+router.put('/insights/:insightId/feedback', withBrandQuery(insightBrandSchema), requireBrandAccess(), async (request, response) => {
+  const { insightId } = parse(insightIdSchema, request.params);
+  sendSuccess(response, await saveInsightFeedback({ brandId: request.brandId, insightId,
+    userId: request.auth.user.id, ...parse(insightFeedbackSchema, request.body) }));
+});
 
 router.post(
   '/sync',

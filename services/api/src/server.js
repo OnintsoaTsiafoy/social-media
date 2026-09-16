@@ -31,6 +31,14 @@ const openApiDocument = {
     description: 'API publique Hootly.',
   },
   paths: {
+    '/api/v1/analytics/insights': {
+      get: { summary: 'Faits, métriques sources, variations et anomalies (brandId, period=7d|30d|90d, network=all|facebook|instagram)' },
+      post: { summary: 'COMMUNITY_MANAGER : générer et conserver une analyse, avec repli local' },
+    },
+    '/api/v1/analytics/insights/history': { get: { summary: 'Historique paginé et filtré des analyses conservées' } },
+    '/api/v1/analytics/insights/{insightId}': { get: { summary: 'Analyse historique et instantané des métriques (?brandId=)' } },
+    '/api/v1/analytics/insights/{insightId}/feedback': { put: { summary: 'Un avis modifiable par membre : useful, comment facultatif (?brandId=)' } },
+    '/api/v1/analytics/insights/feedback/stats': { get: { summary: 'Satisfaction et analyses les plus rejetées pour la marque et les filtres' } },
     '/api/v1/approvals': { get: { summary: 'Demandes des marques administrées, paginées ; filtres brandId, status, authorId, reviewerId' } },
     '/api/v1/approvals/members': { get: { summary: 'Membres et responsables de la marque (brandId obligatoire)' } },
     '/api/v1/publications/{publicationId}/request-approval': { post: { summary: 'Soumettre un brouillon ; reviewerId et comment facultatifs' } },

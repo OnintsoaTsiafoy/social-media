@@ -64,6 +64,19 @@ test('returns the parsed payload on success', async () => {
   }
 });
 
+test('analytics propagates requestId and its bounded timeout', async (context) => {
+  let duration, captured;
+  const signal = new AbortController().signal;
+  context.mock.method(AbortSignal, 'timeout', (milliseconds) => { duration = milliseconds; return signal; });
+  const restore = stubFetch(200, {}, (call) => { captured = call; });
+  try {
+    await callAiService('/internal/v1/analytics/explain', { scope: 'ai:generate', requestId: 'analytics-request', timeoutMs: 25000, body: {} });
+    assert.equal(duration, 25000);
+    assert.equal(captured.options.signal, signal);
+    assert.equal(captured.options.headers['x-request-id'], 'analytics-request');
+  } finally { restore(); }
+});
+
 test('translates the AI service’s own ai_error into the mobile’s ai_unavailable', async () => {
   // `ai_error` n'existe pas dans le vocabulaire du mobile : non traduit, il
   // retomberait sur un message générique au lieu de « saisissez le texte

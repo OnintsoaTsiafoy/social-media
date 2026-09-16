@@ -26,6 +26,17 @@ export const topPublicationsQuerySchema = analyticsQuerySchema.extend({
 
 export const publicationAnalyticsQuerySchema = z.object({ brandId: z.uuid() });
 
+export const insightQuerySchema = analyticsQuerySchema.strict();
+export const insightHistorySchema = insightQuerySchema.extend({
+  page: z.coerce.number().int().min(1).max(10000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(20).default(10),
+});
+export const insightIdSchema = z.object({ insightId: z.uuid() });
+export const insightBrandSchema = publicationAnalyticsQuerySchema.strict();
+export const insightFeedbackSchema = z.object({
+  useful: z.boolean(), comment: z.string().trim().max(1000).default(''),
+}).strict();
+
 // `network` est ici obligatoire et exclut `all`, contrairement à
 // networkFilterSchema : le TODO du meilleur horaire demande de séparer
 // Facebook et Instagram (des habitudes de publication différentes), jamais de
