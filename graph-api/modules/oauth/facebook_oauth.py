@@ -28,6 +28,9 @@ FACEBOOK_OAUTH_SCOPES = [
     "pages_manage_posts",
     "pages_manage_engagement",
     "business_management",
+    "pages_read_user_content",
+    "email",
+    "pages_manage_metadata"
 ]
 # Les permissions instagram_business_* n'appartiennent qu'au produit
 # « Instagram API with Instagram Login » (voir modules/instagram/oauth_instagram.py) :

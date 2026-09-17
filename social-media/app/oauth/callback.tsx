@@ -10,8 +10,11 @@ import {
   Text,
   networkMeta,
 } from '@/components/ui';
+import { accountsApi } from '@/data/api';
+import { useAsync } from '@/hooks/useAsync';
+import { useSession } from '@/store/SessionProvider';
 import { palette, radius, spacing } from '@/theme';
-import type { SocialNetwork } from '@/types';
+import type { SocialAccount, SocialNetwork } from '@/types';
 
 type Status = 'success' | 'cancelled' | 'error';
 
@@ -63,6 +66,18 @@ export default function OAuthCallbackScreen() {
 
   const goToAccounts = () => router.replace('/settings/social-accounts');
 
+  // Le lien ne transporte que réseau + libellé du compte : les permissions
+  // réellement accordées par Meta sont relues depuis l'API, jamais supposées.
+  const { brand } = useSession();
+  const accounts = useAsync(
+    () =>
+      status === 'success'
+        ? accountsApi.list(brand?.id ?? '', brand?.name ?? '')
+        : Promise.resolve([] as SocialAccount[]),
+    [status, brand?.id]
+  );
+  const linkedAccount = findLinkedAccount(accounts.data ?? [], network, params.account);
+
   if (status === 'success') {
     return (
       <Screen centred>
@@ -79,13 +94,18 @@ export default function OAuthCallbackScreen() {
             {params.account ? ` · ${params.account}` : ''} est maintenant relié à votre marque.
           </Text>
 
-          <Card style={styles.permissionsCard}>
-            <Text variant="eyebrow">Permissions obtenues</Text>
-            <Permission granted label="Publier du contenu" />
-            <Permission granted label="Lire les commentaires" />
-            <Permission granted label="Répondre aux commentaires" />
-            <Permission granted={false} label="Statistiques avancées - non accordée" />
-          </Card>
+          {linkedAccount && linkedAccount.permissions.length > 0 ? (
+            <Card style={styles.permissionsCard}>
+              <Text variant="eyebrow">Permissions</Text>
+              {linkedAccount.permissions.map((permission) => (
+                <Permission
+                  key={permission.label}
+                  granted={permission.granted}
+                  label={permission.granted ? permission.label : `${permission.label} - non accordée`}
+                />
+              ))}
+            </Card>
+          ) : null}
 
           <Callout tone="neutral" icon="shield">
             Le token est conservé côté serveur. Il n’est jamais transmis à l’application ni stocké sur
@@ -148,6 +168,19 @@ export default function OAuthCallbackScreen() {
         </View>
       </View>
     </Screen>
+  );
+}
+
+/** Le compte venant d'être relié : même réseau et même libellé que le lien. */
+function findLinkedAccount(
+  accounts: SocialAccount[],
+  network: SocialNetwork | undefined,
+  label: string | undefined
+): SocialAccount | undefined {
+  const candidates = accounts.filter((account) => account.network === network);
+  return (
+    candidates.find((account) => account.username === label || account.name === label) ??
+    [...candidates].sort((a, b) => b.connectedAt.localeCompare(a.connectedAt))[0]
   );
 }
 
