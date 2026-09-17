@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, SlideInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette, radius, shadow, spacing } from '@/theme';
@@ -186,17 +186,13 @@ export function BottomSheet({ visible, onClose, title, headerAction, children, f
   const insets = useSafeAreaInsets();
 
   return (
-    <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
       <View style={styles.sheetRoot}>
-        <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(140)} style={styles.sheetBackdrop}>
+        <View style={styles.sheetBackdrop}>
           <Pressable accessibilityLabel="Fermer" style={styles.backdropPress} onPress={onClose} />
-        </Animated.View>
+        </View>
 
-        <Animated.View
-          entering={SlideInDown.duration(260)}
-          exiting={SlideOutDown.duration(200)}
-          style={[styles.sheet, { paddingBottom: insets.bottom + spacing['3xl'] }]}
-        >
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing['3xl'] }]}>
           <View style={styles.grabber} />
           {title ? (
             <View style={styles.sheetHeader}>
@@ -208,7 +204,7 @@ export function BottomSheet({ visible, onClose, title, headerAction, children, f
           ) : null}
           {children}
           {footer ? <View style={styles.sheetFooter}>{footer}</View> : null}
-        </Animated.View>
+        </View>
       </View>
     </Modal>
   );

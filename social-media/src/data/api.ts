@@ -174,8 +174,22 @@ function errorFromResponse(status: number, payload: unknown): ApiError {
  * Rejoue une seule fois le jeton de session.
  *
  * Partagé par `fetchApi` et par l'upload multipart, qui n'utilise pas `fetch`.
+ *
+ * Un seul rafraîchissement à la fois : le refresh token est à usage unique
+ * (rotation). Si plusieurs requêtes reçoivent 401 en même temps, elles
+ * attendent toutes la même promesse ; sinon le serveur voit le même jeton deux
+ * fois, conclut à un vol (`auth.refresh_reuse_detected`) et révoque la session.
  */
-async function refreshAccessToken(): Promise<string> {
+let pendingRefresh: Promise<string> | undefined;
+
+function refreshAccessToken(): Promise<string> {
+  pendingRefresh ??= performRefresh().finally(() => {
+    pendingRefresh = undefined;
+  });
+  return pendingRefresh;
+}
+
+async function performRefresh(): Promise<string> {
   const refreshToken = await readRefreshToken();
   if (!refreshToken) {
     await clearSessionTokens();

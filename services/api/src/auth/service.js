@@ -169,11 +169,19 @@ export async function refresh(refreshToken, request) {
     throw new HttpError(401, 'authentication_required', 'Session invalide.');
   }
 
-  return prisma.$transaction(async (tx) => {
+  const rotated = await prisma.$transaction(async (tx) => {
+    // Réclamation conditionnelle : deux rafraîchissements concurrents du même
+    // jeton passent tous deux la vérification ci-dessus, un seul peut révoquer.
+    const claim = await tx.userSession.updateMany({
+      where: { id: current.id, revokedAt: null },
+      data: { revokedAt: now, lastUsedAt: now },
+    });
+    if (claim.count === 0) return null;
+
     const replacement = await issueSession(tx, current.user, request);
     await tx.userSession.update({
       where: { id: current.id },
-      data: { revokedAt: now, lastUsedAt: now, replacedBySessionId: replacement.sessionId },
+      data: { replacedBySessionId: replacement.sessionId },
     });
     await writeAudit(tx, {
       userId: current.userId,
@@ -184,6 +192,9 @@ export async function refresh(refreshToken, request) {
     });
     return sessionResponse(replacement, current.user);
   });
+
+  if (!rotated) throw new HttpError(401, 'authentication_required', 'Session invalide.');
+  return rotated;
 }
 
 export async function logout(auth, request) {

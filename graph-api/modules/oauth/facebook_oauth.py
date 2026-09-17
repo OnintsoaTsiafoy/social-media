@@ -7,11 +7,9 @@ second consent screen once that lands.
 Meta facts NOT re-verified live for this sprint (flagged, not assumed from
 nothing): the scope list below matches what was confirmed via Meta's current
 documentation during planning (pages_show_list/pages_read_engagement/
-pages_manage_posts for basic Page publishing;
-instagram_business_basic/instagram_business_content_publish, the renamed
-Instagram permissions). `pages_manage_engagement`, `business_management` and
-the Instagram comments/insights scopes are requested ahead of the Sprint 07/08
-features that need them so the user consents once — confirm all of these are
+pages_manage_posts for basic Page publishing). `pages_manage_engagement` and
+`business_management` are requested ahead of the Sprint 07/08 features that
+need them so the user consents once — confirm all of these are
 still the exact approved-permission names on the real Meta App before
 sending real users through this flow.
 """
@@ -30,11 +28,10 @@ FACEBOOK_OAUTH_SCOPES = [
     "pages_manage_posts",
     "pages_manage_engagement",
     "business_management",
-    "instagram_business_basic",
-    "instagram_business_content_publish",
-    "instagram_business_manage_comments",
-    "instagram_business_manage_insights",
 ]
+# Les permissions instagram_business_* n'appartiennent qu'au produit
+# « Instagram API with Instagram Login » (voir modules/instagram/oauth_instagram.py) :
+# Meta les rejette en « Invalid Scopes » dans la boîte de dialogue Facebook Login.
 
 
 def callback_redirect_uri() -> str:
