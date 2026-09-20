@@ -134,6 +134,114 @@ test('le provider reçoit le compte social résolu et les URL de médias signée
   assert.deepEqual(commands[0].mediaUrls, ['https://cdn.example.com/hootly/brands/b1/publications/p1/photo.jpg?sig=abc']);
 });
 
+// Connecteur réel (graph-api) : il exige un compte social. La cible peut n'en
+// porter aucun (compte indisponible à sa création) ; delivery.js le retrouve.
+function scenarioWithRealProvider({ accounts, targetAccountId = null }) {
+  const db = createFakeDb({
+    approvals: [{ publication_id: PUBLICATION_ID, revision: 1, status: 'APPROVED' }],
+    publications: [
+      { id: PUBLICATION_ID, content_revision: 1, approved_revision: 1, brand_id: 'brand-1', content: 'Bonjour', hashtags: [], status: 'APPROVED', published_at: null },
+    ],
+    targets: [
+      { id: 'target-fb', publication_id: PUBLICATION_ID, provider: 'FACEBOOK', social_account_id: targetAccountId, status: 'PENDING', attempt_count: 0 },
+    ],
+    socialAccounts: accounts,
+  });
+  const commands = [];
+  const service = createDeliveryService({
+    query: db.query,
+    provider: {
+      requiresSocialAccount: true,
+      deliver: async (command) => {
+        commands.push(command);
+        return { provider: command.provider, externalPublicationId: 'ext-1' };
+      },
+    },
+    logger: { log() {}, warn() {} },
+  });
+  return { db, service, commands };
+}
+
+const FB_ACCOUNT = { id: 'account-1', brand_id: 'brand-1', provider: 'FACEBOOK', name: 'Pho-Resto-Test', status: 'CONNECTED' };
+
+test('cible sans compte : le seul compte connecté de la marque est retrouvé et mémorisé', async () => {
+  const { db, service, commands } = scenarioWithRealProvider({
+    accounts: [FB_ACCOUNT, { ...FB_ACCOUNT, id: 'account-other-brand', brand_id: 'brand-2' }],
+  });
+
+  const result = await service.publish({ publicationId: PUBLICATION_ID, revision: 1 });
+
+  assert.equal(result.status, 'PUBLISHED');
+  assert.equal(commands[0].socialAccountId, 'account-1');
+  assert.equal(db.state.targets[0].social_account_id, 'account-1');
+});
+
+test('cible déjà rattachée à un compte : aucune recherche, ce compte est utilisé', async () => {
+  const { db, service, commands } = scenarioWithRealProvider({
+    accounts: [FB_ACCOUNT],
+    targetAccountId: 'account-42',
+  });
+
+  await service.publish({ publicationId: PUBLICATION_ID, revision: 1 });
+
+  assert.equal(commands[0].socialAccountId, 'account-42');
+  assert.ok(!db.state.calls.some((call) => call.includes('FROM social_accounts')));
+});
+
+test('cible sans compte, compte à reconnecter : rien n’est envoyé, message explicite', async () => {
+  const { db, service, commands } = scenarioWithRealProvider({
+    accounts: [{ ...FB_ACCOUNT, status: 'REAUTH_REQUIRED' }],
+  });
+
+  const result = await service.publish({ publicationId: PUBLICATION_ID, revision: 1 });
+
+  assert.equal(result.status, 'FAILED');
+  assert.equal(commands.length, 0);
+  assert.equal(db.state.targets[0].last_error_code, 'token_expired');
+  assert.match(db.state.targets[0].last_error_message, /Pho-Resto-Test.*reconnecté/);
+  assert.equal(db.state.targets[0].social_account_id ?? null, null);
+});
+
+test('cible sans compte, aucun compte pour la marque : rien n’est envoyé, message explicite', async () => {
+  const { db, service, commands } = scenarioWithRealProvider({
+    accounts: [{ ...FB_ACCOUNT, brand_id: 'brand-2' }, { ...FB_ACCOUNT, id: 'account-ig', provider: 'INSTAGRAM' }],
+  });
+
+  await service.publish({ publicationId: PUBLICATION_ID, revision: 1 });
+
+  assert.equal(commands.length, 0);
+  assert.equal(db.state.targets[0].last_error_code, 'validation_failed');
+  assert.match(db.state.targets[0].last_error_message, /Aucun compte Facebook/);
+});
+
+test('cible sans compte, plusieurs comptes connectés : rien n’est envoyé (pas de choix arbitraire)', async () => {
+  const { db, service, commands } = scenarioWithRealProvider({
+    accounts: [FB_ACCOUNT, { ...FB_ACCOUNT, id: 'account-2', name: 'Autre page' }],
+  });
+
+  await service.publish({ publicationId: PUBLICATION_ID, revision: 1 });
+
+  assert.equal(commands.length, 0);
+  assert.equal(db.state.targets[0].last_error_code, 'validation_failed');
+  assert.match(db.state.targets[0].last_error_message, /Plusieurs comptes Facebook/);
+  assert.equal(db.state.targets[0].social_account_id ?? null, null);
+});
+
+test('réessai après reconnexion : la cible restée sans compte est livrée (cas réel du 20/09)', async () => {
+  const { db, service, commands } = scenarioWithRealProvider({
+    accounts: [{ ...FB_ACCOUNT, status: 'REAUTH_REQUIRED' }],
+  });
+  assert.equal((await service.publish({ publicationId: PUBLICATION_ID, revision: 1 })).status, 'FAILED');
+
+  db.state.socialAccounts[0].status = 'CONNECTED';
+  const retry = await service.publish({ publicationId: PUBLICATION_ID, revision: 1 });
+
+  assert.equal(retry.status, 'PUBLISHED');
+  assert.equal(commands.length, 1);
+  assert.equal(commands[0].socialAccountId, 'account-1');
+  assert.equal(db.state.targets[0].status, 'SENT');
+});
+
 test('sans média rattaché, mediaUrls est un tableau vide (le mock l’ignore de toute façon)', async () => {
   const { service } = scenario({ schedule: 'PENDING' });
 

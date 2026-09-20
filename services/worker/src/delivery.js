@@ -18,7 +18,7 @@ import {
   retryDelaySeconds,
   selectDeliverableTargets,
 } from '../../shared/publication-status.js';
-import { composeContent, deliver as defaultDeliver } from '../../shared/social-provider.js';
+import { ProviderError, composeContent, deliver as defaultDeliver } from '../../shared/social-provider.js';
 
 const CLAIM_PUBLICATION = `
   UPDATE publications
@@ -75,6 +75,21 @@ const SELECT_PUBLICATION_MEDIA = `
    WHERE pm.publication_id = $1::uuid
    ORDER BY pm.position
 `;
+
+// Une cible garde le compte résolu à sa création, or celui-ci peut alors être
+// indisponible (jeton à reconnecter) puis rétabli avant l'envoi. Sans compte,
+// graph-api retomberait sur la « page globale » du .env (héritage Sprint 05,
+// factice en local) et Meta refuserait la publication.
+const SELECT_BRAND_ACCOUNTS = `SELECT id, name, status FROM social_accounts WHERE brand_id = $1::uuid AND provider = $2`;
+
+const SET_TARGET_ACCOUNT = `
+  UPDATE publication_targets SET social_account_id = $2::uuid, updated_at = now()
+   WHERE id = $1::uuid AND social_account_id IS NULL
+`;
+
+const USABLE_ACCOUNT_STATUSES = ['CONNECTED', 'EXPIRING'];
+const RECONNECT_ACCOUNT_STATUSES = ['EXPIRED', 'REAUTH_REQUIRED', 'REVOKED'];
+const NETWORK_LABELS = { FACEBOOK: 'Facebook', INSTAGRAM: 'Instagram' };
 
 const CLAIM_TARGET = `
   UPDATE publication_targets
@@ -196,6 +211,43 @@ export function createDeliveryService({
     return { publicationId, skipped: reason };
   }
 
+  /**
+   * Compte social à utiliser pour une cible. Seul un connecteur qui appelle
+   * vraiment un réseau (`requiresSocialAccount`) en a besoin : le mock livre
+   * sans compte. Retrouve l'unique compte utilisable de la marque et le
+   * mémorise sur la cible ; sinon refuse avec un message exploitable, affiché
+   * tel quel dans l'application, plutôt que d'appeler Meta pour rien.
+   */
+  async function resolveSocialAccountId(publication, target) {
+    if (target.social_account_id || !provider.requiresSocialAccount) return target.social_account_id ?? null;
+
+    const network = NETWORK_LABELS[target.provider] ?? target.provider;
+    const accounts = await query(SELECT_BRAND_ACCOUNTS, [publication.brandId, target.provider]);
+    const usable = accounts.filter((account) => USABLE_ACCOUNT_STATUSES.includes(account.status));
+
+    if (usable.length === 1) {
+      await query(SET_TARGET_ACCOUNT, [target.id, usable[0].id]);
+      return usable[0].id;
+    }
+    if (usable.length > 1) {
+      throw new ProviderError(
+        'validation_failed',
+        `Plusieurs comptes ${network} sont connectés à cette marque et aucun n’a été choisi pour cette publication.`,
+      );
+    }
+    const expired = accounts.find((account) => RECONNECT_ACCOUNT_STATUSES.includes(account.status));
+    if (expired) {
+      throw new ProviderError(
+        'token_expired',
+        `Le compte ${network} « ${expired.name} » doit être reconnecté par un administrateur de la plateforme avant l’envoi.`,
+      );
+    }
+    throw new ProviderError(
+      'validation_failed',
+      `Aucun compte ${network} n’est connecté à cette marque. Un administrateur de la plateforme doit en lier un.`,
+    );
+  }
+
   async function deliverTarget(publication, target, mediaUrls) {
     if (!await approvalIsCurrent(publication.id, publication.revision)) {
       await cancelInvalidJob(publication.id, 'approval_invalid');
@@ -220,10 +272,11 @@ export function createDeliveryService({
     });
 
     try {
+      const socialAccountId = await resolveSocialAccountId(publication, target);
       const result = await provider.deliver({
         publicationId: publication.id,
         publicationTargetId: target.id,
-        socialAccountId: target.social_account_id ?? null,
+        socialAccountId,
         provider: target.provider,
         content,
         attemptNumber,
@@ -283,6 +336,7 @@ export function createDeliveryService({
 
     const context = {
       id: publication.id,
+      brandId: publication.brand_id,
       revision,
       content: publication.content,
       hashtags: Array.isArray(publication.hashtags) ? publication.hashtags : [],

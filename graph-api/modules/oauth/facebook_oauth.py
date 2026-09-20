@@ -130,6 +130,16 @@ async def fetch_permissions(user_token: str) -> list[dict]:
     ]
 
 
+async def fetch_page_identity(page_token: str) -> dict:
+    """Revalide un jeton de PAGE : avec un tel jeton, `me` désigne la page elle-même.
+
+    `me/permissions` ne convient pas : c'est une arête de l'utilisateur, et Meta
+    répond 400 « (#100) Tried accessing nonexisting field (permissions) » à un
+    jeton de page valide (constaté en direct le 2026-09-20, où `me` répondait 200).
+    """
+    return await _meta_get("me", {"fields": "id,name", "access_token": page_token})
+
+
 async def fetch_linked_instagram_account(page_id: str, page_token: str) -> dict | None:
     data = await _meta_get(
         page_id,

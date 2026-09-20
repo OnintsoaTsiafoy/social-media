@@ -64,6 +64,16 @@ export function createFakeDb(initial = {}) {
       return [row];
     }
 
+    // Comptes d'une marque pour un réseau (delivery.js, résolution à l'envoi).
+    if (text.includes('FROM social_accounts WHERE brand_id = $1::uuid AND provider = $2')) {
+      return state.socialAccounts.filter((row) => row.brand_id === params[0] && row.provider === params[1]);
+    }
+    if (text.includes('SET social_account_id = $2::uuid')) {
+      const target = state.targets.find((row) => row.id === params[0] && !row.social_account_id);
+      if (target) target.social_account_id = params[1];
+      return [];
+    }
+
     if (text.includes('adapted_content, adapted_hashtags, attempt_count')) {
       return state.targets.filter((row) => row.publication_id === params[0]);
     }

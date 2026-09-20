@@ -1,4 +1,11 @@
-from pydantic import BaseModel, Field
+from typing import Annotated
+
+from pydantic import BaseModel, BeforeValidator, Field
+
+# La base (psycopg) renvoie les ids en `UUID` ; une réponse HTTP les veut en
+# texte. Sans cette conversion, une revalidation réussie répondait 500 au
+# moment de construire la réponse (les tests, eux, semaient des ids en texte).
+AccountId = Annotated[str, BeforeValidator(str)]
 
 
 class AuthorizationUrlRequest(BaseModel):
@@ -26,7 +33,7 @@ class OAuthCallbackResult(BaseModel):
 
 
 class RefreshTokenResponse(BaseModel):
-    social_account_id: str = Field(alias="socialAccountId")
+    social_account_id: AccountId = Field(alias="socialAccountId")
     status: str
     expires_at: str | None = Field(default=None, alias="expiresAt")
     refreshed: bool
@@ -46,7 +53,7 @@ class RevokeResponse(BaseModel):
 
 
 class ProfileResponse(BaseModel):
-    social_account_id: str = Field(alias="socialAccountId")
+    social_account_id: AccountId = Field(alias="socialAccountId")
     name: str
     username: str | None = None
     avatar_url: str | None = Field(default=None, alias="avatarUrl")

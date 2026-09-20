@@ -48,6 +48,27 @@ test('deliver posts to /internal/v1/publications/publish with a service JWT and 
   assert.equal(body.targets[0].socialAccountId, 'account-1');
 });
 
+test('sans compte social, graph-api n’est jamais appelé (sinon : la page globale factice du .env)', async () => {
+  let calls = 0;
+  const provider = createSocialHttpProvider({
+    fetchImpl: fakeFetch(async () => {
+      calls += 1;
+      return { ok: true, json: async () => ({ results: [{ status: 'SUCCESS', externalPublicationId: 'x' }] }) };
+    }),
+  });
+
+  for (const socialAccountId of [null, undefined, '']) {
+    await assert.rejects(provider.deliver({ ...COMMAND, socialAccountId }), (error) => {
+      assert.ok(error instanceof ProviderError);
+      assert.equal(error.code, 'validation_failed');
+      assert.equal(error.retryable, false);
+      return true;
+    });
+  }
+  assert.equal(calls, 0);
+  assert.equal(provider.requiresSocialAccount, true);
+});
+
 test('a per-target business failure raises a ProviderError with the same code', async () => {
   const provider = createSocialHttpProvider({
     fetchImpl: fakeFetch(async () => ({

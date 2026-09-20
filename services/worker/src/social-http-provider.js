@@ -17,6 +17,12 @@ function baseUrl() {
 export function createSocialHttpProvider({ fetchImpl = fetch } = {}) {
   async function deliver(command) {
     const { publicationId, publicationTargetId, socialAccountId, provider, content, mediaUrls } = command;
+    if (!socialAccountId) {
+      // Sans compte, graph-api publierait sur la « page globale » du .env
+      // (héritage Sprint 05, factice en local) : Meta la refuse, et l'erreur
+      // remontée (`validation_failed`) ne dit pas pourquoi.
+      throw new ProviderError('validation_failed', 'Aucun compte social n’est rattaché à cette publication.');
+    }
     const token = mintServiceJwt(['social:write']);
 
     let response;
@@ -70,5 +76,7 @@ export function createSocialHttpProvider({ fetchImpl = fetch } = {}) {
     return { provider, externalPublicationId: result.externalPublicationId };
   }
 
-  return { deliver, name: 'graph-api' };
+  // `requiresSocialAccount` : delivery.js retrouve le compte de la cible avant
+  // d'appeler `deliver` (le mock, lui, livre sans compte).
+  return { deliver, name: 'graph-api', requiresSocialAccount: true };
 }

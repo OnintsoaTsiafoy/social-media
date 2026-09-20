@@ -47,10 +47,10 @@ def test_refresh_token_nominal(
     from tests.conftest import META_BASE_URL
 
     _seed_account(fake_social_accounts_store, fake_oauth_tokens_store)
-    respx_mock.get(f"{META_BASE_URL}/me/permissions").mock(
-        return_value=httpx.Response(
-            200, json={"data": [{"permission": "pages_show_list", "status": "granted"}]}
-        )
+    # Un jeton de PAGE se revalide avec `me` (la page elle-même). `me/permissions`
+    # est une arête de l'utilisateur : Meta la refuse à un jeton de page.
+    me_route = respx_mock.get(f"{META_BASE_URL}/me").mock(
+        return_value=httpx.Response(200, json={"id": "page-1", "name": "Studio Vega"})
     )
 
     response = client.post(f"/internal/v1/social-accounts/{ACCOUNT_ID}/refresh-token", headers=_auth_header())
@@ -60,6 +60,41 @@ def test_refresh_token_nominal(
     assert body["socialAccountId"] == ACCOUNT_ID
     assert body["status"] == "CONNECTED"
     assert body["refreshed"] is True
+    assert me_route.call_count == 1
+    assert respx_mock.calls.call_count == 1  # rien d'autre que `me` (surtout pas me/permissions)
+
+
+def test_responses_accept_the_uuid_ids_the_real_database_returns():
+    """psycopg renvoie `id` en UUID : la construction de la réponse ne doit pas
+    échouer (elle répondait 500 en réel, alors que les tests semaient des str)."""
+    import uuid
+
+    from modules.oauth.schemas import ProfileResponse, RefreshTokenResponse
+
+    account_id = uuid.uuid4()
+    refreshed = RefreshTokenResponse(social_account_id=account_id, status="CONNECTED", expires_at=None, refreshed=True)
+    profile = ProfileResponse(social_account_id=account_id, name="Studio Vega")
+
+    assert refreshed.model_dump(by_alias=True)["socialAccountId"] == str(account_id)
+    assert profile.model_dump(by_alias=True)["socialAccountId"] == str(account_id)
+
+
+def test_refresh_token_heals_a_page_wrongly_flagged_for_reauth(
+    client, service_jwt_settings, respx_mock, fake_social_accounts_store, fake_oauth_tokens_store
+):
+    """Une page marquée à reconnecter alors que son jeton reste valide (l'ancienne
+    revalidation via me/permissions échouait toujours) redevient CONNECTED."""
+    import httpx
+
+    _seed_account(fake_social_accounts_store, fake_oauth_tokens_store, status="REAUTH_REQUIRED")
+    respx_mock.get(f"{META_BASE_URL}/me").mock(
+        return_value=httpx.Response(200, json={"id": "page-1", "name": "Studio Vega"})
+    )
+
+    response = client.post(f"/internal/v1/social-accounts/{ACCOUNT_ID}/refresh-token", headers=_auth_header())
+
+    assert response.status_code == 200
+    assert fake_social_accounts_store[("FACEBOOK", "page-1")]["status"] == "CONNECTED"
 
 
 def test_refresh_token_without_stored_token_requires_reauth(
@@ -83,7 +118,7 @@ def test_refresh_token_meta_rejects_it_requires_reauth(
     from tests.conftest import META_BASE_URL
 
     _seed_account(fake_social_accounts_store, fake_oauth_tokens_store)
-    respx_mock.get(f"{META_BASE_URL}/me/permissions").mock(
+    respx_mock.get(f"{META_BASE_URL}/me").mock(
         return_value=httpx.Response(401, json={"error": {"message": "Invalid token", "code": 190}})
     )
 
@@ -91,6 +126,66 @@ def test_refresh_token_meta_rejects_it_requires_reauth(
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "REAUTHENTICATION_REQUIRED"
+    assert fake_social_accounts_store[("FACEBOOK", "page-1")]["status"] == "REAUTH_REQUIRED"
+
+
+def test_refresh_token_invalid_token_as_meta_really_sends_it_requires_reauth(
+    client, service_jwt_settings, respx_mock, fake_social_accounts_store, fake_oauth_tokens_store
+):
+    """Meta répond à un jeton invalide par HTTP 400 + code 190 (pas 401)."""
+    import httpx
+
+    _seed_account(fake_social_accounts_store, fake_oauth_tokens_store)
+    respx_mock.get(f"{META_BASE_URL}/me").mock(
+        return_value=httpx.Response(
+            400, json={"error": {"message": "Error validating access token", "type": "OAuthException", "code": 190}}
+        )
+    )
+
+    response = client.post(f"/internal/v1/social-accounts/{ACCOUNT_ID}/refresh-token", headers=_auth_header())
+
+    assert response.status_code == 409
+    assert fake_social_accounts_store[("FACEBOOK", "page-1")]["status"] == "REAUTH_REQUIRED"
+
+
+def test_refresh_token_meta_outage_does_not_flag_a_healthy_page(
+    client, service_jwt_settings, respx_mock, fake_social_accounts_store, fake_oauth_tokens_store
+):
+    """Une panne ou une limite de débit de Meta ne dit rien de la validité du
+    jeton : l'erreur remonte telle quelle, sans exiger de reconnexion."""
+    import httpx
+
+    _seed_account(fake_social_accounts_store, fake_oauth_tokens_store)
+    respx_mock.get(f"{META_BASE_URL}/me").mock(
+        return_value=httpx.Response(503, json={"error": {"message": "Service unavailable"}})
+    )
+
+    response = client.post(f"/internal/v1/social-accounts/{ACCOUNT_ID}/refresh-token", headers=_auth_header())
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "provider_unavailable"
+    assert fake_social_accounts_store[("FACEBOOK", "page-1")]["status"] == "CONNECTED"
+
+
+def test_refresh_token_non_token_meta_error_does_not_flag_a_healthy_page(
+    client, service_jwt_settings, respx_mock, fake_social_accounts_store, fake_oauth_tokens_store
+):
+    """Le cas réel qui a fait passer une page saine en « reconnexion requise » :
+    Meta répond 400 « (#100) nonexisting field » (code 100, pas 190)."""
+    import httpx
+
+    _seed_account(fake_social_accounts_store, fake_oauth_tokens_store)
+    respx_mock.get(f"{META_BASE_URL}/me").mock(
+        return_value=httpx.Response(
+            400,
+            json={"error": {"message": "(#100) Tried accessing nonexisting field", "type": "OAuthException", "code": 100}},
+        )
+    )
+
+    response = client.post(f"/internal/v1/social-accounts/{ACCOUNT_ID}/refresh-token", headers=_auth_header())
+
+    assert response.status_code == 400
+    assert fake_social_accounts_store[("FACEBOOK", "page-1")]["status"] == "CONNECTED"
 
 
 def test_refresh_token_instagram_login_rotates_the_token(
@@ -244,6 +339,22 @@ def test_get_profile_meta_rejects_it_requires_reauth(
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "REAUTHENTICATION_REQUIRED"
     assert fake_social_accounts_store[("FACEBOOK", "page-1")]["status"] == "REAUTH_REQUIRED"
+
+
+def test_get_profile_meta_outage_does_not_flag_a_healthy_page(
+    client, service_jwt_settings, respx_mock, fake_social_accounts_store, fake_oauth_tokens_store
+):
+    import httpx
+
+    _seed_account(fake_social_accounts_store, fake_oauth_tokens_store)
+    respx_mock.get(f"{META_BASE_URL}/page-1").mock(
+        return_value=httpx.Response(503, json={"error": {"message": "Service unavailable"}})
+    )
+
+    response = client.get(f"/internal/v1/social-accounts/{ACCOUNT_ID}/profile", headers=_auth_header())
+
+    assert response.status_code == 503
+    assert fake_social_accounts_store[("FACEBOOK", "page-1")]["status"] == "CONNECTED"
 
 
 def test_get_permissions_reports_missing_required_ones(

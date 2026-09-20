@@ -24,6 +24,16 @@ from modules.oauth.schemas import PermissionsResponse, ProfileResponse, RefreshT
 # enforce anything here.
 REQUIRED_FACEBOOK_PERMISSIONS = {"pages_show_list", "pages_read_engagement", "pages_manage_posts"}
 
+# Codes d'erreur de Meta qui disent que LE JETON est invalide (session fermée,
+# expiré, révoqué, mot de passe changé). Toute autre erreur (Meta injoignable,
+# limite de débit, paramètre refusé) ne dit rien de sa validité : y répondre par
+# « reconnexion requise » ferait reconnecter une page saine.
+_INVALID_TOKEN_META_CODES = {102, 190}
+
+
+def _token_is_invalid(exc: GraphAPIError) -> bool:
+    return exc.status_code == 401 or exc.meta_code in _INVALID_TOKEN_META_CODES
+
 
 async def refresh_token(account: dict) -> RefreshTokenResponse:
     if account["auth_method"] == "INSTAGRAM_LOGIN":
@@ -41,9 +51,14 @@ async def _refresh_facebook_page_token(account: dict) -> RefreshTokenResponse:
             code="REAUTHENTICATION_REQUIRED",
         )
 
+    # Les permissions ne sont pas relues ici : `me/permissions` n'existe pas pour
+    # un jeton de page. Celles de l'utilisateur qui a autorisé la page ont été
+    # enregistrées à la liaison (page_linking.py) et y restent.
     try:
-        permissions = await facebook_oauth.fetch_permissions(token)
+        await facebook_oauth.fetch_page_identity(token)
     except GraphAPIError as exc:
+        if not _token_is_invalid(exc):
+            raise
         await social_accounts_repository.update_status(account["id"], "REAUTH_REQUIRED")
         raise GraphAPIError(
             status_code=409,
@@ -51,7 +66,6 @@ async def _refresh_facebook_page_token(account: dict) -> RefreshTokenResponse:
             code="REAUTHENTICATION_REQUIRED",
         ) from exc
 
-    await social_permissions_repository.upsert_permissions(account["id"], permissions)
     await social_accounts_repository.update_status(account["id"], "CONNECTED")
 
     return RefreshTokenResponse(
@@ -125,6 +139,8 @@ async def get_profile(account: dict) -> ProfileResponse:
             username = None
             avatar_url = (data.get("picture") or {}).get("data", {}).get("url")
     except GraphAPIError as exc:
+        if not _token_is_invalid(exc):
+            raise
         await social_accounts_repository.update_status(account["id"], "REAUTH_REQUIRED")
         raise GraphAPIError(
             status_code=409,
