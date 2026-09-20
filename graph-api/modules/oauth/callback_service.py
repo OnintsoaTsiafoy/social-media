@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from core.crypto import hash_state
 from core.exceptions import GraphAPIError
 from db import (
+    oauth_selections_repository,
     oauth_states_repository,
     oauth_tokens_repository,
     social_accounts_repository,
@@ -19,6 +20,7 @@ from db import (
 )
 from modules.instagram import oauth_instagram
 from modules.oauth import facebook_oauth
+from modules.oauth.page_linking import link_page, normalize_page
 from modules.oauth.redirect import build_redirect
 
 logger = logging.getLogger("graph_api.oauth")
@@ -40,6 +42,40 @@ async def _consume_state_or_raise(state: str | None) -> dict:
             code="OAUTH_STATE_INVALID",
         )
     return consumed
+
+
+async def _propose_pages_for_selection(
+    *, consumed: dict, pages: list[dict], permissions: list[dict], redirect_uri: str
+) -> str:
+    """Liaison pilotée par un administrateur : le compte Facebook qui vient
+    d'autoriser en gère souvent beaucoup d'autres (agence) — rien n'est lié
+    automatiquement. Les pages (jetons compris) sont gardées chiffrées le temps du
+    choix, et l'administrateur est renvoyé sur la console avec l'identifiant de la
+    sélection ; seul cet identifiant, jamais un jeton, transite par l'URL."""
+    candidates = []
+    for page in pages:
+        page_token = page.get("access_token")
+        if not page_token:
+            continue
+        try:
+            instagram = await facebook_oauth.fetch_linked_instagram_account(page["id"], page_token)
+        except GraphAPIError:
+            # Un Instagram illisible ne doit pas empêcher de choisir la page.
+            logger.warning("facebook_oauth_instagram_lookup_failed page=%s", page["id"])
+            instagram = None
+        candidates.append(normalize_page(page, instagram))
+
+    if not candidates:
+        return build_redirect(redirect_uri, status="error", reason="incompatible_account")
+
+    selection = await oauth_selections_repository.create_selection(
+        user_id=consumed["user_id"],
+        brand_id=consumed["brand_id"],
+        initiated_by_user_id=consumed.get("initiated_by_user_id"),
+        provider="FACEBOOK",
+        payload={"pages": candidates, "permissions": permissions},
+    )
+    return build_redirect(redirect_uri, status="select", network="facebook", selection=str(selection["id"]))
 
 
 async def handle_facebook_callback(*, code: str | None, state: str | None, error: str | None) -> str:
@@ -65,56 +101,29 @@ async def handle_facebook_callback(*, code: str | None, state: str | None, error
     if not pages:
         return build_redirect(mobile_redirect_uri, status="error", reason="incompatible_account")
 
+    if consumed.get("select_pages"):
+        return await _propose_pages_for_selection(
+            consumed=consumed, pages=pages, permissions=permissions, redirect_uri=mobile_redirect_uri
+        )
+
     linked_labels: list[str] = []
     for page in pages:
         page_token = page.get("access_token")
         if not page_token:
             continue
 
-        account = await social_accounts_repository.upsert_account(
-            brand_id=consumed["brand_id"],
-            provider="FACEBOOK",
-            external_account_id=page["id"],
-            name=page.get("name", ""),
-            username=None,
-            avatar_url=(page.get("picture") or {}).get("data", {}).get("url"),
-            auth_method="FACEBOOK_PAGE",
-            connected_by_user_id=consumed["user_id"],
-        )
-        await oauth_tokens_repository.store_token(
-            social_account_id=account["id"],
-            access_token=page_token,
-            refresh_token=None,
-            scope=page.get("tasks", []),
-            expires_at=None,
-        )
-        await social_permissions_repository.upsert_permissions(account["id"], permissions)
-        linked_labels.append(account.get("name") or "")
-
         instagram = await facebook_oauth.fetch_linked_instagram_account(page["id"], page_token)
-        if instagram:
-            ig_account = await social_accounts_repository.upsert_account(
-                brand_id=consumed["brand_id"],
-                provider="INSTAGRAM",
-                external_account_id=instagram["id"],
-                name=instagram.get("name") or instagram.get("username", ""),
-                username=instagram.get("username"),
-                avatar_url=instagram.get("profile_picture_url"),
-                auth_method="FACEBOOK_PAGE",
-                connected_by_user_id=consumed["user_id"],
-            )
-            # Instagram calls made through a Page-linked account reuse the
-            # same Page token — Meta does not issue a separate IG-specific
-            # token for this path (Facebook Login for Business).
-            await oauth_tokens_repository.store_token(
-                social_account_id=ig_account["id"],
-                access_token=page_token,
-                refresh_token=None,
-                scope=page.get("tasks", []),
-                expires_at=None,
-            )
-            await social_permissions_repository.upsert_permissions(ig_account["id"], permissions)
-            linked_labels.append(ig_account.get("username") or ig_account.get("name") or "")
+        linked = await link_page(
+            page=normalize_page(page, instagram),
+            brand_id=consumed["brand_id"],
+            user_id=consumed["user_id"],
+            permissions=permissions,
+        )
+        for account in linked:
+            if account["provider"] == "INSTAGRAM":
+                linked_labels.append(account.get("username") or account.get("name") or "")
+            else:
+                linked_labels.append(account.get("name") or "")
 
     return build_redirect(
         mobile_redirect_uri,

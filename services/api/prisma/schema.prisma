@@ -251,7 +251,10 @@ model User {
   schedules               ScheduledPublication[] @relation("ScheduleAuthor")
   avatarMedia             Media?                 @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
   connectedSocialAccounts SocialAccount[]        @relation("SocialAccountConnector")
-  oauthStates             OAuthState[]
+  oauthStates             OAuthState[]           @relation("OAuthStateUser")
+  oauthStatesInitiated    OAuthState[]           @relation("OAuthStateInitiator")
+  pageSelections          OAuthPageSelection[]   @relation("PageSelectionUser")
+  pageSelectionsInitiated OAuthPageSelection[]   @relation("PageSelectionInitiator")
   commentStatusChanges    CommentStatusHistory[]
   sentResponses           SentResponse[]         @relation("SentResponseAuthor")
   commentAnalyses         CommentAnalysis[]      @relation("AnalysisRequester")
@@ -289,6 +292,7 @@ model Brand {
   publications    Publication[]
   socialAccounts  SocialAccount[]
   oauthStates     OAuthState[]
+  pageSelections  OAuthPageSelection[]
   notifications   Notification[]
   knowledgeDocuments KnowledgeDocument[]
   validatedExamples ValidatedResponseExample[]
@@ -729,15 +733,52 @@ model OAuthState {
   userId            String         @map("user_id") @db.Uuid
   brandId           String         @map("brand_id") @db.Uuid
   provider          SocialProvider
+  // Adresse de retour : un lien profond de l'app mobile, ou l'adresse de la
+  // console web d'administration (`ADMIN_WEB_URL`) quand `selectPages` est vrai.
   mobileRedirectUri String         @map("mobile_redirect_uri") @db.VarChar(2048)
+  // Liaison lancée par un administrateur de la plateforme : le compte Facebook
+  // qui autorise en gère souvent beaucoup d'autres (agence) — on ne lie donc
+  // AUCUNE page automatiquement, l'administrateur choisit après le retour de
+  // Meta (voir OAuthPageSelection). `false` = comportement historique du
+  // mobile : toutes les pages du compte sont liées.
+  selectPages       Boolean        @default(false) @map("select_pages")
+  // L'administrateur qui a lancé la liaison (`userId` est le compte utilisateur
+  // pour lequel la page est liée). SetNull : le journal survit à sa suppression.
+  initiatedByUserId String?        @map("initiated_by_user_id") @db.Uuid
   consumedAt        DateTime?      @map("consumed_at") @db.Timestamptz(6)
   expiresAt         DateTime       @map("expires_at") @db.Timestamptz(6)
   createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User           @relation("OAuthStateUser", fields: [userId], references: [id], onDelete: Cascade)
   brand             Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  initiatedBy       User?          @relation("OAuthStateInitiator", fields: [initiatedByUserId], references: [id], onDelete: SetNull)
 
   @@index([expiresAt])
   @@map("oauth_states")
+}
+
+// Pages Facebook que le compte autorisé peut gérer, gardées le temps que
+// l'administrateur choisisse lesquelles lier (15 minutes, usage unique). Écrite
+// et lue UNIQUEMENT par graph-api : `encryptedPayload` contient les jetons de
+// page, chiffrés avec la même clé AES-GCM que `oauth_tokens` — Express n'a
+// jamais la clé et ne voit que la liste sans jeton renvoyée par graph-api.
+model OAuthPageSelection {
+  id                   String         @id @default(uuid()) @db.Uuid
+  // Compte utilisateur auquel les pages seront liées, et sa marque.
+  userId               String         @map("user_id") @db.Uuid
+  brandId              String         @map("brand_id") @db.Uuid
+  initiatedByUserId    String?        @map("initiated_by_user_id") @db.Uuid
+  provider             SocialProvider
+  encryptedPayload     Bytes          @map("encrypted_payload")
+  encryptionKeyVersion Int            @default(1) @map("encryption_key_version")
+  expiresAt            DateTime       @map("expires_at") @db.Timestamptz(6)
+  consumedAt           DateTime?      @map("consumed_at") @db.Timestamptz(6)
+  createdAt            DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  user                 User           @relation("PageSelectionUser", fields: [userId], references: [id], onDelete: Cascade)
+  brand                Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  initiatedBy          User?          @relation("PageSelectionInitiator", fields: [initiatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([expiresAt])
+  @@map("oauth_page_selections")
 }
 
 // Idempotency-Key store for graph-api's own /internal/v1 routes (distinct

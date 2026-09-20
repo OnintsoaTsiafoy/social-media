@@ -35,6 +35,8 @@ export function toUserMessage(error: unknown, t: Translate): string {
       return t("error.rate_limited");
     case "ai_unavailable":
       return t("error.ai_unavailable");
+    case "provider_unavailable":
+      return t("error.provider_unavailable");
     default:
       return t("error.unknown");
   }

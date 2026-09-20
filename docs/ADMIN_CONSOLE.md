@@ -29,7 +29,9 @@ Conventions communes : enveloppe `{ data, meta }` ; erreurs `{ error: { code, me
 | `GET /analytics/trend` | Courbe + période précédente (`metric`, `period`, `sentiment`, `pageId`, `network`) |
 | `GET /analytics/pages` | Performance par page, activité par heure, pages filtrables |
 | `GET /users` · `PATCH /users/{id}` | Comptes ; suspension, rôle plateforme, rôles par marque (une transaction, un audit par changement) |
-| `GET /pages` · `PATCH /pages/{id}` | Pages connectées ; réponse automatique par page |
+| `GET /pages` · `PATCH /pages/{id}` | Pages connectées (avec le compte qui les a liées) ; réponse automatique par page |
+| `POST /pages/connect` | Démarre la liaison d'un compte utilisateur (`userId`, `brandId`) à une page Facebook : `201 { authorizationUrl, expiresAt }` (voir §6) |
+| `GET /pages/connect/selections/{id}` · `POST …/link` | Au retour de Facebook : pages proposées (sans jeton) ; lie **uniquement** les pages choisies (`pageIds`) |
 | `GET /settings` · `POST/DELETE /settings/keywords` · `PATCH /settings/service-levels` · `PATCH /settings/supervision` | Configuration |
 | `GET /audit` | Journal d'audit de l'administration |
 
@@ -78,12 +80,36 @@ Ces éléments de la maquette n'ont aucun équivalent côté serveur ; les garde
 
 - **Statut « Invité » et bouton « Inviter un manager »** : aucun mécanisme d'invitation n'existe (les statuts serveur sont `ACTIVE` / `DISABLED`).
 - **Interrupteurs de permissions par membre** : les droits découlent du rôle par marque ; le tiroir édite donc le **rôle par marque** et l'accès plateforme.
-- **« Connecter une page »** : la connexion OAuth Meta se fait depuis le mobile, marque par marque.
 - **Statut « Limité par l'API »** et **quota Graph API** : le serveur ne stocke aucune donnée de quota.
 - **Flux « en direct » simulé, statuts IA tournants, « managers en ligne 41/58 »** : remplacés par des mesures réelles (sondage toutes les 10 s pour le flux, 30 à 60 s pour le reste).
 - **Rétention du journal « 180 jours »** : aucune purge n'est implémentée, l'étiquette a été retirée.
 
-## 6. Internationalisation
+## 6. Connecter une page à un compte utilisateur
+
+Depuis l'écran **Pages**, « Connecter une page Facebook » permet à un administrateur de la plateforme de lier une page à **un compte utilisateur et à l'une de ses marques**. Le parcours mobile (`POST /social-accounts/facebook/connect`, où l'utilisateur lie ses propres pages) est **inchangé** : les deux coexistent et écrivent en base par le même code (`graph-api/modules/oauth/page_linking.py`).
+
+Trois temps :
+
+1. **Choix.** L'administrateur cherche un compte actif et une marque dont ce compte est propriétaire ou administrateur (même règle que le mobile, `requireBrandAccess('ADMIN')`). `POST /pages/connect { userId, brandId }` répond `201 { authorizationUrl, expiresAt }` et la console redirige le navigateur vers Facebook. Le `state` OAuth reste côté serveur.
+2. **Consentement Meta.** L'administrateur s'authentifie **avec son propre compte Facebook**. graph-api reçoit le retour, échange le code, lit `/me/accounts` (et le compte Instagram professionnel de chaque page) et **ne lie rien** : il enregistre la liste, jetons de page compris mais chiffrés, dans `oauth_page_selections`, puis renvoie le navigateur vers `ADMIN_WEB_URL/#/pages?status=select&selection=<uuid>`. Un échec revient en `?status=error&reason=permission_denied|incompatible_account|provider_error` (bandeau sur l'écran Pages).
+3. **Sélection.** `GET /pages/connect/selections/{id}` renvoie les pages **sans aucun jeton**, chacune marquée `alreadyLinked` (reconnexion : le jeton est renouvelé) ou `linkedElsewhere` (liée à une autre marque). `POST …/link { pageIds }` ne lie que les pages choisies, avec leur compte Instagram. La console nettoie l'adresse (`history.replaceState`) : recharger la page ne rouvre pas la sélection.
+
+**Pourquoi une sélection obligatoire.** Le compte Facebook de l'administrateur gère souvent les pages de plusieurs clients ; tout lier d'office, comme le mobile le fait pour l'utilisateur, rattacherait des pages à la mauvaise marque.
+
+| Garantie | Mise en œuvre |
+|---|---|
+| Pas de redirection ouverte | L'adresse de retour est calculée par le serveur depuis `ADMIN_WEB_URL` (origine seule, `http`/`https`, plus `/#/pages`) ; le client n'envoie que `userId` et `brandId`. Valeur invalide : `503 provider_unavailable` |
+| Jetons de page jamais côté Express ni web | Chiffrés (AES-256-GCM, clé de graph-api) dans `oauth_page_selections.encrypted_payload` ; Express ne reçoit que la liste sans jeton |
+| Sélection à usage unique, 15 minutes | `UPDATE … WHERE consumed_at IS NULL AND expires_at > now()` **avant** toute écriture ; un second `link` répond `404` |
+| Seul l'initiateur la termine | `initiated_by_user_id` comparé à l'administrateur connecté, sinon `404` (l'existence d'une sélection n'est pas divulguée) |
+| Une page appartient à une seule marque | Une page déjà liée à une **autre** marque est refusée (`409 conflict`, détails `pageId`, `name`, `brandName`) au lieu d'être déplacée, ce qui emporterait ses commentaires et publications : il faut d'abord la déconnecter de l'autre marque |
+| Rien d'imprévu n'est lié | `pageIds` doit être inclus dans les pages proposées, sinon `422` sans consommer la sélection |
+| Rôle revérifié au retour | Le compte doit encore être membre actif, propriétaire ou administrateur de la marque au moment de lier |
+| Traçabilité | `social_accounts.connected_by_user_id` = le compte utilisateur ; l'administrateur est dans `oauth_states.initiated_by_user_id` et dans `audit_logs` (`admin.page.connect_started`, puis `admin.page.connected` pour chaque compte lié) |
+
+**Configuration.** Mêmes prérequis Meta que le mobile (`FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`, URI de callback de graph-api déclarée dans l'application Meta), plus `ADMIN_WEB_URL` côté API (défaut `http://localhost:5173`) : l'adresse publique de la console, à renseigner dès qu'elle n'est pas servie sur ce port. La migration `20260920010000_admin_page_connection` ajoute `oauth_states.select_pages` / `initiated_by_user_id` et la table `oauth_page_selections`. Il faut reconstruire les images **api** et **graph-api** (`./scripts/start.ps1`).
+
+## 7. Internationalisation
 
 Code : [admin-web/src/i18n/](../admin-web/src/i18n/). Aucune dépendance.
 
@@ -95,7 +121,7 @@ Code : [admin-web/src/i18n/](../admin-web/src/i18n/). Aucune dépendance.
 - **Erreurs** : le code stable de l'API (`conflict`, `forbidden`…) sert de clé de traduction, jamais le texte du serveur (comme `toUserMessage()` sur mobile). Le journal d'audit reçoit l'action et des métadonnées structurées et est mis en phrase côté web, dans la langue courante.
 - **Ajouter une langue** : ajouter le code à `LOCALES` et au `INTL_TAG` de `format.ts`, créer `xx.ts` typé comme `en.ts`, l'enregistrer dans `CATALOGS` (`index.tsx`). L'application mobile n'a pas d'i18n : elle reste en français.
 
-## 7. Lancer et tester
+## 8. Lancer et tester
 
 ```powershell
 ./scripts/start.ps1 ; ./scripts/seed.ps1      # API + base + compte administrateur
@@ -106,7 +132,8 @@ npm --prefix admin-web run dev                 # http://localhost:5173 (proxy /a
 | Niveau | Commande |
 |---|---|
 | Unitaires API (schémas, gravité, CORS, jetons…) | `npm --prefix services/api test` |
-| Intégration API sur base réelle | `ADMIN_INTEGRATION=1 node --test test/admin.integration.test.js` depuis un conteneur du réseau Compose (`docker run --network hootly_default --env-file .env --entrypoint sh hootly-api …`, code copié dans `/app/services/api`) — il ne touche que ses lignes et restaure `platform_settings` |
+| Intégration API sur base réelle | `ADMIN_INTEGRATION=1 node --test test/admin.integration.test.js` depuis un conteneur du réseau Compose (`docker run --network hootly_default --env-file .env --entrypoint sh hootly-api …`, code copié dans `/app/services/api`) — il ne touche que ses lignes et restaure `platform_settings` ; un second test y joue la liaison d'une page contre un faux graph-api HTTP (démarrage, sélection, refus d'une page d'une autre marque, liaison, usage unique) |
+| Unitaires graph-api (sélection, liaison, single-use) | `python -m pytest tests/test_oauth_page_selection.py` depuis `graph-api/` (venv) |
 | Web : unitaires + écrans (API simulée) | `npm --prefix admin-web test`, `typecheck`, `lint` |
 | Web ↔ API réelle | `ADMIN_E2E=1 VITE_API_BASE_URL=http://localhost:3000/api/v1 npm --prefix admin-web test -- e2e` (écritures réversibles) |
 

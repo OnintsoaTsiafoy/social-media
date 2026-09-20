@@ -42,6 +42,8 @@ export async function listPages({ network, status }) {
   const accounts = await prisma.socialAccount.findMany({
     where: { status: { not: 'DISCONNECTED' }, ...(provider ? { provider } : {}) },
     include: {
+      // Le compte utilisateur au nom duquel la page a été liée.
+      connectedByUser: { select: { id: true, displayName: true } },
       brand: {
         select: {
           id: true,
@@ -95,6 +97,9 @@ export async function listPages({ network, status }) {
         backlog: countOf(untreated, account.id),
         token: tokenStateOf(account, account.oauthTokens[0], now),
         brand: { id: account.brand.id, name: account.brand.name },
+        connectedBy: account.connectedByUser
+          ? { id: account.connectedByUser.id, name: account.connectedByUser.displayName }
+          : null,
         team: team.slice(0, TEAM_PREVIEW).map((user) => ({ id: user.id, name: user.displayName, initials: initialsOf(user) })),
         teamCount: team.length,
         autoReply: autoReply.has(account.id),

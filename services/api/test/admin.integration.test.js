@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
+import http from 'node:http';
 import test from 'node:test';
+
+import jwt from 'jsonwebtoken';
 
 import { createAccessToken } from '../src/auth/tokens.js';
 import { prisma } from '../src/db/prisma.js';
@@ -420,6 +423,240 @@ test('console d’administration : accès, lectures agrégées et actions sur ba
     await prisma.auditLog.deleteMany({ where: { userId: { in: userIds } } });
     await prisma.user.deleteMany({ where: { id: { in: userIds } } });
     server.close();
+    await prisma.$disconnect();
+  }
+});
+
+// ---------------------------------------------------------------------------------------------------
+// Liaison d'un compte utilisateur à une page Facebook par un administrateur. graph-api est REMPLACÉ
+// par un serveur local qui joue son contrat interne (`/internal/v1/oauth/...`) et enregistre ce qu'il
+// reçoit : la base est réelle, Meta ne l'est pas.
+test('console d’administration : liaison d’un compte utilisateur à une page Facebook', {
+  skip: process.env.ADMIN_INTEGRATION !== '1',
+}, async () => {
+  const tag = randomUUID().slice(0, 8);
+  const userIds = [];
+  const brandIds = [];
+  const previousEnv = { url: process.env.SOCIAL_SERVICE_URL, web: process.env.ADMIN_WEB_URL };
+
+  // --- Faux graph-api -----------------------------------------------------------------------------
+  const received = [];
+  const selections = new Map();
+  let authorizationFailure = null;
+  const graph = http.createServer((request, response) => {
+    let raw = '';
+    request.on('data', (chunk) => { raw += chunk; });
+    request.on('end', () => {
+      const claims = jwt.verify(request.headers.authorization.replace('Bearer ', ''), process.env.SERVICE_JWT_SECRET, {
+        audience: 'social-service',
+      });
+      const call = { method: request.method, path: request.url, scope: claims.scope, body: raw ? JSON.parse(raw) : undefined };
+      received.push(call);
+      const reply = (status, body) => {
+        response.writeHead(status, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify(body));
+      };
+
+      if (call.path === '/internal/v1/oauth/facebook/authorization-url') {
+        if (authorizationFailure) return reply(authorizationFailure.status, { error: authorizationFailure.error });
+        return reply(200, {
+          authorizationUrl: 'https://www.facebook.com/v25.0/dialog/oauth?state=SECRET-STATE',
+          state: 'SECRET-STATE',
+          expiresAt: '2030-01-01T00:00:00.000Z',
+        });
+      }
+      const selectionMatch = call.path.match(/^\/internal\/v1\/oauth\/selections\/([^/]+)(\/link)?$/);
+      const selection = selectionMatch && selections.get(selectionMatch[1]);
+      if (!selection) return reply(404, { error: { code: 'not_found', message: 'Sélection introuvable.' } });
+      if (!selectionMatch[2]) return reply(200, selection);
+      return reply(200, {
+        accounts: call.body.pageIds.map((pageId) => ({
+          id: randomUUID(),
+          provider: 'FACEBOOK',
+          externalAccountId: pageId,
+          name: selection.pages.find((page) => page.externalId === pageId).name,
+          username: null,
+        })),
+      });
+    });
+  });
+  graph.listen(0, '127.0.0.1');
+  await once(graph, 'listening');
+  process.env.SOCIAL_SERVICE_URL = `http://127.0.0.1:${graph.address().port}`;
+
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}/api/v1/admin`;
+
+  async function actor(name, extra = {}) {
+    const user = await prisma.user.create({
+      data: { email: `page-it-${tag}-${name.toLowerCase()}@example.invalid`, passwordHash: 'unused', firstName: name, lastName: 'Test', displayName: `${name} Test ${tag}`, ...extra },
+    });
+    userIds.push(user.id);
+    const session = await prisma.userSession.create({
+      data: { userId: user.id, refreshTokenHash: 'unused', expiresAt: new Date(Date.now() + 3_600_000) },
+    });
+    return { id: user.id, token: createAccessToken(user.id, session.id) };
+  }
+  async function call(who, path, { method = 'GET', body } = {}) {
+    const result = await fetch(`${base}${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${who.token}`, 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    return { status: result.status, json: await result.json() };
+  }
+  async function ok(who, path, options, expected = 200) {
+    const result = await call(who, path, options);
+    assert.equal(result.status, expected, `${options?.method ?? 'GET'} ${path} → ${result.status} ${JSON.stringify(result.json)}`);
+    return result.json.data;
+  }
+
+  try {
+    const admin = await actor('Admin', { platformRole: 'PLATFORM_ADMIN' });
+    const otherAdmin = await actor('Autre', { platformRole: 'PLATFORM_ADMIN' });
+    const owner = await actor('Owner');
+    const manager = await actor('Manager');
+    const outsider = await actor('Outsider');
+
+    const brand = await prisma.brand.create({
+      data: {
+        ownerUserId: owner.id,
+        name: `Marque liaison ${tag}`,
+        members: { create: [{ userId: owner.id, role: 'OWNER' }, { userId: manager.id, role: 'COMMUNITY_MANAGER' }] },
+      },
+    });
+    const otherBrand = await prisma.brand.create({
+      data: { ownerUserId: outsider.id, name: `Autre marque ${tag}`, members: { create: [{ userId: outsider.id, role: 'OWNER' }] } },
+    });
+    brandIds.push(brand.id, otherBrand.id);
+
+    const account = (brandId, externalAccountId, name, extra = {}) =>
+      prisma.socialAccount.create({
+        data: { brandId, provider: 'FACEBOOK', externalAccountId, name, authMethod: 'FACEBOOK_PAGE', connectedByUserId: owner.id, ...extra },
+      });
+    await account(otherBrand.id, `elsewhere-${tag}`, 'Page d’un autre client');
+    await account(brand.id, `same-${tag}`, 'Page déjà liée ici');
+
+    const START = { userId: owner.id, brandId: brand.id };
+
+    // --- Démarrage ------------------------------------------------------------------------------------
+    assert.equal((await call(owner, '/pages/connect', { method: 'POST', body: START })).status, 403, 'un simple utilisateur ne lie rien');
+    assert.equal((await call(admin, '/pages/connect', { method: 'POST', body: { userId: owner.id } })).status, 400);
+    assert.equal(
+      (await call(admin, '/pages/connect', { method: 'POST', body: { ...START, returnUrl: 'https://evil.example' } })).status,
+      400,
+      'le client ne choisit pas l’adresse de retour'
+    );
+    // Le compte doit être membre de la marque, puis propriétaire ou administrateur.
+    assert.equal((await call(admin, '/pages/connect', { method: 'POST', body: { userId: outsider.id, brandId: brand.id } })).status, 404);
+    const notAdminOfBrand = await call(admin, '/pages/connect', { method: 'POST', body: { userId: manager.id, brandId: brand.id } });
+    assert.equal(notAdminOfBrand.status, 409);
+    assert.equal(notAdminOfBrand.json.error.code, 'conflict');
+    assert.equal(received.length, 0, 'aucun appel à graph-api tant que la demande est refusée');
+
+    const started = await ok(admin, '/pages/connect', { method: 'POST', body: START }, 201);
+    assert.equal(started.authorizationUrl, 'https://www.facebook.com/v25.0/dialog/oauth?state=SECRET-STATE');
+    assert.equal('state' in started, false, 'le state reste côté serveur');
+    const request = received.at(-1);
+    assert.deepEqual(request.scope, ['social:write']);
+    assert.deepEqual(request.body, {
+      userId: owner.id,
+      brandId: brand.id,
+      mobileRedirectUri: 'http://localhost:5173/#/pages',
+      selectPages: true,
+      initiatedByUserId: admin.id,
+    });
+
+    process.env.ADMIN_WEB_URL = 'https://console.example/anywhere?x=1';
+    await ok(admin, '/pages/connect', { method: 'POST', body: START }, 201);
+    assert.equal(received.at(-1).body.mobileRedirectUri, 'https://console.example/#/pages');
+    delete process.env.ADMIN_WEB_URL;
+
+    authorizationFailure = { status: 503, error: { code: 'OAUTH_CONFIGURATION_ERROR', message: 'Application Meta non configurée' } };
+    const unavailable = await call(admin, '/pages/connect', { method: 'POST', body: START });
+    assert.equal(unavailable.status, 503);
+    assert.equal(unavailable.json.error.code, 'provider_unavailable');
+    authorizationFailure = null;
+
+    // --- Pages proposées ----------------------------------------------------------------------------------
+    const selectionId = randomUUID();
+    selections.set(selectionId, {
+      id: selectionId,
+      userId: owner.id,
+      brandId: brand.id,
+      initiatedByUserId: admin.id,
+      expiresAt: '2030-01-01T00:00:00.000Z',
+      pages: [
+        { externalId: `new-${tag}`, name: 'Nouvelle page', pictureUrl: 'https://cdn.example/n.jpg', instagram: { externalId: `ig-${tag}`, username: 'nouvelle', name: 'Nouvelle' } },
+        { externalId: `elsewhere-${tag}`, name: 'Page d’un autre client', pictureUrl: null, instagram: null },
+        { externalId: `same-${tag}`, name: 'Page déjà liée ici', pictureUrl: null, instagram: null },
+      ],
+    });
+    const path = `/pages/connect/selections/${selectionId}`;
+
+    const proposed = await ok(admin, path);
+    assert.deepEqual(received.at(-1).scope, ['social:read']);
+    assert.equal(proposed.user.name, `Owner Test ${tag}`);
+    assert.equal(proposed.brand.name, `Marque liaison ${tag}`);
+    const byName = Object.fromEntries(proposed.pages.map((page) => [page.name, page]));
+    assert.equal(byName['Nouvelle page'].alreadyLinked, false);
+    assert.equal(byName['Nouvelle page'].linkedElsewhere, null);
+    assert.deepEqual(byName['Nouvelle page'].instagram, { username: 'nouvelle', name: 'Nouvelle' });
+    assert.deepEqual(byName['Page d’un autre client'].linkedElsewhere, { brandName: `Autre marque ${tag}` });
+    assert.equal(byName['Page déjà liée ici'].alreadyLinked, true);
+    assert.equal(byName['Page déjà liée ici'].linkedElsewhere, null);
+    assert.equal(JSON.stringify(proposed).includes('accessToken'), false);
+
+    // Seul l'administrateur qui a lancé la liaison peut la terminer.
+    assert.equal((await call(otherAdmin, path)).status, 404);
+    assert.equal((await call(otherAdmin, `${path}/link`, { method: 'POST', body: { pageIds: [`new-${tag}`] } })).status, 404);
+    assert.equal((await call(admin, `/pages/connect/selections/${randomUUID()}`)).status, 404, 'sélection inconnue ou expirée');
+    assert.equal((await call(admin, '/pages/connect/selections/pas-un-uuid')).status, 400);
+
+    // --- Liaison -------------------------------------------------------------------------------------------
+    assert.equal((await call(admin, `${path}/link`, { method: 'POST', body: { pageIds: [] } })).status, 400);
+    const conflict = await call(admin, `${path}/link`, { method: 'POST', body: { pageIds: [`new-${tag}`, `elsewhere-${tag}`] } });
+    assert.equal(conflict.status, 409, 'une page d’une autre marque ne se déplace pas');
+    assert.deepEqual(conflict.json.error.details, [{ pageId: `elsewhere-${tag}`, name: 'Page d’un autre client', brandName: `Autre marque ${tag}` }]);
+    assert.equal(received.filter((entry) => entry.path.endsWith('/link')).length, 0, 'rien n’est envoyé à graph-api en cas de conflit');
+
+    // Le rôle peut changer pendant la redirection vers Meta.
+    await prisma.brandMember.update({ where: { brandId_userId: { brandId: brand.id, userId: owner.id } }, data: { role: 'VIEWER' } });
+    assert.equal((await call(admin, `${path}/link`, { method: 'POST', body: { pageIds: [`new-${tag}`] } })).status, 409);
+    await prisma.brandMember.update({ where: { brandId_userId: { brandId: brand.id, userId: owner.id } }, data: { role: 'OWNER' } });
+
+    const linked = await ok(admin, `${path}/link`, { method: 'POST', body: { pageIds: [`new-${tag}`, `same-${tag}`] } });
+    const linkCall = received.at(-1);
+    assert.deepEqual(linkCall.scope, ['social:write']);
+    assert.deepEqual(linkCall.body, { pageIds: [`new-${tag}`, `same-${tag}`] });
+    assert.deepEqual(linked.accounts.map((entry) => entry.name), ['Nouvelle page', 'Page déjà liée ici']);
+    assert.equal(linked.user.id, owner.id);
+    assert.equal(linked.brand.id, brand.id);
+
+    // --- Audit et liste des pages ------------------------------------------------------------------------------
+    const audit = await ok(admin, '/audit?pageSize=100');
+    const mine = audit.items.filter((item) => item.actor?.id === admin.id);
+    assert.ok(mine.some((item) => item.action === 'admin.page.connect_started' && item.metadata.brandName === `Marque liaison ${tag}`));
+    const connected = mine.filter((item) => item.action === 'admin.page.connected');
+    assert.equal(connected.length, 2);
+    assert.deepEqual(connected.map((item) => item.metadata.pageName).sort(), ['Nouvelle page', 'Page déjà liée ici']);
+    assert.equal(connected[0].metadata.userName, `Owner Test ${tag}`);
+    assert.equal(connected[0].kind, 'page');
+
+    const pages = await ok(admin, '/pages');
+    const listed = pages.items.find((item) => item.name === 'Page déjà liée ici');
+    assert.deepEqual(listed.connectedBy, { id: owner.id, name: `Owner Test ${tag}` });
+  } finally {
+    if (previousEnv.url === undefined) delete process.env.SOCIAL_SERVICE_URL;
+    else process.env.SOCIAL_SERVICE_URL = previousEnv.url;
+    if (previousEnv.web === undefined) delete process.env.ADMIN_WEB_URL;
+    else process.env.ADMIN_WEB_URL = previousEnv.web;
+    graph.close();
+    server.close();
+    await prisma.brand.deleteMany({ where: { id: { in: brandIds } } });
+    await prisma.auditLog.deleteMany({ where: { userId: { in: userIds } } });
+    await prisma.user.deleteMany({ where: { id: { in: userIds } } });
     await prisma.$disconnect();
   }
 });

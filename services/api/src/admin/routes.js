@@ -7,16 +7,19 @@ import { adminTrend, adminPagesPerformance } from './analytics.js';
 import { listAuditTrail } from './audit.js';
 import { requirePlatformAdmin } from './middleware.js';
 import { adminLive, adminOverview, adminSummary } from './overview.js';
+import { getPageSelection, linkPageSelection, startPageConnection } from './pageConnection.js';
 import { listPages, updatePage } from './pages.js';
 import {
   addKeywordSchema,
   approveDraftSchema,
   auditQuerySchema,
+  connectPageSchema,
   escalateSchema,
   idSchema,
   keywordSchema,
   listPagesQuerySchema,
   listUsersQuerySchema,
+  linkSelectionSchema,
   liveQuerySchema,
   overviewQuerySchema,
   pagesPerformanceQuerySchema,
@@ -127,6 +130,24 @@ router.patch('/users/:userId', async (request, response) => {
 
 router.get('/pages', async (request, response) => {
   sendSuccess(response, await listPages(parse(listPagesQuerySchema, request.query)));
+});
+
+// Liaison d'un compte utilisateur à une page Facebook, pilotée par l'administrateur :
+// démarrer (adresse Meta), lire les pages proposées au retour, lier celles qu'il choisit.
+router.post('/pages/connect', async (request, response) => {
+  const body = parse(connectPageSchema, request.body);
+  sendSuccess(response, await startPageConnection(body, request.auth.user, request), 201);
+});
+
+router.get('/pages/connect/selections/:selectionId', async (request, response) => {
+  const id = parseId(request.params.selectionId);
+  sendSuccess(response, await getPageSelection(id, request.auth.user));
+});
+
+router.post('/pages/connect/selections/:selectionId/link', async (request, response) => {
+  const id = parseId(request.params.selectionId);
+  const body = parse(linkSelectionSchema, request.body);
+  sendSuccess(response, await linkPageSelection(id, body, request.auth.user, request));
 });
 
 router.patch('/pages/:pageId', async (request, response) => {

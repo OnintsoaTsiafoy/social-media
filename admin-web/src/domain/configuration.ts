@@ -90,6 +90,10 @@ export function describeAudit(entry: AuditEntry, t: Translate): string {
       return t("audit.keyword.added", { keyword: text(meta.keyword) });
     case "admin.settings.keyword_removed":
       return t("audit.keyword.removed", { keyword: text(meta.keyword) });
+    case "admin.page.connect_started":
+      return t("audit.page.connectStarted", { user, brand: text(meta.brandName) });
+    case "admin.page.connected":
+      return t("audit.page.connected", { page: text(meta.pageName), brand: text(meta.brandName), user });
     case "admin.page.auto_reply_changed":
       return t(meta.enabled === true ? "audit.page.autoReplyOn" : "audit.page.autoReplyOff", { page: text(meta.pageName) });
     case "social_account.disconnected": {

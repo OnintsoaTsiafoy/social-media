@@ -10,9 +10,12 @@ import type {
   Metric,
   NetworkFilter,
   Overview,
+  PageConnectionStart,
   PageHealth,
+  PageLinkResult,
   PageList,
   PagePerformance,
+  PageSelection,
   Period,
   RejectReason,
   SentimentFilter,
@@ -65,6 +68,13 @@ export const adminApi = {
     api<PageList>("/admin/pages", { query: params, ...options }),
   setPageAutoReply: (id: string, autoReply: boolean) =>
     api<{ id: string; autoReply: boolean }>(`/admin/pages/${id}`, { method: "PATCH", body: { autoReply } }),
+  /** Démarre la liaison : renvoie l'adresse Meta où rediriger l'administrateur. */
+  startPageConnection: (userId: string, brandId: string) =>
+    api<PageConnectionStart>("/admin/pages/connect", { method: "POST", body: { userId, brandId } }),
+  pageSelection: (selectionId: string, options: Signal = {}) =>
+    api<PageSelection>(`/admin/pages/connect/selections/${selectionId}`, options),
+  linkPageSelection: (selectionId: string, pageIds: string[]) =>
+    api<PageLinkResult>(`/admin/pages/connect/selections/${selectionId}/link`, { method: "POST", body: { pageIds } }),
 
   settings: (options: Signal = {}) => api<AdminSettings>("/admin/settings", options),
   addKeyword: (word: string) =>

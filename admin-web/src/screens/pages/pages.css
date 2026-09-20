@@ -161,3 +161,96 @@
   text-align: center;
   color: var(--text-subtle);
 }
+
+/* Alert after a failed Facebook connection ------------------------------------------------- */
+.pg-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.pg-banner__close {
+  flex: none;
+  font-size: 18px;
+  line-height: 1;
+  color: inherit;
+}
+
+/* Rows of the "choose pages" dialog -------------------------------------------------------------- */
+.sel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sel-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+.sel-row:hover {
+  border-color: var(--border-strong);
+}
+.sel-row:has(input:checked) {
+  border-color: var(--lime-deep);
+  background: var(--tab-active);
+}
+.sel-row[data-blocked="true"] {
+  cursor: not-allowed;
+  background: var(--bg);
+  opacity: 0.85;
+}
+.sel-row input {
+  margin-top: 3px;
+  accent-color: var(--lime-deep);
+}
+.sel-row__avatar {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+.sel-row__avatar--none {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--fb-bg);
+  color: var(--fb-text);
+  font-family: Georgia, serif;
+  font-weight: 700;
+}
+.sel-row__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.sel-row__name {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.sel-row__meta {
+  font-size: 11.5px;
+  color: var(--text-subtle);
+}
+.sel-row__note {
+  font-size: 11.5px;
+  color: var(--info-text);
+}
+.sel-row__note--blocked {
+  color: var(--danger-text);
+}

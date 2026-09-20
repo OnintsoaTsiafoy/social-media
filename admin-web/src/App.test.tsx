@@ -1,12 +1,16 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "@/App";
 import { login } from "@/api/session";
 import { frenchSpacing } from "@/i18n";
 import type { UserList } from "@/api/types";
+import { redirectTo } from "@/lib/navigation";
 import * as fixtures from "@/test/fixtures";
 import { mockApi } from "@/test/mockApi";
+
+// jsdom n'implémente pas la navigation : la sortie vers Facebook est espionnée.
+vi.mock("@/lib/navigation", () => ({ redirectTo: vi.fn() }));
 
 type Api = ReturnType<typeof mockApi>;
 
@@ -857,7 +861,7 @@ describe("pages connectées", () => {
     expect(nova.getByText("Saine")).toBeTruthy();
     expect(nova.getByText("1 284")).toBeTruthy();
     expect(nova.getByText("2 managers")).toBeTruthy();
-    expect(nova.getByText("Marque : Nova Cosmetics SAS")).toBeTruthy();
+    expect(nova.getByText("Marque : Nova Cosmetics SAS · Connectée par Léa Martin")).toBeTruthy();
     expect(nova.getByText("Jeton valable jusqu'au dimanche 14 mars 2027")).toBeTruthy();
 
     const aurora = within(cards[1] as HTMLElement);
@@ -866,14 +870,6 @@ describe("pages connectées", () => {
     expect(aurora.getByText("Aucun manager")).toBeTruthy();
     expect(aurora.getByText("88").getAttribute("data-tone")).toBe("danger"); // arriéré au-delà du seuil critique
     expect(aurora.getByText("Reconnexion requise : Invalid OAuth access token")).toBeTruthy();
-  });
-
-  it("n'offre pas de connexion de page depuis le web : elle se fait depuis le mobile", async () => {
-    await openApp(mockApi(), "#/pages");
-    await heading("Pages connectées");
-    await screen.findAllByRole("article");
-    expect(screen.queryByRole("button", { name: /Connecter/ })).toBeNull();
-    expect(screen.getByText("Les pages se connectent depuis l'application mobile, marque par marque.")).toBeTruthy();
   });
 
   it("active la réponse automatique d'une page puis la coupe", async () => {
@@ -903,7 +899,7 @@ describe("pages connectées", () => {
   it("dit quand aucune page n'est connectée", async () => {
     await openApp(mockApi({ "GET /admin/pages": () => ({ data: { items: [], totals: { all: 0, facebook: 0, instagram: 0 } } }) }), "#/pages");
     await heading("Pages connectées");
-    expect(await screen.findByText("Aucune page connectée. Les pages se connectent depuis l'application mobile.")).toBeTruthy();
+    expect(await screen.findByText("Aucune page connectée. Utilisez « Connecter une page Facebook » pour en lier une à un compte.")).toBeTruthy();
   });
 });
 
@@ -1040,5 +1036,270 @@ describe("configuration", () => {
     await openApp(mockApi({ "GET /admin/audit": () => ({ data: { items: [], page: 1, pageSize: 20, total: 0 } }) }), "#/configuration");
     await heading("Configuration");
     expect(await screen.findByText("Aucun événement d'administration pour le moment.")).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------
+describe("connexion d'un compte utilisateur à une page Facebook", () => {
+  const SELECTION = fixtures.SELECTION_ID;
+  const RETURN_HASH = `#/pages?status=select&selection=${SELECTION}`;
+
+  beforeEach(() => vi.mocked(redirectTo).mockClear());
+
+  /** Ouvre la console sur le retour de Facebook et attend que les pages proposées soient affichées. */
+  async function selectionDialog(api: Api, name = "Choisir les pages à lier") {
+    await openApp(api, RETURN_HASH);
+    const dialog = within(await screen.findByRole("dialog", { name }));
+    await dialog.findAllByRole("checkbox");
+    return dialog;
+  }
+
+  it("se lance depuis l'en-tête ou depuis la tuile, et n'est plus « réservée au mobile »", async () => {
+    await openApp(mockApi(), "#/pages");
+    await heading("Pages connectées");
+    await screen.findAllByRole("article");
+
+    expect(screen.getByRole("button", { name: "Connecter une page Facebook" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Connecter une page Lier une page Facebook/ }));
+    expect(screen.getByRole("dialog", { name: "Connecter une page Facebook" })).toBeTruthy();
+    expect(screen.queryByText(/depuis l'application mobile/)).toBeNull();
+  });
+
+  it("montre au nom de quel compte chaque page a été liée", async () => {
+    await openApp(mockApi(), "#/pages");
+    await heading("Pages connectées");
+    const [nova, aurora] = await screen.findAllByRole("article");
+    expect(within(nova as HTMLElement).getByText("Marque : Nova Cosmetics SAS · Connectée par Léa Martin")).toBeTruthy();
+    // Compte disparu : la ligne ne l'invente pas.
+    expect(within(aurora as HTMLElement).getByText("Marque : Aurora")).toBeTruthy();
+  });
+
+  it("ne propose que les comptes propriétaires ou administrateurs d'une marque, puis redirige vers Facebook", async () => {
+    const api = mockApi();
+    await openApp(api, "#/pages");
+    await heading("Pages connectées");
+    fireEvent.click(await screen.findByRole("button", { name: "Connecter une page Facebook" }));
+
+    const dialog = within(screen.getByRole("dialog"));
+    // Léa (propriétaire) : oui. Nadia (community manager) et l'administrateur sans marque : non.
+    expect(await dialog.findByRole("radio", { name: /Léa Martin/ })).toBeTruthy();
+    expect(dialog.queryByRole("radio", { name: /Nadia Belhadj/ })).toBeNull();
+    expect(dialog.queryByRole("radio", { name: /Amine Rahali/ })).toBeNull();
+    expect(lastCall(api, "GET", "/admin/users")?.query).toEqual({ status: "active", page: "1", pageSize: "20" });
+
+    const submit = dialog.getByRole("button", { name: "Continuer vers Facebook" });
+    expect(submit.hasAttribute("disabled")).toBe(true);
+
+    fireEvent.click(dialog.getByRole("radio", { name: /Léa Martin/ }));
+    // Seule la marque où Léa est propriétaire est offerte (elle n'est que lectrice de l'autre).
+    const brand = dialog.getByLabelText("Marque") as HTMLSelectElement;
+    expect(within(brand).getAllByRole("option").map((option) => option.textContent)).toEqual(["Studio Vega · Propriétaire"]);
+    expect(brand.value).toBe("b1");
+    expect(submit.hasAttribute("disabled")).toBe(false);
+
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(redirectTo).toHaveBeenCalledWith("https://www.facebook.com/v25.0/dialog/oauth?state=abc"));
+    expect(lastCall(api, "POST", "/admin/pages/connect")?.body).toEqual({ userId: "u-lea", brandId: "b1" });
+    expect(dialog.getByRole("button", { name: "Redirection vers Facebook…" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("cherche le compte côté serveur, après la frappe", async () => {
+    const api = mockApi();
+    await openApp(api, "#/pages");
+    await heading("Pages connectées");
+    fireEvent.click(await screen.findByRole("button", { name: "Connecter une page Facebook" }));
+
+    fireEvent.change(screen.getByLabelText("Rechercher un compte utilisateur"), { target: { value: "léa" } });
+    await waitFor(() => expect(lastCall(api, "GET", "/admin/users")?.query.q).toBe("léa"), { timeout: 2000 });
+  });
+
+  it("fait choisir la marque quand le compte en administre plusieurs", async () => {
+    const twoBrands = {
+      ...fixtures.USER_LIST,
+      items: [
+        {
+          ...fixtures.USERS[1]!,
+          id: "u-multi",
+          name: "Sofia Multi",
+          role: "owner" as const,
+          memberships: [
+            { brandId: "b1", brandName: "Studio Vega", role: "owner" as const },
+            { brandId: "b9", brandName: "Maison Verte", role: "admin" as const },
+            { brandId: "b8", brandName: "Simple lecteur", role: "viewer" as const },
+          ],
+        },
+      ],
+    };
+    const api = mockApi({ "GET /admin/users": () => ({ data: twoBrands }) });
+    await openApp(api, "#/pages");
+    await heading("Pages connectées");
+    fireEvent.click(await screen.findByRole("button", { name: "Connecter une page Facebook" }));
+
+    const dialog = within(screen.getByRole("dialog"));
+    fireEvent.click(await dialog.findByRole("radio", { name: /Sofia Multi/ }));
+    const brand = dialog.getByLabelText("Marque") as HTMLSelectElement;
+    expect(brand.value).toBe("");
+    expect(dialog.getByRole("button", { name: "Continuer vers Facebook" }).hasAttribute("disabled")).toBe(true);
+    expect(within(brand).queryByRole("option", { name: /Simple lecteur/ })).toBeNull();
+
+    fireEvent.change(brand, { target: { value: "b9" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Continuer vers Facebook" }));
+    await waitFor(() => expect(lastCall(api, "POST", "/admin/pages/connect")?.body).toEqual({ userId: "u-multi", brandId: "b9" }));
+  });
+
+  it("dit qu'aucun compte ne convient plutôt que d'afficher une liste vide", async () => {
+    await openApp(mockApi({ "GET /admin/users": () => ({ data: { ...fixtures.USER_LIST, items: [fixtures.USERS[1]!] } }) }), "#/pages");
+    await heading("Pages connectées");
+    fireEvent.click(await screen.findByRole("button", { name: "Connecter une page Facebook" }));
+    expect(await screen.findByText("Aucun compte propriétaire ou administrateur d'une marque ne correspond.")).toBeTruthy();
+  });
+
+  it("explique l'erreur quand la connexion à Facebook n'est pas configurée, et laisse réessayer", async () => {
+    const api = mockApi({ "POST /admin/pages/connect": () => ({ status: 503, error: { code: "provider_unavailable" } }) });
+    await openApp(api, "#/pages");
+    await heading("Pages connectées");
+    fireEvent.click(await screen.findByRole("button", { name: "Connecter une page Facebook" }));
+    const dialog = within(screen.getByRole("dialog"));
+    fireEvent.click(await dialog.findByRole("radio", { name: /Léa Martin/ }));
+    fireEvent.click(dialog.getByRole("button", { name: "Continuer vers Facebook" }));
+
+    expect((await dialog.findByRole("alert")).textContent).toBe(
+      "La connexion aux réseaux sociaux est indisponible. Vérifiez que l'application Meta est configurée.",
+    );
+    expect(redirectTo).not.toHaveBeenCalled();
+    expect(dialog.getByRole("button", { name: "Continuer vers Facebook" }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("ferme la fenêtre avec Échap", async () => {
+    await openApp(mockApi(), "#/pages");
+    await heading("Pages connectées");
+    fireEvent.click(await screen.findByRole("button", { name: "Connecter une page Facebook" }));
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  // --- Retour de Facebook ------------------------------------------------------------------------
+
+  it("propose au retour les pages du compte Facebook, sans rien lier d'office", async () => {
+    const api = mockApi();
+    const dialog = await selectionDialog(api);
+    expect(
+      dialog.getByText("Ce compte Facebook gère les pages ci-dessous. Seules celles que vous cochez seront liées à la marque « Studio Vega », au nom de Léa Martin."),
+    ).toBeTruthy();
+    expect(dialog.getAllByRole("checkbox")).toHaveLength(3);
+    expect(dialog.getAllByRole("checkbox").every((box) => !(box as HTMLInputElement).checked)).toBe(true);
+    expect(dialog.getByRole("button", { name: "Lier les pages cochées" }).hasAttribute("disabled")).toBe(true);
+    expect(api.callsTo("POST", `/admin/pages/connect/selections/${SELECTION}/link`)).toHaveLength(0);
+    // L'adresse est nettoyée : recharger la page ne rouvre pas la sélection.
+    expect(window.location.hash).toBe("#/pages");
+  });
+
+  it("interdit une page déjà liée à une autre marque et signale une reconnexion", async () => {
+    const dialog = await selectionDialog(mockApi());
+
+    const elsewhere = dialog.getByRole("checkbox", { name: /Page d'un autre client/ }) as HTMLInputElement;
+    expect(elsewhere.disabled).toBe(true);
+    expect(dialog.getByText("Déjà liée à la marque « Aurora » : déconnectez-la d'abord de cette marque")).toBeTruthy();
+    expect(dialog.getByText("Déjà liée à cette marque : son jeton sera renouvelé")).toBeTruthy();
+    expect(dialog.getByText("Instagram lié : @nouvelle.page")).toBeTruthy();
+  });
+
+  it("retombe sur la pastille « f » quand l'image d'une page ne charge pas", async () => {
+    const withPicture = {
+      ...fixtures.SELECTION,
+      pages: fixtures.SELECTION.pages.map((page, index) => (index === 0 ? { ...page, pictureUrl: "https://cdn.example/nouvelle.png" } : page)),
+    };
+    const dialog = await selectionDialog(
+      mockApi({ [`GET /admin/pages/connect/selections/${SELECTION}`]: () => ({ data: withPicture }) }),
+    );
+
+    const row = dialog.getByRole("checkbox", { name: /Nouvelle page/ }).closest("label") as HTMLElement;
+    const image = row.querySelector("img") as HTMLImageElement;
+    expect(image.getAttribute("src")).toBe("https://cdn.example/nouvelle.png");
+
+    fireEvent.error(image);
+    expect(row.querySelector("img")).toBeNull();
+    expect(row.querySelector(".sel-row__avatar--none")).not.toBeNull();
+  });
+
+  it("lie uniquement les pages cochées, confirme et recharge la liste", async () => {
+    const api = mockApi();
+    const dialog = await selectionDialog(api);
+
+    fireEvent.click(dialog.getByRole("checkbox", { name: /Nouvelle page/ }));
+    fireEvent.click(dialog.getByRole("checkbox", { name: /Page déjà liée ici/ }));
+    fireEvent.click(dialog.getByRole("button", { name: "Lier 2 pages" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(lastCall(api, "POST", `/admin/pages/connect/selections/${SELECTION}/link`)?.body).toEqual({ pageIds: ["111", "333"] });
+    expect((await screen.findAllByText("2 comptes liés à la marque « Studio Vega »")).length).toBeGreaterThan(0);
+    await waitFor(() => expect(api.callsTo("GET", "/admin/pages").length).toBeGreaterThan(1));
+  });
+
+  it("garde la fenêtre ouverte et explique le refus quand une page vient d'être liée ailleurs", async () => {
+    const api = mockApi({
+      [`POST /admin/pages/connect/selections/${SELECTION}/link`]: () => ({ status: 409, error: { code: "conflict" } }),
+    });
+    const dialog = await selectionDialog(api);
+    fireEvent.click(dialog.getByRole("checkbox", { name: /Nouvelle page/ }));
+    fireEvent.click(dialog.getByRole("button", { name: "Lier 1 page" }));
+
+    expect((await dialog.findByRole("alert")).textContent).toBe(
+      "Action impossible dans l'état actuel. Actualisez les données puis réessayez.",
+    );
+    expect(dialog.getByRole("button", { name: "Lier 1 page" }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("dit que la sélection a expiré plutôt que d'afficher une erreur technique", async () => {
+    const api = mockApi({
+      [`GET /admin/pages/connect/selections/${SELECTION}`]: () => ({ status: 404, error: { code: "not_found" } }),
+    });
+    await openApp(api, RETURN_HASH);
+    const dialog = within(await screen.findByRole("dialog", { name: "Choisir les pages à lier" }));
+    expect((await dialog.findByRole("alert")).textContent).toBe(
+      "Cette sélection a expiré ou a déjà été utilisée. Relancez la connexion pour en obtenir une nouvelle.",
+    );
+    expect(dialog.queryByRole("button", { name: /^Lier/ })).toBeNull();
+  });
+
+  it("affiche la raison quand Facebook n'a pas abouti, puis nettoie l'adresse", async () => {
+    await openApp(mockApi(), "#/pages?status=error&reason=permission_denied");
+    await heading("Pages connectées");
+
+    const banner = await screen.findByRole("alert");
+    expect(banner.textContent).toContain("Facebook n'a pas reçu toutes les autorisations nécessaires.");
+    expect(window.location.hash).toBe("#/pages");
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    fireEvent.click(within(banner).getByRole("button", { name: "Fermer" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("retombe sur un message générique pour une raison inconnue", async () => {
+    await openApp(mockApi(), "#/pages?status=error&reason=quelque_chose_de_neuf");
+    expect((await screen.findByRole("alert")).textContent).toContain("La connexion à Facebook n'a pas abouti. Réessayez.");
+  });
+
+  it("reprend la liaison après une reconnexion : l'adresse de retour survit à l'écran de connexion", async () => {
+    mockApi();
+    window.location.hash = RETURN_HASH;
+    render(<App />);
+
+    fireEvent.change(await screen.findByLabelText("Adresse e-mail"), { target: { value: "admin@hootly.app" } });
+    fireEvent.change(screen.getByLabelText("Mot de passe"), { target: { value: "ChangeMe123!" } });
+    fireEvent.click(screen.getByRole("button", { name: "Se connecter" }));
+
+    expect(await screen.findByRole("dialog", { name: "Choisir les pages à lier" }, { timeout: 3000 })).toBeTruthy();
+    expect(window.location.hash).toBe("#/pages");
+  });
+
+  it("parle anglais quand la langue le demande", async () => {
+    window.localStorage.setItem("pulse.locale", "en");
+    const dialog = await selectionDialog(mockApi(), "Choose the pages to link");
+    expect(dialog.getByText("Already linked to this brand: its token will be renewed")).toBeTruthy();
+    fireEvent.click(dialog.getByRole("checkbox", { name: /Nouvelle page/ }));
+    expect(dialog.getByRole("button", { name: "Link 1 page" })).toBeTruthy();
   });
 });

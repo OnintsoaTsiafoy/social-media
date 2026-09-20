@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from core.config import settings
 from db import (
     idempotency_repository,
+    oauth_selections_repository,
     oauth_states_repository,
     oauth_tokens_repository,
     publication_targets_repository,
@@ -95,7 +96,10 @@ def fake_oauth_states_store(monkeypatch):
 
     store: dict[str, dict] = {}
 
-    async def fake_create_state(*, state_hash, user_id, brand_id, provider, mobile_redirect_uri):
+    async def fake_create_state(
+        *, state_hash, user_id, brand_id, provider, mobile_redirect_uri,
+        select_pages=False, initiated_by_user_id=None,
+    ):
         expires_at = datetime.now(timezone.utc) + timedelta(
             seconds=oauth_states_repository.STATE_TTL_SECONDS
         )
@@ -105,6 +109,8 @@ def fake_oauth_states_store(monkeypatch):
             "brand_id": brand_id,
             "provider": provider.upper(),
             "mobile_redirect_uri": mobile_redirect_uri,
+            "select_pages": select_pages,
+            "initiated_by_user_id": initiated_by_user_id,
             "consumed_at": None,
             "expires_at": expires_at,
         }
@@ -123,10 +129,61 @@ def fake_oauth_states_store(monkeypatch):
             "brand_id": row["brand_id"],
             "provider": row["provider"],
             "mobile_redirect_uri": row["mobile_redirect_uri"],
+            "select_pages": row["select_pages"],
+            "initiated_by_user_id": row["initiated_by_user_id"],
         }
 
     monkeypatch.setattr(oauth_states_repository, "create_state", fake_create_state)
     monkeypatch.setattr(oauth_states_repository, "consume_state", fake_consume_state)
+    return store
+
+
+@pytest.fixture(autouse=True)
+def fake_oauth_selections_store(monkeypatch):
+    """In-memory fake for oauth_page_selections. The payload (which carries page
+    tokens in production, encrypted) is kept in clear, for assertions only."""
+    import uuid as _uuid
+    from datetime import datetime, timedelta, timezone
+
+    store: dict[str, dict] = {}
+
+    async def fake_create_selection(*, user_id, brand_id, initiated_by_user_id, provider, payload):
+        selection_id = str(_uuid.uuid4())
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            seconds=oauth_selections_repository.SELECTION_TTL_SECONDS
+        )
+        store[selection_id] = {
+            "id": selection_id,
+            "user_id": user_id,
+            "brand_id": brand_id,
+            "initiated_by_user_id": initiated_by_user_id,
+            "provider": provider.upper(),
+            "expires_at": expires_at,
+            "consumed_at": None,
+            "payload": payload,
+        }
+        return {"id": selection_id, "expires_at": expires_at}
+
+    async def fake_get_selection(selection_id):
+        row = store.get(selection_id)
+        if row is None or row["consumed_at"] is not None:
+            return None
+        if row["expires_at"] <= datetime.now(timezone.utc):
+            return None
+        return dict(row)
+
+    async def fake_claim_selection(selection_id):
+        row = store.get(selection_id)
+        if row is None or row["consumed_at"] is not None:
+            return False
+        if row["expires_at"] <= datetime.now(timezone.utc):
+            return False
+        row["consumed_at"] = datetime.now(timezone.utc)
+        return True
+
+    monkeypatch.setattr(oauth_selections_repository, "create_selection", fake_create_selection)
+    monkeypatch.setattr(oauth_selections_repository, "get_selection", fake_get_selection)
+    monkeypatch.setattr(oauth_selections_repository, "claim_selection", fake_claim_selection)
     return store
 
 

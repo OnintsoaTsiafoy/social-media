@@ -10,7 +10,7 @@ Le détail de l'API, la définition de chaque chiffre et les choix de périmètr
 | Supervision IA | `#/supervision` | File des brouillons IA à relire (approuver et envoyer, modifier, rejeter avec motif, escalader), seuil d'autonomie, règles d'escalade, performance du modèle |
 | Analytique | `#/analytics` | Courbe (engagement, temps de réponse, sentiment, performance IA) avec période précédente, performance par page, pic d'activité |
 | Utilisateurs et rôles | `#/users` | Comptes filtrables et paginés, tiroir : rôles par marque, accès plateforme, suspension |
-| Pages | `#/pages` | Pages connectées de toutes les marques, jeton, arriéré, équipe, réponse automatique par page |
+| Pages | `#/pages` | Pages connectées de toutes les marques, jeton, arriéré, équipe, réponse automatique par page ; « Connecter une page Facebook » lie une page à un compte utilisateur et à sa marque (choix du compte, consentement Facebook, choix des pages) |
 | Configuration | `#/configuration` | Mots-clés de modération, niveaux de service, journal d'audit |
 
 ## Démarrage
@@ -63,7 +63,7 @@ src/
 
 ## Internationalisation
 
-Français par défaut, anglais en second ; choix mémorisé dans le navigateur. Les catalogues sont typés : `en.ts` doit avoir exactement les clés de `fr.ts`, sinon `tsc` échoue. Pluriels `x_one` / `x_other`, typographie française (insécables), formats de nombres, de durées et de dates suivant la langue. Détails et marche à suivre pour ajouter une langue : [docs/ADMIN_CONSOLE.md](../docs/ADMIN_CONSOLE.md#6-internationalisation).
+Français par défaut, anglais en second ; choix mémorisé dans le navigateur. Les catalogues sont typés : `en.ts` doit avoir exactement les clés de `fr.ts`, sinon `tsc` échoue. Pluriels `x_one` / `x_other`, typographie française (insécables), formats de nombres, de durées et de dates suivant la langue. Détails et marche à suivre pour ajouter une langue : [docs/ADMIN_CONSOLE.md](../docs/ADMIN_CONSOLE.md#7-internationalisation).
 
 ## Tests
 
@@ -76,8 +76,8 @@ Français par défaut, anglais en second ; choix mémorisé dans le navigateur. 
 
 - **Animations d'entrée** : `animation-fill-mode: backwards` au lieu de `both` (avec `both`, le `transform: none` final annule les effets `:hover`). Les chiffres et courbes s'affichent directement quand le système demande moins d'animations.
 - **Infobulles et toast** centrés avec la propriété `translate`, que l'animation d'entrée écraserait.
-- **Actions retirées faute d'équivalent serveur** : « Inviter un manager », permissions par membre, statut « Invité », « Connecter une page », quota Graph API. Voir [docs/ADMIN_CONSOLE.md](../docs/ADMIN_CONSOLE.md#5-ce-qui-nexiste-volontairement-pas).
-- **Ajouts** : écran de connexion, sélecteur de langue, état de chargement et d'erreur, modification du brouillon avant envoi, clôture d'une escalade, export CSV du rapport, recherche de l'en-tête (utilisateurs, ⌘K / Ctrl+K).
+- **Actions retirées faute d'équivalent serveur** : « Inviter un manager », permissions par membre, statut « Invité », quota Graph API. Voir [docs/ADMIN_CONSOLE.md](../docs/ADMIN_CONSOLE.md#5-ce-qui-nexiste-volontairement-pas).
+- **Ajouts** : écran de connexion, sélecteur de langue, état de chargement et d'erreur, modification du brouillon avant envoi, clôture d'une escalade, export CSV du rapport, recherche de l'en-tête (utilisateurs, ⌘K / Ctrl+K), liaison d'une page Facebook à un compte utilisateur ([§6](../docs/ADMIN_CONSOLE.md#6-connecter-une-page-à-un-compte-utilisateur) : la page n'est jamais liée sans avoir été cochée, ni retirée à une autre marque).
 - **Réglages enregistrés mais non appliqués** (mots-clés, seuil d'autonomie, règles, réponse automatique par page) : l'écran l'indique. Rien ne part sans validation humaine.
 - **Accessibilité** : vrais `<button>` et liens, interrupteurs `role="switch"`, anneau de focus visible, `prefers-reduced-motion` respecté (CSS et animations JS), toast annoncé aux lecteurs d'écran.
 

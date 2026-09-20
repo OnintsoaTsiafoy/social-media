@@ -13,6 +13,8 @@ const KIND_BY_ACTION = {
   'auth.account_deleted': 'user',
   'admin.settings.supervision_updated': 'ai',
   'admin.page.auto_reply_changed': 'page',
+  'admin.page.connect_started': 'page',
+  'admin.page.connected': 'page',
   'social_account.disconnected': 'page',
   'admin.settings.keyword_added': 'rule',
   'admin.settings.keyword_removed': 'rule',

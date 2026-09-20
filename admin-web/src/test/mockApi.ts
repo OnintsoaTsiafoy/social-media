@@ -34,6 +34,12 @@ function defaults(): Record<string, Handler> {
     "GET /admin/analytics/pages": () => ({ data: fixtures.PAGE_PERFORMANCE }),
     "GET /admin/users": () => ({ data: fixtures.USER_LIST }),
     "GET /admin/pages": () => ({ data: fixtures.PAGES }),
+    "POST /admin/pages/connect": () => ({
+      status: 201,
+      data: { authorizationUrl: "https://www.facebook.com/v25.0/dialog/oauth?state=abc", expiresAt: "2030-01-01T00:00:00.000Z" },
+    }),
+    [`GET /admin/pages/connect/selections/${fixtures.SELECTION_ID}`]: () => ({ data: fixtures.SELECTION }),
+    [`POST /admin/pages/connect/selections/${fixtures.SELECTION_ID}/link`]: () => ({ data: fixtures.LINK_RESULT }),
     "GET /admin/settings": () => ({ data: structuredClone(fixtures.SETTINGS) }),
     "GET /admin/audit": () => ({ data: fixtures.AUDIT }),
   };

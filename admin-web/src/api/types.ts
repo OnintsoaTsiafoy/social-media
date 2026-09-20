@@ -258,6 +258,8 @@ export interface ConnectedPage {
   backlog: number;
   token: { state: TokenState; expiresAt: string | null; message: string | null };
   brand: { id: string; name: string };
+  /** Compte utilisateur au nom duquel la page a été liée ; `null` si ce compte a disparu. */
+  connectedBy: { id: string; name: string } | null;
   team: Array<{ id: string; name: string; initials: string }>;
   teamCount: number;
   autoReply: boolean;
@@ -267,6 +269,40 @@ export interface ConnectedPage {
 export interface PageList {
   items: ConnectedPage[];
   totals: PageCounts;
+}
+
+// --- Liaison d'un compte utilisateur à une page Facebook ---------------------------------------------------------
+
+export interface PageConnectionStart {
+  /** Adresse de la boîte de dialogue Meta : le navigateur y est redirigé. */
+  authorizationUrl: string;
+  expiresAt: string;
+}
+
+/** Page proposée après le retour de Meta (jamais de jeton : il reste chiffré côté serveur). */
+export interface SelectablePage {
+  externalId: string;
+  name: string;
+  pictureUrl: string | null;
+  instagram: { username: string | null; name: string | null } | null;
+  /** Déjà liée à CETTE marque : la lier renouvelle son jeton. */
+  alreadyLinked: boolean;
+  /** Liée à une AUTRE marque : refusée, il faut d'abord la déconnecter de celle-ci. */
+  linkedElsewhere: { brandName: string } | null;
+}
+
+export interface PageSelection {
+  id: string;
+  expiresAt: string;
+  user: { id: string; name: string; email: string };
+  brand: { id: string; name: string };
+  pages: SelectablePage[];
+}
+
+export interface PageLinkResult {
+  user: { id: string; name: string; email: string };
+  brand: { id: string; name: string };
+  accounts: Array<{ id: string; network: Network; name: string; username: string | null }>;
 }
 
 // --- Configuration --------------------------------------------------------------------------------------------

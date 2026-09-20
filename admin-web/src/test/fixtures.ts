@@ -6,8 +6,10 @@ import type {
   AuditPage,
   LiveActivity,
   Overview,
+  PageLinkResult,
   PageList,
   PagePerformance,
+  PageSelection,
   QueueDraft,
   Supervision,
   Trend,
@@ -254,6 +256,7 @@ export const PAGES: PageList = {
       backlog: 12,
       token: { state: "valid", expiresAt: "2027-03-14T00:00:00.000Z", message: null },
       brand: { id: "b2", name: "Nova Cosmetics SAS" },
+      connectedBy: { id: "u-lea", name: "Léa Martin" },
       team: [
         { id: "u-nadia", name: "Nadia Belhadj", initials: "NB" },
         { id: "u-lea", name: "Léa Martin", initials: "LM" },
@@ -274,6 +277,7 @@ export const PAGES: PageList = {
       backlog: 88,
       token: { state: "error", expiresAt: null, message: "Invalid OAuth access token" },
       brand: { id: "b3", name: "Aurora" },
+      connectedBy: null,
       team: [],
       teamCount: 0,
       autoReply: false,
@@ -317,5 +321,50 @@ export const AUDIT: AuditPage = {
       actor: null,
       metadata: { provider: "INSTAGRAM" },
     },
+  ],
+};
+
+export const SELECTION_ID = "5e5e5e5e-0000-4000-8000-000000000001";
+
+/** Le retour de Facebook : trois pages gérées par le compte autorisé, dont deux déjà liées. */
+export const SELECTION: PageSelection = {
+  id: SELECTION_ID,
+  expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+  user: { id: "u-lea", name: "Léa Martin", email: "lea@studio-vega.fr" },
+  brand: { id: "b1", name: "Studio Vega" },
+  pages: [
+    {
+      externalId: "111",
+      name: "Nouvelle page",
+      pictureUrl: null,
+      instagram: { username: "nouvelle.page", name: "Nouvelle" },
+      alreadyLinked: false,
+      linkedElsewhere: null,
+    },
+    {
+      externalId: "222",
+      name: "Page d'un autre client",
+      pictureUrl: null,
+      instagram: null,
+      alreadyLinked: false,
+      linkedElsewhere: { brandName: "Aurora" },
+    },
+    {
+      externalId: "333",
+      name: "Page déjà liée ici",
+      pictureUrl: null,
+      instagram: null,
+      alreadyLinked: true,
+      linkedElsewhere: null,
+    },
+  ],
+};
+
+export const LINK_RESULT: PageLinkResult = {
+  user: SELECTION.user,
+  brand: SELECTION.brand,
+  accounts: [
+    { id: "acc-1", network: "facebook", name: "Nouvelle page", username: null },
+    { id: "acc-2", network: "instagram", name: "Nouvelle", username: "nouvelle.page" },
   ],
 };

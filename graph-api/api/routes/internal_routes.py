@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends, Header, HTTPException
 
 from core.security import require_service_jwt
@@ -22,8 +24,15 @@ from modules.competitors.schemas import (
 )
 from modules.facebook.services import internal_service
 from modules.facebook.services.idempotency import get_cached_response, store_response
+from modules.oauth import selection_service
 from modules.oauth import service as oauth_service
-from modules.oauth.schemas import AuthorizationUrlRequest, AuthorizationUrlResponse
+from modules.oauth.schemas import (
+    AuthorizationUrlRequest,
+    AuthorizationUrlResponse,
+    PageSelectionLinkRequest,
+    PageSelectionLinkResponse,
+    PageSelectionResponse,
+)
 
 router = APIRouter(prefix="/internal/v1", tags=["Internal"])
 
@@ -35,6 +44,25 @@ async def oauth_authorization_url(
     _auth: dict = Depends(require_service_jwt("social:write")),
 ):
     return await oauth_service.create_authorization_url(provider, body)
+
+
+@router.get("/oauth/selections/{selection_id}", response_model=PageSelectionResponse)
+async def oauth_selection(
+    selection_id: uuid.UUID,
+    _auth: dict = Depends(require_service_jwt("social:read")),
+):
+    """Pages que le compte Facebook autorisé peut gérer, sans jeton."""
+    return await selection_service.get_selection(str(selection_id))
+
+
+@router.post("/oauth/selections/{selection_id}/link", response_model=PageSelectionLinkResponse)
+async def oauth_selection_link(
+    selection_id: uuid.UUID,
+    body: PageSelectionLinkRequest,
+    _auth: dict = Depends(require_service_jwt("social:write")),
+):
+    """Lie les pages choisies à la marque de la sélection (usage unique)."""
+    return await selection_service.link_selection(str(selection_id), body.page_ids)
 
 
 def _require_idempotency_key(

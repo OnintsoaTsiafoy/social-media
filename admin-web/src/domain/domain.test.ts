@@ -150,6 +150,15 @@ describe("journal d'audit", () => {
     ).toBe("Délai de première réponse 15 → 20 min");
   });
 
+  it("raconte la liaison d'une page : lancée, puis effectuée pour un compte utilisateur", () => {
+    expect(describeAudit(entry("admin.page.connect_started", { userName: "Léa Martin", brandName: "Studio Vega" }), t)).toBe(
+      "Connexion Facebook lancée pour Léa Martin (marque Studio Vega)",
+    );
+    expect(
+      describeAudit(entry("admin.page.connected", { userName: "Léa Martin", brandName: "Studio Vega", pageName: "Vega Studio" }), t),
+    ).toBe("Page Vega Studio liée à la marque Studio Vega, au nom de Léa Martin");
+  });
+
   it("nomme le réseau d'une page déconnectée quand son nom est inconnu", () => {
     expect(describeAudit(entry("social_account.disconnected", { provider: "INSTAGRAM" }), t)).toBe("Page Instagram déconnectée");
   });

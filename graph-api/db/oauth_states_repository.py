@@ -13,6 +13,8 @@ async def create_state(
     brand_id: str,
     provider: str,
     mobile_redirect_uri: str,
+    select_pages: bool = False,
+    initiated_by_user_id: str | None = None,
 ) -> dict:
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=STATE_TTL_SECONDS)
     pool = await get_pool()
@@ -21,11 +23,21 @@ async def create_state(
             await cur.execute(
                 """
                 INSERT INTO oauth_states
-                    (state_hash, user_id, brand_id, provider, mobile_redirect_uri, expires_at)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                    (state_hash, user_id, brand_id, provider, mobile_redirect_uri,
+                     select_pages, initiated_by_user_id, expires_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, expires_at
                 """,
-                (state_hash, user_id, brand_id, provider.upper(), mobile_redirect_uri, expires_at),
+                (
+                    state_hash,
+                    user_id,
+                    brand_id,
+                    provider.upper(),
+                    mobile_redirect_uri,
+                    select_pages,
+                    initiated_by_user_id,
+                    expires_at,
+                ),
             )
             return await cur.fetchone()
 
@@ -42,7 +54,8 @@ async def consume_state(state_hash: str) -> dict | None:
                 UPDATE oauth_states
                    SET consumed_at = now()
                  WHERE state_hash = %s AND consumed_at IS NULL AND expires_at > now()
-                RETURNING id, user_id, brand_id, provider, mobile_redirect_uri
+                RETURNING id, user_id, brand_id, provider, mobile_redirect_uri,
+                          select_pages, initiated_by_user_id
                 """,
                 (state_hash,),
             )

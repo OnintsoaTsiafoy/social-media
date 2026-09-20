@@ -5,7 +5,8 @@ import type { ScreenId } from "@/types";
 export const SCREENS: ScreenId[] = ["overview", "supervision", "analytics", "users", "pages", "configuration"];
 
 export function screenFromHash(hash: string): ScreenId {
-  const id = hash.replace(/^#\/?/, "");
+  // Le retour de Facebook ajoute une requête au fragment (`#/pages?status=select&…`).
+  const id = hash.replace(/^#\/?/, "").split("?")[0] ?? "";
   return SCREENS.find((screen) => screen === id) ?? "overview";
 }
 

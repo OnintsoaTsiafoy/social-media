@@ -43,6 +43,8 @@ async def _create_state(provider_lower: str, body: AuthorizationUrlRequest) -> d
             brand_id=body.brand_id,
             provider=provider_lower,
             mobile_redirect_uri=body.mobile_redirect_uri,
+            select_pages=body.select_pages,
+            initiated_by_user_id=body.initiated_by_user_id,
         )
     except psycopg.errors.ForeignKeyViolation as exc:
         # Express is expected to validate userId/brandId before calling here;
@@ -63,6 +65,15 @@ async def create_authorization_url(
             status_code=422,
             detail=f"Provider '{provider}' non supporté pour l'autorisation OAuth.",
             code="PROVIDER_NOT_SUPPORTED",
+        )
+
+    # Le choix des pages n'existe que pour Facebook : un compte Instagram lié en
+    # connexion directe n'expose qu'un seul compte, il n'y a rien à choisir.
+    if body.select_pages and provider_lower != "facebook":
+        raise GraphAPIError(
+            status_code=422,
+            detail="Le choix des pages n'est disponible que pour Facebook.",
+            code="validation_failed",
         )
 
     _require_provider_oauth_configured(provider_lower)

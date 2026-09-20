@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { auditKindOf, publicMetadata } from '../src/admin/audit.js';
+import { adminWebReturnUrl } from '../src/admin/pageConnection.js';
 import { bucketBounds, periodWindows, providerOf, ratio, sumReplyBuckets } from '../src/admin/metrics.js';
 import { requirePlatformAdmin } from '../src/admin/middleware.js';
 import { feedTagOf, recentDayKeys, resolveTimeZone, severityOf } from '../src/admin/overview.js';
@@ -9,6 +10,8 @@ import { healthOf, tokenStateOf } from '../src/admin/pages.js';
 import {
   addKeywordSchema,
   approveDraftSchema,
+  connectPageSchema,
+  linkSelectionSchema,
   listUsersQuerySchema,
   overviewQuerySchema,
   rejectDraftSchema,
@@ -283,4 +286,47 @@ test('CORS : la requête préalable d’une origine autorisée est close par un 
   assert.equal(response.ended, true);
   assert.match(response.headers.get('access-control-allow-headers'), /Authorization/);
   assert.match(response.headers.get('access-control-allow-methods'), /PATCH/);
+});
+
+// --- Liaison d'une page Facebook par un administrateur ----------------------------------------
+
+test('l’adresse de retour de la console vient de la configuration, jamais du client', () => {
+  assert.equal(adminWebReturnUrl({}), 'http://localhost:5173/#/pages');
+  assert.equal(adminWebReturnUrl({ ADMIN_WEB_URL: 'https://admin.hootly.app' }), 'https://admin.hootly.app/#/pages');
+  // Chemin, requête et fragment sont écartés : graph-api ajoute lui-même `?status=…` après `#/pages`.
+  assert.equal(
+    adminWebReturnUrl({ ADMIN_WEB_URL: 'https://admin.hootly.app/console/?a=1#/users' }),
+    'https://admin.hootly.app/#/pages'
+  );
+  assert.equal(adminWebReturnUrl({ ADMIN_WEB_URL: '  http://127.0.0.1:5173/  ' }), 'http://127.0.0.1:5173/#/pages');
+});
+
+test('une adresse de console invalide ou dangereuse est refusée plutôt que d’ouvrir une redirection', () => {
+  for (const value of ['javascript:alert(1)', 'ftp://exemple.fr', 'pas une adresse']) {
+    assert.throws(() => adminWebReturnUrl({ ADMIN_WEB_URL: value }), (error) => error.status === 503 && error.code === 'provider_unavailable');
+  }
+});
+
+test('la liaison d’une page exige un compte et une marque, rien d’autre', () => {
+  const userId = '11111111-1111-4111-8111-111111111111';
+  const brandId = '22222222-2222-4222-8222-222222222222';
+  assert.deepEqual(connectPageSchema.parse({ userId, brandId }), { userId, brandId });
+  assert.throws(() => connectPageSchema.parse({ userId }));
+  assert.throws(() => connectPageSchema.parse({ userId, brandId: 'pas-un-uuid' }));
+  // Un client ne fournit jamais l'adresse de retour ni le réseau : champs inconnus refusés.
+  assert.throws(() => connectPageSchema.parse({ userId, brandId, returnUrl: 'https://evil.example' }));
+  assert.throws(() => connectPageSchema.parse({ userId, brandId, provider: 'instagram' }));
+});
+
+test('le choix des pages est borné et non vide', () => {
+  assert.deepEqual(linkSelectionSchema.parse({ pageIds: [' 123456789 ', '42'] }), { pageIds: ['123456789', '42'] });
+  assert.throws(() => linkSelectionSchema.parse({ pageIds: [] }));
+  assert.throws(() => linkSelectionSchema.parse({ pageIds: [''] }));
+  assert.throws(() => linkSelectionSchema.parse({ pageIds: Array.from({ length: 51 }, (_, index) => String(index)) }));
+  assert.throws(() => linkSelectionSchema.parse({ pageIds: ['1'], allowReassign: true }), 'aucun transfert de marque possible');
+});
+
+test('les événements de liaison figurent au journal, famille « page »', () => {
+  assert.equal(auditKindOf('admin.page.connect_started'), 'page');
+  assert.equal(auditKindOf('admin.page.connected'), 'page');
 });

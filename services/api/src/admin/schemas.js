@@ -57,6 +57,13 @@ export const listPagesQuerySchema = z.object({
 
 export const updatePageSchema = z.object({ autoReply: z.boolean() }).strict();
 
+// Liaison d'un compte utilisateur à une page Facebook (voir pageConnection.js).
+export const connectPageSchema = z.object({ userId: z.uuid(), brandId: z.uuid() }).strict();
+// Les identifiants de page viennent de Meta (numériques, jamais des UUID).
+export const linkSelectionSchema = z
+  .object({ pageIds: z.array(z.string().trim().min(1).max(64)).min(1).max(50) })
+  .strict();
+
 export const addKeywordSchema = z.object({ word: keywordSchema }).strict();
 export { keywordSchema };
 
