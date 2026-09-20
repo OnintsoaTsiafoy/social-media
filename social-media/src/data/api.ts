@@ -93,7 +93,7 @@ export const errorMessages: Record<ApiErrorCode, string> = {
   too_many_attempts: 'Trop de tentatives. Patientez quelques minutes avant de réessayer.',
   email_taken: 'Cette adresse email est déjà utilisée.',
   weak_password: 'Le mot de passe ne respecte pas les critères de sécurité.',
-  token_expired: 'Le compte social doit être reconnecté avant de continuer.',
+  token_expired: 'Le compte social doit être reconnecté par un administrateur de la plateforme avant de continuer.',
   ai_unavailable: 'Le service IA est indisponible. Réessayez ou saisissez le texte manuellement.',
   not_found: 'Cet élément n’est plus disponible.',
   conflict: 'Cette action n’est pas autorisée pour le statut actuel.',
@@ -538,8 +538,9 @@ function fromRemoteAccount(remote: RemoteSocialAccount, brandId: string, brandNa
   };
 }
 
-export type OAuthHandoff = { authorizationUrl: string; oauthState: string };
-
+// Connecting or reconnecting a page is not offered to the app: a platform
+// administrator does it from the web console (POST /api/v1/admin/pages/connect),
+// and the API refuses POST /social-accounts/:provider/connect with a 403.
 export const accountsApi = {
   async list(brandId: string, brandName: string): Promise<SocialAccount[]> {
     const remote = await fetchApi<RemoteSocialAccount[]>(
@@ -559,20 +560,6 @@ export const accountsApi = {
       true
     );
     return fromRemoteAccount(remote, brandId, brandName);
-  },
-
-  /** Starts (or restarts) an OAuth round-trip; the account itself only
-   * exists once the browser flow completes server-side. */
-  async connect(network: SocialNetwork, brandId: string, mobileRedirectUri: string): Promise<OAuthHandoff> {
-    return fetchApi<OAuthHandoff>(
-      `/api/v1/social-accounts/${network}/connect`,
-      { method: 'POST', body: JSON.stringify({ brandId, mobileRedirectUri }) },
-      true
-    );
-  },
-
-  async reconnect(account: SocialAccount, mobileRedirectUri: string): Promise<OAuthHandoff> {
-    return accountsApi.connect(account.network, account.brandId, mobileRedirectUri);
   },
 
   async disconnect(id: string): Promise<void> {

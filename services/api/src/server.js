@@ -137,7 +137,7 @@ const openApiDocument = {
       get: { summary: 'Lister les comptes sociaux liés à une marque (?brandId=)' },
     },
     '/api/v1/social-accounts/{provider}/connect': {
-      post: { summary: 'Démarrer une connexion OAuth Meta (201 → authorizationUrl + oauthState)' },
+      post: { summary: 'Refusé (403 forbidden) : la connexion d’une page est réservée aux administrateurs de la plateforme, voir /api/v1/admin/pages/connect' },
     },
     '/api/v1/social-accounts/oauth/status': {
       get: { summary: 'Statut d’un state OAuth (PENDING/COMPLETED/EXPIRED)' },

@@ -14,26 +14,9 @@ export function hashState(rawState) {
   return createHash('sha256').update(rawState, 'utf8').digest('hex');
 }
 
-export async function startConnect({ userId, brandId, provider, mobileRedirectUri }, request) {
-  const result = await callSocialService(`/internal/v1/oauth/${provider}/authorization-url`, {
-    scope: 'social:write',
-    body: { userId, brandId, mobileRedirectUri },
-  });
-
-  await writeAuditLog(prisma, {
-    userId,
-    action: 'social_account.connect_started',
-    resourceType: 'brand',
-    resourceId: brandId,
-    requestId: request.requestId,
-    metadata: { provider },
-  });
-
-  return {
-    authorizationUrl: result.authorizationUrl,
-    oauthState: result.state,
-  };
-}
+// La liaison d'une page n'est plus proposée à l'utilisateur : elle est réservée aux
+// administrateurs de la plateforme (admin/pageConnection.js, `POST /admin/pages/connect`).
+// Il ne reste ici que la lecture, la revalidation et la déconnexion.
 
 // oauth_states isn't sensitive the way oauth_tokens is (no Meta secret in
 // it), so Express reads it directly via Prisma instead of round-tripping

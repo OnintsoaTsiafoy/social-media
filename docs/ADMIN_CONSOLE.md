@@ -86,15 +86,17 @@ Ces éléments de la maquette n'ont aucun équivalent côté serveur ; les garde
 
 ## 6. Connecter une page à un compte utilisateur
 
-Depuis l'écran **Pages**, « Connecter une page Facebook » permet à un administrateur de la plateforme de lier une page à **un compte utilisateur et à l'une de ses marques**. Le parcours mobile (`POST /social-accounts/facebook/connect`, où l'utilisateur lie ses propres pages) est **inchangé** : les deux coexistent et écrivent en base par le même code (`graph-api/modules/oauth/page_linking.py`).
+Depuis l'écran **Pages**, « Connecter une page Facebook » permet à un administrateur de la plateforme de lier une page à **un compte utilisateur et à l'une de ses marques**. C'est **la seule façon de lier une page** : l'application mobile ne connecte ni ne reconnecte plus (elle liste, revalide et déconnecte), et `POST /social-accounts/{provider}/connect` répond `403 forbidden` à tout le monde, propriétaire de la marque comme administrateur de la plateforme (qui passe par `POST /admin/pages/connect`). L'écriture en base reste dans `graph-api/modules/oauth/page_linking.py`.
+
+**Reconnecter un compte dont le jeton a expiré** : relancer le même parcours pour le même utilisateur et la même marque ; la page apparaît « Déjà liée à cette marque : son jeton sera renouvelé ». **Déconnecter** reste possible depuis le mobile (administrateur ou propriétaire de la marque) ; la console n'a pas encore de bouton de déconnexion.
 
 Trois temps :
 
-1. **Choix.** L'administrateur cherche un compte actif et une marque dont ce compte est propriétaire ou administrateur (même règle que le mobile, `requireBrandAccess('ADMIN')`). `POST /pages/connect { userId, brandId }` répond `201 { authorizationUrl, expiresAt }` et la console redirige le navigateur vers Facebook. Le `state` OAuth reste côté serveur.
+1. **Choix.** L'administrateur cherche un compte actif et une marque dont ce compte est propriétaire ou administrateur (règle qu'appliquait le mobile : `requireBrandAccess('ADMIN')`). `POST /pages/connect { userId, brandId }` répond `201 { authorizationUrl, expiresAt }` et la console redirige le navigateur vers Facebook. Le `state` OAuth reste côté serveur.
 2. **Consentement Meta.** L'administrateur s'authentifie **avec son propre compte Facebook**. graph-api reçoit le retour, échange le code, lit `/me/accounts` (et le compte Instagram professionnel de chaque page) et **ne lie rien** : il enregistre la liste, jetons de page compris mais chiffrés, dans `oauth_page_selections`, puis renvoie le navigateur vers `ADMIN_WEB_URL/#/pages?status=select&selection=<uuid>`. Un échec revient en `?status=error&reason=permission_denied|incompatible_account|provider_error` (bandeau sur l'écran Pages).
 3. **Sélection.** `GET /pages/connect/selections/{id}` renvoie les pages **sans aucun jeton**, chacune marquée `alreadyLinked` (reconnexion : le jeton est renouvelé) ou `linkedElsewhere` (liée à une autre marque). `POST …/link { pageIds }` ne lie que les pages choisies, avec leur compte Instagram. La console nettoie l'adresse (`history.replaceState`) : recharger la page ne rouvre pas la sélection.
 
-**Pourquoi une sélection obligatoire.** Le compte Facebook de l'administrateur gère souvent les pages de plusieurs clients ; tout lier d'office, comme le mobile le fait pour l'utilisateur, rattacherait des pages à la mauvaise marque.
+**Pourquoi une sélection obligatoire.** Le compte Facebook de l'administrateur gère souvent les pages de plusieurs clients ; tout lier d'office, comme le faisait le mobile pour l'utilisateur, rattacherait des pages à la mauvaise marque.
 
 | Garantie | Mise en œuvre |
 |---|---|

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { socialAccountRouter } from '../src/social-accounts/routes.js';
 import { hashState } from '../src/social-accounts/service.js';
 import {
-  connectSchema,
   listAccountsQuerySchema,
   oauthStatusQuerySchema,
   providerParamSchema,
@@ -16,14 +16,17 @@ test('provider param only accepts facebook or instagram', () => {
   assert.throws(() => providerParamSchema.parse('twitter'));
 });
 
-test('connect requires a brandId and a mobile redirect uri', () => {
-  const brandId = '8d10e3e8-85b7-4fd3-8e6c-67d3188eecab';
-  assert.deepEqual(connectSchema.parse({ brandId, mobileRedirectUri: 'hootly://oauth/callback' }), {
-    brandId,
-    mobileRedirectUri: 'hootly://oauth/callback',
-  });
-  assert.throws(() => connectSchema.parse({ brandId: 'pas-un-uuid', mobileRedirectUri: 'hootly://x' }));
-  assert.throws(() => connectSchema.parse({ brandId }));
+test('POST /:provider/connect refuse tout le monde : la liaison est réservée à la console d’administration', () => {
+  const layer = socialAccountRouter.stack.find((entry) => entry.route?.path === '/:provider/connect');
+  // La route existe encore : un 404 ressemblerait à une panne pour une ancienne version du mobile.
+  assert.ok(layer, 'la route répond encore, par un refus explicite');
+  assert.deepEqual(Object.keys(layer.route.methods), ['post']);
+  assert.equal(layer.route.stack.length, 1, 'aucun middleware de marque ni de lecture du corps avant le refus');
+
+  assert.throws(
+    () => layer.route.stack[0].handle({}, {}, () => {}),
+    (error) => error.status === 403 && error.code === 'forbidden' && /console d’administration/.test(error.message)
+  );
 });
 
 test('oauth status query requires a non-empty state', () => {

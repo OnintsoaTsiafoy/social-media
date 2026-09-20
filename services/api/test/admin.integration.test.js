@@ -540,6 +540,22 @@ test('console d’administration : liaison d’un compte utilisateur à une page
 
     const START = { userId: owner.id, brandId: brand.id };
 
+    // --- L'ancienne route du mobile refuse tout le monde -------------------------------------------------
+    const legacy = (who) =>
+      fetch(`${base.replace('/admin', '/social-accounts')}/facebook/connect`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${who.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandId: brand.id, mobileRedirectUri: 'hootly://oauth/callback' }),
+      });
+    for (const [label, who] of [['propriétaire de la marque', owner], ['administrateur de la plateforme', admin]]) {
+      const refused = await legacy(who);
+      assert.equal(refused.status, 403, `${label} : la liaison ne passe plus par l’application mobile`);
+      assert.equal((await refused.json()).error.code, 'forbidden');
+    }
+    const anonymous = await fetch(`${base.replace('/admin', '/social-accounts')}/facebook/connect`, { method: 'POST' });
+    assert.equal(anonymous.status, 401);
+    assert.equal(received.length, 0, 'ni Meta ni graph-api ne sont sollicités par un refus');
+
     // --- Démarrage ------------------------------------------------------------------------------------
     assert.equal((await call(owner, '/pages/connect', { method: 'POST', body: START })).status, 403, 'un simple utilisateur ne lie rien');
     assert.equal((await call(admin, '/pages/connect', { method: 'POST', body: { userId: owner.id } })).status, 400);

@@ -234,7 +234,7 @@ export function ComposerForm({
                       accessibilityRole="button"
                       onPress={() => router.push('/settings/social-accounts')}
                     >
-                      Reconnecter
+                      Voir le compte
                     </Text>
                   ) : (
                     <Badge label={status.label} tone={status.tone} />

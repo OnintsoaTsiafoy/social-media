@@ -1,5 +1,12 @@
 # Sprint 06 — OAuth Meta, multi-comptes, tokens sécurisés
 
+> **Évolution (20 septembre 2026).** Le parcours décrit ci-dessous, lancé depuis le mobile, n'existe plus :
+> la connexion et la reconnexion d'une page sont réservées aux administrateurs de la plateforme, depuis la
+> console web (`docs/ADMIN_CONSOLE.md` §6). `POST /api/v1/social-accounts/{provider}/connect` répond
+> `403 forbidden`, l'écran mobile `app/oauth/callback.tsx` a été supprimé et `social-accounts.tsx` ne
+> propose plus que la liste, la synchronisation et la déconnexion. Le reste (tables, chiffrement, routes
+> internes de graph-api, `sync`, `DELETE`) est inchangé.
+
 Cette livraison applique la tranche Sprint 06 du plan
 (`sprint_listing/SPRINT_06_OAUTH_MULTI_COMPTES_TOKENS.md`) : remplacer le
 token Facebook global par une connexion OAuth réelle, multi-comptes,

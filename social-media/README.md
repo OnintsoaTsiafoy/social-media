@@ -1,7 +1,8 @@
 # Hootly - application mobile d’assistance au Community Manager
 
-Application Expo (SDK 55) / React Native / TypeScript couvrant les **31 écrans** du
-document `ECRANS_Application_Community_Manager.md`, avec la direction visuelle validée
+Application Expo (SDK 55) / React Native / TypeScript couvrant les écrans du
+document `ECRANS_Application_Community_Manager.md` (31 à l’origine, **30 aujourd’hui** : l’écran 16
+« Retour OAuth » a été retiré, voir plus bas), avec la direction visuelle validée
 dans `Ecrans App CM.dc.html` (cartes blanches, accent lime `#C4F04A`, texte nuit `#0F172A`).
 
 ## Démarrage
@@ -45,10 +46,9 @@ app/                     Routes (expo-router, file-based)
 ├── publications/        08 Nouvelle · 09 Modification · 12 Planification · 14 Détail
 ├── comments/[id]/       18 Détail · 19 Éditeur de réponse IA · 20 Historique
 ├── analytics/           23 Analytics d’une publication
-├── settings/            15 Comptes sociaux · 25 Marque & ton IA · 27 Notifications
-│                        28 Sécurité · 31 Suppression du compte
+├── settings/            15 Comptes sociaux (lecture, synchro, déconnexion) · 25 Marque & ton IA
+│                        27 Notifications · 28 Sécurité · 31 Suppression du compte
 ├── legal/               29 Conditions · 30 Confidentialité
-├── oauth/callback.tsx   16 Retour OAuth
 ├── calendar.tsx         13 Calendrier éditorial
 ├── notifications.tsx    21 Centre de notifications
 ├── profile.tsx          24 Profil utilisateur
@@ -90,9 +90,17 @@ tablette) et `autoGridCell()` pour les grilles qui passent de 2 à 4 colonnes sa
 point de rupture explicite. Le reste du layout est en flex, avec `SafeAreaView`,
 `KeyboardAvoidingView` et cibles tactiles ≥ 44 dp.
 
+## Connexion des comptes Facebook / Instagram
+
+L’application **ne connecte ni ne reconnecte** de compte : un administrateur de la plateforme lie une
+page à un utilisateur et à sa marque depuis la console web (`admin-web/`, écran Pages). L’écran 15 liste
+les comptes, les revalide auprès de Meta et permet de les déconnecter ; un compte expiré affiche qu’un
+administrateur doit le reconnecter. `POST /social-accounts/:provider/connect` répond `403 forbidden`, et
+l’écran 16 (`/oauth/callback`) n’existe plus. Voir [docs/ADMIN_CONSOLE.md](../docs/ADMIN_CONSOLE.md#6-connecter-une-page-à-un-compte-utilisateur).
+Les paquets `expo-web-browser` et `expo-linking` ne servent plus à cet usage (`expo-linking` reste requis par `expo-router`).
+
 ## Reste à faire
 
 - Brancher les domaines restants de `src/data/api.ts` sur le backend réel (les signatures sont le contrat).
 - WebSocket temps réel pour le compteur de notifications (l’UI est prête).
-- Flux OAuth réel via `expo-web-browser` + deep link `hootly://oauth/callback`.
 - Notifications push (`expo-notifications`) et sélection d’avatar.

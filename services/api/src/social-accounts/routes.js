@@ -4,13 +4,12 @@ import { requireAuthentication } from '../auth/middleware.js';
 import { requireBrandAccess } from '../brands/middleware.js';
 import { HttpError, sendSuccess } from '../lib/http.js';
 import {
-  connectSchema,
   listAccountsQuerySchema,
   oauthStatusQuerySchema,
   providerParamSchema,
   socialAccountIdSchema,
 } from './schemas.js';
-import { disconnectAccount, getOAuthStatus, listAccounts, startConnect, syncAccount } from './service.js';
+import { disconnectAccount, getOAuthStatus, listAccounts, syncAccount } from './service.js';
 
 const router = express.Router();
 
@@ -70,33 +69,17 @@ router.delete('/:socialAccountId', async (request, response) => {
   response.status(204).end();
 });
 
-router.post(
-  '/:provider/connect',
-  // brandId lives in the body, not the path — set request.brandId before
-  // requireBrandAccess so it can find it the same way it does for :brandId
-  // routes elsewhere (see brands/middleware.js).
-  (request, _response, next) => {
-    try {
-      request.validatedBody = parse(connectSchema, request.body);
-      request.brandId = request.validatedBody.brandId;
-      next();
-    } catch (error) {
-      next(error);
-    }
-  },
-  requireBrandAccess('ADMIN'),
-  async (request, response) => {
-    const result = await startConnect(
-      {
-        userId: request.auth.user.id,
-        brandId: request.brandId,
-        provider: request.provider,
-        mobileRedirectUri: request.validatedBody.mobileRedirectUri,
-      },
-      request
-    );
-    sendSuccess(response, result, 201);
-  }
-);
+// Connecter une page n'est plus à la portée d'un utilisateur, même propriétaire de la
+// marque : seul un administrateur de la plateforme le fait, depuis la console web
+// (`POST /api/v1/admin/pages/connect`). La route reste pour répondre clairement aux
+// versions de l'application mobile qui l'appellent encore — un 404 y ressemblerait à
+// une panne. Elle refuse avant toute lecture du corps : rien n'est lancé côté Meta.
+router.post('/:provider/connect', () => {
+  throw new HttpError(
+    403,
+    'forbidden',
+    'La connexion d’une page se fait depuis la console d’administration. Contactez un administrateur de la plateforme.'
+  );
+});
 
 export { router as socialAccountRouter };

@@ -17,20 +17,19 @@ import type { SocialAccount } from '@/types';
 export type SocialAccountCardProps = {
   account: SocialAccount;
   onSync?: () => void;
-  onReconnect?: () => void;
   onDisconnect?: () => void;
   onViewPermissions?: () => void;
-  busyAction?: 'sync' | 'reconnect' | 'disconnect';
+  busyAction?: 'sync' | 'disconnect';
 };
 
 /**
  * Account card. Tokens are never displayed - only their expiry date, which is
- * what the CM actually needs to act on.
+ * what the CM actually needs to act on. There is no "reconnect" action: linking
+ * a page again is done by a platform administrator from the web console.
  */
 export function SocialAccountCard({
   account,
   onSync,
-  onReconnect,
   onDisconnect,
   onViewPermissions,
   busyAction,
@@ -60,15 +59,15 @@ export function SocialAccountCard({
       {needsReconnect ? (
         <>
           <Text variant="footnote" color={palette.warningText}>
-            Le token a expiré. Reconnectez le compte pour reprendre la publication et la synchronisation des
-            commentaires.
+            Le token a expiré. Un administrateur de la plateforme doit reconnecter ce compte, depuis la
+            console web, pour reprendre la publication et la synchronisation des commentaires.
           </Text>
           <Button
-            label={`Reconnecter ${account.network === 'facebook' ? 'Facebook' : 'Instagram'}`}
-            variant="primary"
+            label="Déconnecter"
+            variant="danger"
             size="sm"
-            onPress={onReconnect}
-            loading={busyAction === 'reconnect'}
+            onPress={onDisconnect}
+            loading={busyAction === 'disconnect'}
           />
         </>
       ) : (

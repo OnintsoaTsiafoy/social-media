@@ -7,9 +7,10 @@ import { callSocialService } from '../lib/socialServiceClient.js';
 // Liaison d'un compte utilisateur à une page Facebook par un administrateur de la
 // plateforme, depuis la console web.
 //
-// Le compte Facebook qui autorise sur Meta gère souvent beaucoup d'autres pages
-// (une agence, plusieurs clients) : contrairement au mobile, où l'utilisateur lie
-// SES pages, rien n'est lié d'office. Trois temps :
+// Seul moyen de lier une page (le mobile n'en propose plus : voir le refus de
+// `POST /social-accounts/:provider/connect`). Le compte Facebook qui autorise sur Meta
+// gère souvent beaucoup d'autres pages (une agence, plusieurs clients) : rien n'est
+// donc lié d'office. Trois temps :
 //
 //   1. `startPageConnection` — l'administrateur choisit un utilisateur et l'une de
 //      ses marques ; on renvoie l'adresse de la boîte de dialogue Meta ;
@@ -53,8 +54,8 @@ async function loadEligibleMembership({ userId, brandId }) {
   if (!membership || membership.user.status !== 'ACTIVE') {
     throw new HttpError(404, 'not_found', 'Ce compte n’est pas membre actif de cette marque.');
   }
-  // Même règle que le mobile (`requireBrandAccess('ADMIN')` sur /connect) : seul un
-  // propriétaire ou un administrateur de la marque peut y lier une page.
+  // Même règle qu'avait le mobile (`requireBrandAccess('ADMIN')`) : seul un propriétaire
+  // ou un administrateur de la marque peut y lier une page.
   if (!hasBrandRole(membership.role, 'ADMIN')) {
     throw new HttpError(409, 'conflict', 'Pour lier une page, le compte doit être propriétaire ou administrateur de la marque.');
   }

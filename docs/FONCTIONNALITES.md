@@ -140,13 +140,13 @@ Il est possible de créer une marque lorsqu’aucune marque active n’existe et
 
 ### 4.4 Connexion Facebook et Instagram
 
-Écrans : `/settings/social-accounts`, `/oauth/callback`.
+Écran mobile : `/settings/social-accounts` (lecture, synchronisation, déconnexion). **La connexion et la reconnexion ne se font plus depuis le mobile** : un administrateur de la plateforme les fait depuis la console web (écran Pages, voir `docs/ADMIN_CONSOLE.md` §6) ; `POST /social-accounts/:provider/connect` répond `403`, et l’écran `/oauth/callback` a été retiré.
 
-- Connexion Facebook ou Instagram par OAuth dans le navigateur système.
+- Connexion Facebook par OAuth dans le navigateur, par l’administrateur, avec choix explicite des pages à lier.
 - Facebook découvre les Pages accessibles et les comptes Instagram professionnels liés à ces Pages.
-- Instagram Login direct est également prévu pour le parcours sans Page, si l’application Meta correspondante est configurée.
+- Instagram Login direct était prévu pour le parcours sans Page ; il n’est plus proposé depuis le mobile.
 - Affichage du réseau, du nom du compte, de son état et des permissions accordées ou refusées.
-- Synchronisation manuelle, renouvellement des permissions et reconnexion lorsqu’un jeton expire.
+- Synchronisation manuelle ; lorsqu’un jeton expire, l’application l’indique et un administrateur reconnecte la page depuis la console.
 - Déconnexion avec confirmation ; le serveur révoque le compte et supprime le jeton chiffré.
 - États pris en charge : connecté, en renouvellement, expiré, reconnexion requise, révoqué et déconnecté.
 
@@ -338,7 +338,7 @@ Toutes les routes mobiles sont préfixées par `/api/v1`. Une réussite utilise 
 | Médias | `POST /media`, `GET/DELETE /media/:id` |
 | Publications | `/publications`, `/publications/counts`, `/publications/:id`, `/publications/:id/schedule`, `/publications/:id/publish`, `/publications/:id/retry` |
 | Calendrier | `/calendar` |
-| Comptes sociaux | `/social-accounts`, `/:provider/connect`, `/oauth/status`, `/:id/sync`, `/:id` |
+| Comptes sociaux | `/social-accounts`, `/oauth/status`, `/:id/sync`, `/:id` (suppression) ; `/:provider/connect` répond `403` (liaison réservée à la console d’administration) |
 | Commentaires | `/comments`, `/comments/counts`, `/comments/sync`, `/comments/:id`, `/comments/:id/history`, `/comments/:id/status`, `/comments/:id/analyze`, `/comments/:id/reanalyze`, `/comments/:id/escalate`, `/comments/:id/reply` |
 | Réponses IA | `/response-suggestions` et l’alias `/ai/responses` : création, liste, édition, approbation, rejet, régénération |
 | Hashtags | `POST /publications/generate-hashtags` |

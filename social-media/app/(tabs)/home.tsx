@@ -177,8 +177,8 @@ export default function HomeScreen() {
       {staleAccounts.length > 0 ? (
         <Callout tone="warning" icon="clock" title="Compte social à reconnecter">
           <Text variant="footnote" color={palette.warningText}>
-            {staleAccounts.map((account) => account.username).join(', ')} doit être reconnecté pour
-            reprendre les envois et la synchronisation.
+            {staleAccounts.map((account) => account.username).join(', ')} doit être reconnecté par un
+            administrateur de la plateforme pour reprendre les envois et la synchronisation.
           </Text>
           <Text
             variant="body"
@@ -300,7 +300,7 @@ export default function HomeScreen() {
                     accessibilityRole="button"
                     onPress={() => router.push('/settings/social-accounts')}
                   >
-                    Reconnecter
+                    Voir le compte
                   </Text>
                 )}
               </View>

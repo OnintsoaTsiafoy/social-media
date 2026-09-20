@@ -1,6 +1,3 @@
-import * as Linking from 'expo-linking';
-import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -27,51 +24,27 @@ import { useAsync } from '@/hooks/useAsync';
 import { formatDate } from '@/lib/format';
 import { useSession } from '@/store/SessionProvider';
 import { palette, spacing } from '@/theme';
-import type { SocialAccount, SocialNetwork } from '@/types';
+import type { SocialAccount } from '@/types';
 
 /**
  * ÉCRAN 15 - Gestion des comptes sociaux (`/settings/social-accounts`)
  *
  * Tokens are never rendered or stored on the device; disconnecting revokes
  * access server-side, which the screen explains before asking to confirm.
+ *
+ * Connecting or reconnecting a page is NOT done here: a platform administrator
+ * does it from the web console, so this screen only lists, revalidates and
+ * disconnects accounts.
  */
 export default function SocialAccountsScreen() {
-  const router = useRouter();
   const { brand } = useSession();
   const { confirm, toast } = useFeedback();
 
   const request = useAsync(() => accountsApi.list(brand?.id ?? '', brand?.name ?? ''), []);
-  const [busy, setBusy] = useState<{ id: string; action: 'sync' | 'reconnect' | 'disconnect' } | undefined>();
-  const [connecting, setConnecting] = useState<SocialNetwork | undefined>(undefined);
+  const [busy, setBusy] = useState<{ id: string; action: 'sync' | 'disconnect' } | undefined>();
   const [permissionsFor, setPermissionsFor] = useState<SocialAccount | undefined>(undefined);
 
   const accounts = request.data ?? [];
-
-  /**
-   * Opens Meta's consent screen in a managed browser tab and waits for it to
-   * redirect back to `redirectUri`. The token is exchanged and stored
-   * server-side; only a non-sensitive status ever comes back through the URL
-   * (see app/oauth/callback.tsx's typed params - no `token` field, ever).
-   */
-  const runOAuthFlow = async (authorizationUrl: string, redirectUri: string, network: SocialNetwork) => {
-    const result = await WebBrowser.openAuthSessionAsync(authorizationUrl, redirectUri);
-
-    if (result.type === 'success' && result.url) {
-      const { queryParams } = Linking.parse(result.url);
-      router.push({
-        pathname: '/oauth/callback',
-        params: {
-          status: String(queryParams?.status ?? 'error'),
-          network: String(queryParams?.network ?? network) as SocialNetwork,
-          ...(queryParams?.account ? { account: String(queryParams.account) } : {}),
-          ...(queryParams?.reason ? { reason: String(queryParams.reason) } : {}),
-        },
-      });
-    } else {
-      router.push({ pathname: '/oauth/callback', params: { status: 'cancelled', network } });
-    }
-    await request.reload();
-  };
 
   const sync = async (account: SocialAccount) => {
     setBusy({ id: account.id, action: 'sync' });
@@ -80,20 +53,7 @@ export default function SocialAccountsScreen() {
       request.setData((current) => current.map((item) => (item.id === updated.id ? updated : item)));
       toast('Synchronisation terminée.', 'success');
     } catch {
-      toast('Le token a expiré. Reconnectez le compte pour continuer.', 'error');
-    } finally {
-      setBusy(undefined);
-    }
-  };
-
-  const reconnect = async (account: SocialAccount) => {
-    setBusy({ id: account.id, action: 'reconnect' });
-    try {
-      const redirectUri = Linking.createURL('oauth/callback');
-      const { authorizationUrl } = await accountsApi.reconnect(account, redirectUri);
-      await runOAuthFlow(authorizationUrl, redirectUri, account.network);
-    } catch {
-      toast('La reconnexion a échoué. Réessayez.', 'error');
+      toast('Le token a expiré. Un administrateur de la plateforme doit reconnecter le compte.', 'error');
     } finally {
       setBusy(undefined);
     }
@@ -118,20 +78,6 @@ export default function SocialAccountsScreen() {
       toast('La déconnexion a échoué. Réessayez.', 'error');
     } finally {
       setBusy(undefined);
-    }
-  };
-
-  const connect = async (network: SocialNetwork) => {
-    if (!brand?.id) return;
-    setConnecting(network);
-    try {
-      const redirectUri = Linking.createURL('oauth/callback');
-      const { authorizationUrl } = await accountsApi.connect(network, brand.id, redirectUri);
-      await runOAuthFlow(authorizationUrl, redirectUri, network);
-    } catch {
-      router.push({ pathname: '/oauth/callback', params: { status: 'error', network } });
-    } finally {
-      setConnecting(undefined);
     }
   };
 
@@ -165,7 +111,7 @@ export default function SocialAccountsScreen() {
             <EmptyState
               icon="link"
               title="Aucun compte connecté"
-              message="Connectez une page Facebook ou un compte Instagram professionnel pour publier et synchroniser les commentaires."
+              message="Un administrateur de la plateforme doit relier une page Facebook à votre marque, depuis la console d’administration, pour publier et synchroniser les commentaires."
             />
           ) : (
             accounts.map((account) => (
@@ -174,39 +120,16 @@ export default function SocialAccountsScreen() {
                 account={account}
                 busyAction={busy?.id === account.id ? busy.action : undefined}
                 onSync={() => sync(account)}
-                onReconnect={() => reconnect(account)}
                 onDisconnect={() => disconnect(account)}
                 onViewPermissions={() => setPermissionsFor(account)}
               />
             ))
           )}
 
-          <Card tone="dashed" style={styles.addCard}>
-            <Text variant="bodyLg" weight="bold" center>
-              Ajouter un compte
-            </Text>
-            <Text variant="footnote" color={palette.inkFaint} center>
-              Connectez une page Facebook ou un compte Instagram professionnel.
-            </Text>
-            <View style={styles.addActions}>
-              <Button
-                label="Facebook"
-                variant="secondary"
-                size="sm"
-                onPress={() => connect('facebook')}
-                loading={connecting === 'facebook'}
-                style={styles.addButton}
-              />
-              <Button
-                label="Instagram"
-                variant="secondary"
-                size="sm"
-                onPress={() => connect('instagram')}
-                loading={connecting === 'instagram'}
-                style={styles.addButton}
-              />
-            </View>
-          </Card>
+          <Callout tone="neutral" icon="link">
+            Les comptes sont connectés par un administrateur de la plateforme, depuis la console
+            web. Pour ajouter une page ou reconnecter un compte expiré, contactez-le.
+          </Callout>
 
           <Callout tone="neutral" icon="shield">
             Les tokens ne sont jamais affichés ni stockés sur le téléphone. La déconnexion révoque
@@ -263,9 +186,6 @@ export default function SocialAccountsScreen() {
 }
 
 const styles = StyleSheet.create({
-  addCard: { gap: spacing.md, alignItems: 'stretch' },
-  addActions: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.md },
-  addButton: { flex: 1 },
   permissionRow: {
     flexDirection: 'row',
     alignItems: 'center',
