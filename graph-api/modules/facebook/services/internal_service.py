@@ -8,11 +8,14 @@ behavior (the single globally-configured Facebook Page) — kept only for
 backward compatibility; every real caller since Sprint 06 passes a resolved
 account.
 """
-from datetime import datetime, timezone
+import logging
+import re
+from datetime import datetime, timedelta, timezone
 
 from core.config import settings
 from core.exceptions import GraphAPIError
 from db import (
+    imported_posts_repository,
     oauth_tokens_repository,
     publication_targets_repository,
     sent_responses_repository,
@@ -31,12 +34,17 @@ from modules.facebook.schemas.internal import (
     MetricItem,
     MetricsSyncRequest,
     MetricsSyncResponse,
+    PostSyncItem,
+    PostsSyncRequest,
+    PostsSyncResponse,
     PublishRequest,
     PublishResponse,
     PublishTarget,
     PublishTargetResult,
 )
 from modules.social.provider import get_provider
+
+logger = logging.getLogger("graph_api.internal_service")
 
 _LEGACY_PROVIDERS = {"facebook"}
 
@@ -313,3 +321,130 @@ async def sync_metrics(body: MetricsSyncRequest) -> MetricsSyncResponse:
         await social_accounts_repository.mark_metrics_synced(account["id"])
 
     return MetricsSyncResponse(metrics=metrics)
+
+
+# `#` en début de mot uniquement : ni un fragment d'URL (`/page#section`), ni une
+# entité HTML (`&#39;`). Même forme que ce que compose le mobile (`#tag`).
+_HASHTAG = re.compile(r"(?<![\w/&=?#])#\w+")
+_MAX_HASHTAGS = 30  # bornes de hashtagsSchema (services/api/src/publications/schemas.js)
+_MAX_HASHTAG_LENGTH = 80
+_MAX_EXTERNAL_ID_LENGTH = 255  # publication_targets.external_publication_id
+_MAX_URL_LENGTH = 2048  # publication_targets.external_url
+
+
+def _extract_hashtags(content: str) -> list[str]:
+    tags = dict.fromkeys(tag[:_MAX_HASHTAG_LENGTH] for tag in _HASHTAG.findall(content))
+    return list(tags)[:_MAX_HASHTAGS]
+
+
+def _as_datetime(value) -> datetime | None:
+    """psycopg rend un datetime pour un timestamptz ; une chaîne ISO est acceptée
+    pour les doubles de test, qui n'ont pas de vraie base."""
+    if value is None or isinstance(value, datetime):
+        return value
+    return _parse_meta_timestamp(value)
+
+
+async def _persist_post(account: dict, item: PostSyncItem) -> str:
+    """Renvoie « created », « updated », « unchanged » ou « skipped ».
+
+    Seul un post inexploitable est ignoré. Toute erreur de base remonte et fait
+    échouer l'appel : avaler une panne PostgreSQL ferait passer l'import pour
+    achevé (donc `last_posts_sync_at` noté) alors que rien n'a été écrit.
+    """
+    published_at = _parse_meta_timestamp(item.published_at)
+    if published_at is None or len(item.external_publication_id) > _MAX_EXTERNAL_ID_LENGTH:
+        logger.warning(
+            "Post ignoré (date de création ou identifiant inexploitable) : compte=%s post=%.60s",
+            account["id"], item.external_publication_id,
+        )
+        return "skipped"
+
+    result = await imported_posts_repository.upsert_post(
+        social_account_id=account["id"],
+        brand_id=account["brand_id"],
+        provider=account["provider"],
+        # Une publication a un auteur obligatoire : à défaut de connaître celui du
+        # post sur Facebook, c'est l'utilisateur au nom duquel la page est liée.
+        created_by_user_id=account["connected_by_user_id"],
+        external_publication_id=item.external_publication_id,
+        content=item.content,
+        hashtags=_extract_hashtags(item.content),
+        permalink_url=item.permalink_url[:_MAX_URL_LENGTH] if item.permalink_url else None,
+        published_at=published_at,
+    )
+
+    if result["outcome"] == "created":
+        # Premier relevé : les compteurs déjà renvoyés avec le post, sans appel
+        # supplémentaire. reach/impressions restent null (jamais un faux 0) — la
+        # synchronisation des métriques les complète pour les posts récents.
+        await social_metrics_repository.insert_snapshot(
+            publication_target_id=result["target_id"],
+            collected_at=datetime.now(timezone.utc),
+            reactions=item.reactions,
+            comments=item.comments,
+            shares=item.shares,
+            reach=None,
+            impressions=None,
+        )
+    return result["outcome"]
+
+
+async def sync_posts(body: PostsSyncRequest) -> PostsSyncResponse:
+    """Import des publications d'une Page : initial, puis incrémental.
+
+    Le mode se déduit de `social_accounts.last_posts_sync_at` :
+    - vide → tout l'historique du fil, jusqu'à la dernière page ;
+    - renseigné → `since` = cette date moins `posts_sync_overlap_days`. Meta filtre
+      `since` sur la date de création, donc les nouveaux posts sont trouvés
+      exactement ; la fenêtre de recouvrement sert à rattraper une modification de
+      texte récente (l'upsert rend la relecture d'un post inchangé sans effet).
+
+    Un appel ne lit que `posts_sync_pages_per_call` pages (voir config.py) : tant que
+    `done` est faux, l'appelant rappelle avec `nextCursor`. Seul l'appel qui lit la
+    dernière page note la synchronisation comme achevée — une interruption au
+    milieu ne laisse donc jamais croire à un import complet.
+    """
+    account, token = await _resolve_account_and_token(body.social_account_id)
+    _require_matching_provider(account, body.provider)
+    provider = get_provider(account["provider"])
+
+    last_synced = _as_datetime(account.get("last_posts_sync_at"))
+    initial = last_synced is None
+    since = (
+        None
+        if last_synced is None
+        else int((last_synced - timedelta(days=settings.posts_sync_overlap_days)).timestamp())
+    )
+
+    counts = {"created": 0, "updated": 0, "unchanged": 0, "skipped": 0}
+    cursor = body.cursor
+    done = False
+    for _ in range(settings.posts_sync_pages_per_call):
+        items, cursor, has_more = await provider.list_posts(
+            account=account, token=token, limit=settings.posts_sync_page_size, cursor=cursor, since=since
+        )
+        for item in items:
+            counts[await _persist_post(account, item)] += 1
+
+        if not has_more:
+            done, cursor = True, None
+            break
+        if not cursor:
+            # Une page suivante annoncée sans curseur pour l'atteindre : s'arrêter
+            # là marquerait l'import achevé alors qu'il est tronqué.
+            raise GraphAPIError(
+                status_code=502,
+                detail="Meta a annoncé une page suivante de publications sans curseur.",
+                code="provider_unavailable",
+            )
+
+    if done:
+        await social_accounts_repository.mark_posts_synced(account["id"])
+
+    return PostsSyncResponse(
+        mode="initial" if initial else "incremental",
+        next_cursor=cursor,
+        done=done,
+        **counts,
+    )

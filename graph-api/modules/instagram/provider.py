@@ -12,7 +12,7 @@ import asyncio
 
 from core.config import settings
 from core.exceptions import GraphAPIError
-from modules.facebook.schemas.internal import CommentSyncItem
+from modules.facebook.schemas.internal import CommentSyncItem, PostSyncItem
 from modules.instagram import client as ig_client
 
 _TERMINAL_STATUSES = {"FINISHED", "ERROR", "EXPIRED"}
@@ -97,6 +97,19 @@ class InstagramProvider:
         paging = data.get("paging", {})
         next_cursor = paging.get("cursors", {}).get("after")
         return items, next_cursor, "next" in paging
+
+    async def list_posts(
+        self, *, account: dict, token: str, limit: int, cursor: str | None, since: int | None
+    ) -> tuple[list[PostSyncItem], str | None, bool]:
+        # Le fil d'un compte Instagram (`/{ig-user-id}/media`) a ses propres champs,
+        # ses types (carrousel, Reel) et ses permissions : ne pas supposer la parité
+        # avec Facebook (voir l'en-tête de ce module) — refusé nettement tant qu'il
+        # n'est pas implémenté, plutôt qu'un import silencieusement partiel.
+        raise GraphAPIError(
+            status_code=422,
+            detail="L'import des publications Instagram n'est pas encore pris en charge.",
+            code="unprocessable",
+        )
 
     async def reply_to_comment(
         self, *, account: dict, token: str, external_comment_id: str, text: str

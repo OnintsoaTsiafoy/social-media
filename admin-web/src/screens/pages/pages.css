@@ -108,6 +108,19 @@
 .pg-card__token[data-tone] {
   color: var(--tone-fg);
 }
+.pg-card__sync {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 11px;
+  border-top: 1px solid var(--chip);
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.pg-card__sync-text {
+  min-width: 0;
+}
 
 .pg-add {
   display: flex;

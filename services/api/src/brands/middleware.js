@@ -29,7 +29,7 @@ export function requireBrandAccess(minimumRole = 'VIEWER') {
         throw new HttpError(404, 'not_found', 'Marque introuvable.');
       }
       if (!hasBrandRole(membership.role, minimumRole)) {
-        throw new HttpError(403, 'forbidden', 'Vous nâ€™avez pas les droits suffisants pour cette marque.');
+        throw new HttpError(403, 'forbidden', 'Vous n’avez pas les droits suffisants pour cette marque.');
       }
 
       request.brandAccess = membership;

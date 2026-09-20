@@ -26,7 +26,13 @@ import { createDeliveryService } from './src/delivery.js';
 import { closePool, query } from './src/db.js';
 import { createMetricsSync } from './src/metrics-sync.js';
 import { defaultNotifyUser } from './src/notifications-client.js';
-import { defaultRefreshToken, defaultSyncComments, defaultSyncMetrics } from './src/social-account-client.js';
+import { createPostsSync } from './src/posts-sync.js';
+import {
+  defaultRefreshToken,
+  defaultSyncComments,
+  defaultSyncMetrics,
+  defaultSyncPosts,
+} from './src/social-account-client.js';
 import { createSocialHttpProvider } from './src/social-http-provider.js';
 import { deleteObject, isStorageConfigured, signedReadUrl } from './src/storage.js';
 import { createTokenRefresh } from './src/token-refresh.js';
@@ -76,6 +82,7 @@ async function startBoss() {
   const tokenRefresh = createTokenRefresh({ query, refreshToken: defaultRefreshToken, notifyUser: defaultNotifyUser });
   const commentSync = createCommentSync({ query, syncComments: defaultSyncComments });
   const metricsSync = createMetricsSync({ query, syncMetrics: defaultSyncMetrics });
+  const postsSync = createPostsSync({ query, syncPosts: defaultSyncPosts });
   // `enqueue` est fourni par ce fichier plutôt que construit dans le module :
   // celui-ci ne connaît que des noms de file, et reste testable avec un double
   // qui enregistre les enchaînements au lieu de démarrer pg-boss.
@@ -178,6 +185,27 @@ async function startBoss() {
   // /api/v1/analytics/sync) envoie sur la même file, clé singleton par
   // marque — voir services/api/src/lib/jobs.js::enqueueMetricsSync.
   await boss.schedule(QUEUES.syncSocialMetrics, '*/30 * * * *', {});
+
+  // Import des publications d'une page. Un `socialAccountId` dans la charge = une
+  // synchronisation ciblée (liaison de la page, bouton « Synchroniser ») ; son
+  // absence = le balayage périodique, qui reprend d'abord les comptes jamais
+  // importés puis relit la fenêtre récente des autres. Le balayage est aussi le
+  // filet de la synchronisation initiale : si l'envoi du job à la liaison a échoué,
+  // le compte (last_posts_sync_at vide) est repris ici.
+  await boss.work(QUEUES.syncSocialPosts, async (jobs) => {
+    for (const job of jobs) {
+      const data = job.data ?? {};
+      const result = data.socialAccountId ? await postsSync.syncOne(data.socialAccountId) : await postsSync.sweep(data);
+      console.log({ scope: 'posts-sync', ...result });
+    }
+  });
+
+  // Toutes les 30 minutes : un post publié directement sur Facebook apparaît dans
+  // Hootly avec ce délai au plus. Une passe incrémentale coûte un appel Meta par
+  // page de la fenêtre récente — bien moins que les métriques. `expireInSeconds`
+  // large : une passe initiale sur une grande page dépasse le quart d'heure par
+  // défaut de pg-boss, et un job « expiré » serait relancé pendant qu'il tourne.
+  await boss.schedule(QUEUES.syncSocialPosts, '*/30 * * * *', {}, { retryLimit: 0, expireInSeconds: 3600 });
 
   // Un `competitorId` dans la charge = une synchronisation ciblée (ajout d'un
   // concurrent, bouton « Synchroniser ») ; son absence = le balayage

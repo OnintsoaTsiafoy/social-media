@@ -25,21 +25,13 @@
   gap: 10px;
   padding: 4px 8px;
 }
+/* Le fond et les formes sont dans le SVG lui-même (components/BrandMark.tsx),
+   qui porte cette classe : il ne reste ici qu'à le dimensionner. */
 .brand__mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
+  flex: none;
   width: 32px;
   height: 32px;
-  border-radius: 10px;
-  background: var(--night);
-}
-.brand__mark::after {
-  content: "";
-  width: 12px;
-  height: 12px;
-  border-radius: 4px;
-  background: var(--lime);
 }
 .brand__name {
   font-size: 15px;

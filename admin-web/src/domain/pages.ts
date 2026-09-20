@@ -13,6 +13,12 @@ export const BACKLOG_CRITICAL = 80;
 
 const DAY_MS = 86_400_000;
 
+/** État de l'import des publications : combien la page en compte, et quand il a abouti pour la dernière fois. */
+export function describePostsSync(page: Pick<ConnectedPage, "lastPostsSyncAt" | "postsCount">, t: Translate, format: Formatters, now = new Date()): string {
+  if (!page.lastPostsSyncAt) return t("pages.posts.never", { count: page.postsCount });
+  return t("pages.posts.synced", { count: page.postsCount, when: format.relative(new Date(page.lastPostsSyncAt), now) });
+}
+
 /** Phrase d'état du jeton, d'après les métadonnées renvoyées par l'API (jamais le jeton lui-même). */
 export function describeToken(token: ConnectedPage["token"], t: Translate, format: Formatters, now = new Date()): string {
   switch (token.state) {

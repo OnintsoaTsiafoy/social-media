@@ -113,6 +113,20 @@ async def mark_metrics_synced(account_id: str) -> None:
             )
 
 
+async def mark_posts_synced(account_id: str) -> None:
+    """Import des publications — l'unique écrivain de last_posts_sync_at, appelé
+    uniquement à la FIN d'une passe complète (dernière page lue). Tant qu'il n'a
+    pas été écrit, la prochaine passe repart de l'historique entier : une
+    interruption au milieu n'est donc jamais prise pour un import achevé."""
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "UPDATE social_accounts SET last_posts_sync_at = now() WHERE id = %s",
+                (account_id,),
+            )
+
+
 async def update_profile(account_id: str, *, name: str, username: str | None, avatar_url: str | None) -> None:
     """Keeps the displayed name/username/avatar current between OAuth
     reconnects — `upsert_account` only refreshes these at initial connect."""

@@ -9,8 +9,8 @@ import httpx
 from core.exceptions import GraphAPIError
 from modules.facebook.clients.facebook_client import FacebookClient
 from modules.facebook.schemas.comments import ReplyCreate
-from modules.facebook.schemas.internal import CommentSyncItem
-from modules.facebook.services import comments_service, post_analytics_service
+from modules.facebook.schemas.internal import CommentSyncItem, PostSyncItem
+from modules.facebook.services import comments_service, post_analytics_service, posts_service
 
 
 async def _fetch_image(url: str) -> tuple[bytes, str]:
@@ -89,6 +89,14 @@ class FacebookProvider:
         ]
         next_cursor = page.paging.cursors.after if page.paging.cursors else None
         return items, next_cursor, page.paging.has_next_page
+
+    async def list_posts(
+        self, *, account: dict, token: str, limit: int, cursor: str | None, since: int | None
+    ) -> tuple[list[PostSyncItem], str | None, bool]:
+        client = self._client(account, token)
+        page = await posts_service.get_account_posts(client=client, since=since, limit=limit, after=cursor)
+        next_cursor = page.paging.cursors.after if page.paging.cursors else None
+        return page.data, next_cursor, page.paging.has_next_page
 
     async def reply_to_comment(
         self, *, account: dict, token: str, external_comment_id: str, text: str

@@ -19,6 +19,7 @@ import {
   selectDeliverableTargets,
 } from '../../shared/publication-status.js';
 import { ProviderError, composeContent, deliver as defaultDeliver } from '../../shared/social-provider.js';
+import { activeBrand } from './lib/active-brand.js';
 
 const CLAIM_PUBLICATION = `
   UPDATE publications
@@ -31,7 +32,17 @@ const CLAIM_PUBLICATION = `
           AND scheduled_at = COALESCE($4::timestamptz, scheduled_at)))
      AND EXISTS (SELECT 1 FROM publication_approvals a WHERE a.publication_id = publications.id
                  AND a.revision = publications.content_revision AND a.status = 'APPROVED')
+     AND ${activeBrand('publications.brand_id')}
   RETURNING id, brand_id, content, hashtags, language, timezone, created_by_user_id, content_revision
+`;
+
+// Le motif du refus, pour les journaux : la condition ci-dessus suffit à
+// garantir qu'on n'envoie rien, mais sans cette lecture un job de marque
+// archivée serait rapporté « not_publishable », comme un brouillon non
+// approuvé. Même idiome que `approvalIsCurrent` juste en dessous.
+const CHECK_BRAND_ALIVE = `
+  SELECT ${activeBrand('p.brand_id')} AS brand_alive
+    FROM publications p WHERE p.id = $1::uuid AND p.deleted_at IS NULL
 `;
 
 const CHECK_APPROVAL = `
@@ -41,12 +52,22 @@ const CHECK_APPROVAL = `
     FROM publications p WHERE p.id = $1::uuid AND p.deleted_at IS NULL
 `;
 
+// Annule la planification d'un job devenu invalide, pour deux raisons
+// distinctes : l'approbation n'est plus valable, ou la marque a été archivée.
+// Sans le second cas, la planification d'une marque supprimée resterait « en
+// attente » indéfiniment. `deleteBrand` les annule déjà au moment de
+// l'archivage ; cette condition garde le worker autonome, sans supposer que
+// l'API a fait son travail.
 const CANCEL_INVALID_SCHEDULE = `
   UPDATE scheduled_publications SET status = 'CANCELLED', job_id = NULL, updated_at = now()
    WHERE publication_id = $1::uuid AND status = 'PENDING'
-     AND NOT EXISTS (SELECT 1 FROM publications p JOIN publication_approvals a ON a.publication_id = p.id
-       WHERE p.id = $1::uuid AND p.deleted_at IS NULL AND a.status = 'APPROVED'
-         AND p.approved_revision = p.content_revision AND a.revision = p.content_revision)
+     AND (
+       NOT EXISTS (SELECT 1 FROM publications p JOIN publication_approvals a ON a.publication_id = p.id
+         WHERE p.id = $1::uuid AND p.deleted_at IS NULL AND a.status = 'APPROVED'
+           AND p.approved_revision = p.content_revision AND a.revision = p.content_revision)
+       OR NOT EXISTS (SELECT 1 FROM publications p
+         WHERE p.id = $1::uuid AND p.deleted_at IS NULL AND ${activeBrand('p.brand_id')})
+     )
 `;
 
 const AUDIT_SKIPPED_JOB = `
@@ -204,6 +225,13 @@ export function createDeliveryService({
       row.approved_revision === revision && row.approval_valid;
   }
 
+  async function brandIsAlive(publicationId) {
+    const [row] = await query(CHECK_BRAND_ALIVE, [publicationId]);
+    // Publication introuvable : ce n'est pas à cette garde de le dire, la
+    // réclamation s'en chargera avec son propre motif.
+    return !row || row.brand_alive;
+  }
+
   async function cancelInvalidJob(publicationId, reason) {
     await query(CANCEL_INVALID_SCHEDULE, [publicationId]);
     await query(AUDIT_SKIPPED_JOB, [publicationId, JSON.stringify({ reason })]);
@@ -320,6 +348,12 @@ export function createDeliveryService({
 
     if (!await approvalIsCurrent(publicationId, revision)) {
       return cancelInvalidJob(publicationId, 'approval_invalid_or_stale_job');
+    }
+
+    // Une marque archivée n'envoie plus rien, même si le job était déjà en
+    // file au moment de l'archivage.
+    if (!await brandIsAlive(publicationId)) {
+      return cancelInvalidJob(publicationId, 'brand_archived');
     }
 
     if (requireSchedule) {

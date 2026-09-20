@@ -29,7 +29,8 @@ Conventions communes : enveloppe `{ data, meta }` ; erreurs `{ error: { code, me
 | `GET /analytics/trend` | Courbe + période précédente (`metric`, `period`, `sentiment`, `pageId`, `network`) |
 | `GET /analytics/pages` | Performance par page, activité par heure, pages filtrables |
 | `GET /users` · `PATCH /users/{id}` | Comptes ; suspension, rôle plateforme, rôles par marque (une transaction, un audit par changement) |
-| `GET /pages` · `PATCH /pages/{id}` | Pages connectées (avec le compte qui les a liées) ; réponse automatique par page |
+| `GET /pages` · `PATCH /pages/{id}` | Pages connectées (avec le compte qui les a liées, `lastPostsSyncAt` et `postsCount`) ; réponse automatique par page |
+| `POST /pages/{id}/sync` | Relance l'import des publications de la page : `202 { status: "queued" \| "already_queued" }`, asynchrone ; `409` pour Instagram ou une page à reconnecter (voir [SYNCHRO_PUBLICATIONS.md](SYNCHRO_PUBLICATIONS.md)) |
 | `POST /pages/connect` | Démarre la liaison d'un compte utilisateur (`userId`, `brandId`) à une page Facebook : `201 { authorizationUrl, expiresAt }` (voir §6) |
 | `GET /pages/connect/selections/{id}` · `POST …/link` | Au retour de Facebook : pages proposées (sans jeton) ; lie **uniquement** les pages choisies (`pageIds`) |
 | `GET /settings` · `POST/DELETE /settings/keywords` · `PATCH /settings/service-levels` · `PATCH /settings/supervision` | Configuration |

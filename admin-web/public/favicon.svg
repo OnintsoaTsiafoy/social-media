@@ -1,1 +1,3 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="10" fill="#0F172A"/><rect x="10" y="10" width="12" height="12" rx="4" fill="#C4F04A"/></svg>
+<!-- Même tracé que src/components/BrandMark.tsx, couleurs en dur : un favicon
+     est chargé hors du document et n'hérite donc pas des jetons CSS. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="10" fill="#0F172A"/><path d="M6.4 13.4 L8.8 6.6 L12.6 10.6 Q16 9.8 19.4 10.6 L23.2 6.6 L25.6 13.4 C25.6 20.8 21.3 26.3 16 26.3 C10.7 26.3 6.4 20.8 6.4 13.4 Z" fill="#C4F04A"/><circle cx="12.2" cy="16" r="3.2" fill="#0F172A"/><circle cx="19.8" cy="16" r="3.2" fill="#0F172A"/><path d="M16 22.6 L14.5 19.9 H17.5 Z" fill="#0F172A"/></svg>

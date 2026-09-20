@@ -24,11 +24,27 @@ export function createFakeDb(initial = {}) {
     competitors: initial.competitors ?? [],
     competitorPosts: initial.competitorPosts ?? [],
     competitorMetrics: initial.competitorMetrics ?? [],
+    brands: initial.brands ?? [],
     calls: [],
   };
 
   function publication(id) {
     return state.publications.find((row) => row.id === id);
+  }
+
+  /**
+   * « La marque est-elle encore vivante ? » — pendant de `activeBrand()`
+   * (src/lib/active-brand.js), qui filtre publications et synchronisations.
+   *
+   * Une fixture qui ne déclare aucune marque décrit un monde où la question ne
+   * se pose pas : tout est vivant. C'est le cas de la grande majorité des
+   * tests, écrits avant que l'archivage ne soit pris en compte. Dès qu'une
+   * marque est déclarée (`brands: [...]`), la règle réelle s'applique.
+   */
+  function brandAlive(brandId) {
+    if (state.brands.length === 0) return true;
+    const brand = state.brands.find((row) => row.id === brandId);
+    return Boolean(brand && !brand.deleted_at && brand.status === 'ACTIVE');
   }
 
   function approved(row) {
@@ -39,6 +55,12 @@ export function createFakeDb(initial = {}) {
   async function query(text, params = []) {
     state.calls.push(text.trim().split('\n')[0].trim());
 
+    // delivery.js CHECK_BRAND_ALIVE : le motif « marque archivée » dans les
+    // journaux. La garantie, elle, tient au filtre de la réclamation ci-dessous.
+    if (text.includes('AS brand_alive') && text.includes('FROM publications p')) {
+      const row = publication(params[0]);
+      return row && !row.deleted_at ? [{ brand_alive: brandAlive(row.brand_id) }] : [];
+    }
     if (text.includes('AS approval_valid')) {
       const row = publication(params[0]);
       return row && !row.deleted_at ? [{ ...row, approval_valid: approved(row) }] : [];
@@ -50,7 +72,10 @@ export function createFakeDb(initial = {}) {
     if (text.includes("UPDATE scheduled_publications SET status = 'CANCELLED'")) {
       const row = publication(params[0]);
       const schedule = state.schedules.find((schedule) => schedule.publication_id === params[0]);
-      if (schedule?.status === 'PENDING' && !approved(row)) schedule.status = 'CANCELLED';
+      // Deux motifs d'annulation : approbation invalide, ou marque archivée.
+      if (schedule?.status === 'PENDING' && (!approved(row) || !brandAlive(row?.brand_id))) {
+        schedule.status = 'CANCELLED';
+      }
       return [];
     }
 
@@ -58,6 +83,8 @@ export function createFakeDb(initial = {}) {
       const row = publication(params[0]);
       const claimable = ['APPROVED', 'SCHEDULED', 'PUBLISHING', 'FAILED', 'PARTIALLY_PUBLISHED'];
       if (!row || !approved(row) || row.content_revision !== params[1] || !claimable.includes(row.status)) return [];
+      // Une marque archivée n'envoie plus rien, même job déjà en file.
+      if (!brandAlive(row.brand_id)) return [];
       if (params[2] && (!['SCHEDULED', 'PUBLISHING'].includes(row.status) ||
           (params[3] && new Date(row.scheduled_at).getTime() !== new Date(params[3]).getTime()))) return [];
       row.status = 'PUBLISHING';
@@ -198,6 +225,7 @@ export function createFakeDb(initial = {}) {
       return (state.socialAccounts ?? [])
         .filter((row) => {
           if (!['CONNECTED', 'EXPIRING'].includes(row.status)) return false;
+          if (!brandAlive(row.brand_id)) return false;
           return !row.last_comments_sync_at || new Date(row.last_comments_sync_at).getTime() < staleThreshold;
         })
         .sort((a, b) => {
@@ -267,11 +295,19 @@ export function createFakeDb(initial = {}) {
     }
 
     // Sprint 12 metrics-sync.js's own target-selection query also selects
-    // `DISTINCT external_publication_id FROM publication_targets`, so this
-    // branch must be checked first, matched on `status = 'SENT'` — the
-    // fragment unique to it — before the more generic comment-sync.js branch
-    // below, which would otherwise swallow it too.
-    if (text.includes("status = 'SENT'") && text.includes('DISTINCT external_publication_id')) {
+    // `external_publication_id FROM publication_targets`, so this branch must
+    // be checked first, matched on `status = 'SENT'` — the fragment unique to
+    // it — before the more generic comment-sync.js branch below, which would
+    // otherwise swallow it too. Whitespace is flattened first: the real
+    // queries put the `FROM` on its own line.
+    //
+    // Neither query has a DISTINCT anymore (real PostgreSQL refuses one with
+    // an ORDER BY on a column outside the select list — which this double, that
+    // does not parse SQL, could never have caught). Both are ordered
+    // newest-first and capped, and the double reproduces that: the cap is what
+    // keeps an imported history from being re-read in full on every sweep.
+    const flat = text.replace(/\s+/g, ' ');
+    if (flat.includes("status = 'SENT'") && flat.includes('external_publication_id FROM publication_targets')) {
       const [socialAccountId, limit] = params;
       return (state.targets ?? [])
         .filter(
@@ -285,10 +321,40 @@ export function createFakeDb(initial = {}) {
         .map((row) => ({ external_publication_id: row.external_publication_id }));
     }
 
-    if (text.includes('DISTINCT external_publication_id')) {
+    if (flat.includes('external_publication_id FROM publication_targets')) {
+      const [socialAccountId, limit] = params;
       return (state.targets ?? [])
-        .filter((row) => row.social_account_id === params[0] && row.external_publication_id)
+        .filter((row) => row.social_account_id === socialAccountId && row.external_publication_id)
+        .sort((a, b) => new Date(b.sent_at ?? 0).getTime() - new Date(a.sent_at ?? 0).getTime())
+        .slice(0, limit)
         .map((row) => ({ external_publication_id: row.external_publication_id }));
+    }
+
+    // Import des publications (posts-sync.js) : sélection des comptes du
+    // balayage, puis relecture d'un compte pour un job ciblé. Fragments propres
+    // à ces deux requêtes, comme pour last_comments_sync_at ci-dessus.
+    if (text.includes('last_posts_sync_at')) {
+      const [staleAfterMinutes, limit] = params;
+      const staleThreshold = Date.now() - staleAfterMinutes * 60 * 1000;
+      return (state.socialAccounts ?? [])
+        .filter((row) => {
+          if (row.provider !== 'FACEBOOK' || !['CONNECTED', 'EXPIRING'].includes(row.status)) return false;
+          return !row.last_posts_sync_at || new Date(row.last_posts_sync_at).getTime() < staleThreshold;
+        })
+        .sort((a, b) => {
+          if (!a.last_posts_sync_at) return -1;
+          if (!b.last_posts_sync_at) return 1;
+          return new Date(a.last_posts_sync_at).getTime() - new Date(b.last_posts_sync_at).getTime();
+        })
+        .slice(0, limit)
+        .map((row) => ({ id: row.id, provider: row.provider }));
+    }
+
+    if (flat.includes('FROM social_accounts WHERE id = $1::uuid AND status IN')) {
+      const account = (state.socialAccounts ?? []).find(
+        (row) => row.id === params[0] && ['CONNECTED', 'EXPIRING'].includes(row.status)
+      );
+      return account ? [{ id: account.id, provider: account.provider }] : [];
     }
 
     // Sprint 12 metrics-sync.js's account-selection query. Même remarque que
@@ -299,6 +365,7 @@ export function createFakeDb(initial = {}) {
       return (state.socialAccounts ?? [])
         .filter((row) => {
           if (!['CONNECTED', 'EXPIRING'].includes(row.status)) return false;
+          if (!brandAlive(row.brand_id)) return false;
           return !row.last_metrics_sync_at || new Date(row.last_metrics_sync_at).getTime() < staleThreshold;
         })
         .sort((a, b) => {
@@ -317,6 +384,7 @@ export function createFakeDb(initial = {}) {
       return state.socialAccounts
         .filter((row) => {
           if (!['CONNECTED', 'EXPIRING'].includes(row.status)) return false;
+          if (!brandAlive(row.brand_id)) return false;
           const expiringSoon = row.expires_at && new Date(row.expires_at).getTime() < expiryThreshold;
           const stale = new Date(row.updated_at).getTime() < staleThreshold;
           return expiringSoon || stale;
@@ -356,7 +424,7 @@ export function createFakeDb(initial = {}) {
           row.provider === competitor.platform &&
           ['CONNECTED', 'EXPIRING'].includes(row.status)
       );
-      return [{ ...competitor, social_account_id: account?.id ?? null }];
+      return [{ ...competitor, social_account_id: account?.id ?? null, brand_alive: brandAlive(competitor.brand_id) }];
     }
 
     if (text.includes("status <> 'UNAVAILABLE'")) {
@@ -364,8 +432,10 @@ export function createFakeDb(initial = {}) {
       const isStale = (row, minutes) =>
         !row.last_synced_at || new Date(row.last_synced_at).getTime() < Date.now() - minutes * 60 * 1000;
       return state.competitors
-        .filter((row) =>
-          row.status === 'UNAVAILABLE' ? isStale(row, unavailableStaleAfterMinutes) : isStale(row, staleAfterMinutes)
+        .filter(
+          (row) =>
+            brandAlive(row.brand_id) &&
+            (row.status === 'UNAVAILABLE' ? isStale(row, unavailableStaleAfterMinutes) : isStale(row, staleAfterMinutes))
         )
         .sort((a, b) => {
           if (!a.last_synced_at) return -1;

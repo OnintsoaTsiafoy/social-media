@@ -1,8 +1,16 @@
 """Sprint 05 Day 4: network errors, timeouts, 429/Retry-After and token redaction."""
 import httpx
+import pytest
 
 from modules.facebook.clients.facebook_client import _redact_url
 from tests.conftest import META_BASE_URL, PAGE_ID
+
+
+@pytest.fixture
+def client(authenticated_client):
+    """`/facebook/*` exige un JWT de service depuis qu'elles ont ete fermees ;
+    le refus sans jeton est teste dans tests/test_facebook_auth.py."""
+    return authenticated_client
 
 
 def test_redact_url_hides_access_token():

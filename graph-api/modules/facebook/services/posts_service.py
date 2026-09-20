@@ -5,7 +5,8 @@ from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, UploadFile
 
 from core.exceptions import GraphAPIError
-from modules.facebook.clients.facebook_client import facebook_client
+from modules.facebook.clients.facebook_client import FacebookClient, facebook_client
+from modules.facebook.schemas.internal import PostSyncItem
 from modules.facebook.schemas.pagination import PaginatedList
 from modules.facebook.services.pagination_helpers import (
     meta_pagination_params,
@@ -228,6 +229,63 @@ async def get_page_posts(
         )
 
     return PaginatedList[PostResponse](data=posts, paging=paging_from_meta(data.get("paging")))
+
+
+# Champs volontairement plus légers que ceux de get_page_posts : un seul total de
+# réactions (pas les six types détaillés) et aucun sous-objet. Meta refuse
+# ("Please reduce the amount of data you're asking for") un `limit` élevé combiné
+# à des champs lourds, et l'import lit l'historique entier par pages de 50.
+_SYNC_FIELDS = (
+    "id,message,story,created_time,permalink_url,shares,"
+    "reactions.limit(0).summary(total_count),comments.limit(0).summary(total_count)"
+)
+
+
+def _summary_total(post: dict, edge: str) -> int | None:
+    """Total d'un edge `.summary(total_count)`, ou None si Meta ne l'a pas renvoyé
+    (permission absente) — jamais 0 par défaut."""
+    total = ((post.get(edge) or {}).get("summary") or {}).get("total_count")
+    return total if isinstance(total, int) else None
+
+
+async def get_account_posts(
+    *,
+    client: FacebookClient,
+    since: int | None = None,
+    limit: int = 50,
+    after: str | None = None,
+) -> PaginatedList[PostSyncItem]:
+    """Une page du fil de publications d'UNE page, avec le client de son compte.
+
+    Sert la synchronisation des publications (Sprint 07 : même principe que
+    comments_service.get_post_comments — le client est un paramètre, pas le
+    singleton global). `since` est un timestamp Unix ; Meta le filtre sur la date
+    de création du post, et le renvoie dans `paging.next`, donc le passer à chaque
+    page avec `after` reste cohérent.
+    """
+    params: dict = {"fields": _SYNC_FIELDS, **meta_pagination_params(limit, after, None)}
+    if since is not None:
+        params["since"] = str(since)
+
+    data = await client.get(f"{client.page_id}/posts", params=params)
+
+    posts = [
+        PostSyncItem(
+            external_publication_id=post["id"],
+            # `story` ("X a partagé un lien") prend le relais des posts sans texte
+            # — mieux qu'une ligne vide dans la liste des publications.
+            content=post.get("message") or post.get("story") or "",
+            permalink_url=post.get("permalink_url"),
+            published_at=post.get("created_time"),
+            reactions=_summary_total(post, "reactions"),
+            comments=_summary_total(post, "comments"),
+            # Meta omet `shares` quand il n'y a aucun partage : l'absence vaut 0.
+            shares=(post.get("shares") or {}).get("count", 0),
+        )
+        for post in data.get("data", [])
+        if post.get("id")
+    ]
+    return PaginatedList[PostSyncItem](data=posts, paging=paging_from_meta(data.get("paging")))
 
 
 async def get_community_managers_stats(

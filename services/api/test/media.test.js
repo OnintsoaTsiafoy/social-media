@@ -9,6 +9,7 @@ import {
   publicationObjectKey,
   temporaryObjectKey,
 } from '../../shared/media-inspect.js';
+import { mayDeleteMedia, mayReadMedia } from '../src/media/service.js';
 import { MEDIA_LIMITS } from '../src/media/schemas.js';
 
 /** En-tête PNG minimal : signature + IHDR portant les dimensions. */
@@ -87,4 +88,43 @@ test('les clés d’objet suivent la spécification S3/MinIO', () => {
 test('les limites serveur reprennent celles appliquées par le mobile', () => {
   assert.equal(MEDIA_LIMITS.maxBytes, 8_000_000);
   assert.equal(MEDIA_LIMITS.minDimension, 320);
+});
+
+// --- Qui peut lire et supprimer un média -------------------------------------
+// Un média de marque était jusqu'ici lisible ET supprimable par n'importe quel
+// membre, lecteur compris, et son déposant y gardait accès après avoir quitté
+// la marque. Ces tests fixent les deux règles.
+
+const OWNER_ID = 'user-depositaire';
+const brandMedia = { brandId: 'brand-1', ownerUserId: OWNER_ID };
+const personalMedia = { brandId: null, ownerUserId: OWNER_ID };
+
+test('un média de marque se lit avec n’importe quel rôle, mais pas sans être membre', () => {
+  for (const role of ['VIEWER', 'COMMUNITY_MANAGER', 'ADMIN', 'OWNER']) {
+    assert.equal(mayReadMedia(brandMedia, 'un-autre-membre', role), true, role);
+  }
+  assert.equal(mayReadMedia(brandMedia, 'un-inconnu', null), false);
+});
+
+test('le déposant d’un média de marque perd l’accès en quittant la marque', () => {
+  assert.equal(mayReadMedia(brandMedia, OWNER_ID, 'COMMUNITY_MANAGER'), true);
+  // Plus membre actif : son dépôt d'hier ne lui ouvre plus les visuels de la marque.
+  assert.equal(mayReadMedia(brandMedia, OWNER_ID, null), false);
+  assert.equal(mayDeleteMedia(brandMedia, OWNER_ID, null), false);
+});
+
+test('un média sans marque (avatar) reste strictement personnel', () => {
+  assert.equal(mayReadMedia(personalMedia, OWNER_ID, null), true);
+  assert.equal(mayReadMedia(personalMedia, 'quelqu’un-dautre', 'OWNER'), false);
+  assert.equal(mayDeleteMedia(personalMedia, 'quelqu’un-dautre', 'ADMIN'), false);
+});
+
+test('supprimer un média de marque demande plus que le lire', () => {
+  // Le déposant, encore membre, peut retirer son propre dépôt.
+  assert.equal(mayDeleteMedia(brandMedia, OWNER_ID, 'COMMUNITY_MANAGER'), true);
+  // Le visuel d'autrui : réservé aux administrateurs de la marque.
+  assert.equal(mayDeleteMedia(brandMedia, 'un-autre-membre', 'VIEWER'), false);
+  assert.equal(mayDeleteMedia(brandMedia, 'un-autre-membre', 'COMMUNITY_MANAGER'), false);
+  assert.equal(mayDeleteMedia(brandMedia, 'un-autre-membre', 'ADMIN'), true);
+  assert.equal(mayDeleteMedia(brandMedia, 'un-autre-membre', 'OWNER'), true);
 });

@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from core.config import settings
 from main import app
+from tests.conftest import SERVICE_JWT_SECRET, make_service_jwt
 
 
 client = TestClient(app)
@@ -33,8 +34,13 @@ def test_facebook_route_is_rejected_without_meta_configuration(monkeypatch):
     monkeypatch.setattr(settings, "facebook_app_id", None)
     monkeypatch.setattr(settings, "facebook_page_id", None)
     monkeypatch.setattr(settings, "facebook_page_access_token", None)
+    # La route exige un JWT de service : sans lui, on obtiendrait 401 et ce
+    # test ne dirait plus rien de la configuration Meta.
+    monkeypatch.setattr(settings, "service_jwt_secret", SERVICE_JWT_SECRET)
 
-    response = client.get("/facebook/posts")
+    response = client.get(
+        "/facebook/posts", headers={"Authorization": f"Bearer {make_service_jwt()}"}
+    )
 
     assert response.status_code == 503
     body = response.json()

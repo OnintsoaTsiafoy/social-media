@@ -2,6 +2,7 @@ import { hasBrandRole } from '../brands/middleware.js';
 import { prisma } from '../db/prisma.js';
 import { writeAuditLog } from '../lib/audit.js';
 import { HttpError } from '../lib/http.js';
+import { enqueuePostsSync } from '../lib/jobs.js';
 import { callSocialService } from '../lib/socialServiceClient.js';
 
 // Liaison d'un compte utilisateur à une page Facebook par un administrateur de la
@@ -150,6 +151,30 @@ export async function getPageSelection(selectionId, admin) {
   };
 }
 
+/**
+ * Lance l'import des publications des comptes qui viennent d'être liés. Facebook
+ * seulement : Instagram n'a pas encore de lecture de son fil (graph-api refuse).
+ *
+ * Au mieux, et sans jamais faire échouer la liaison — elle est déjà faite chez
+ * graph-api, et un échec ici (file indisponible) ne doit pas la faire paraître
+ * manquée à l'administrateur. Rien n'est perdu : le balayage périodique du worker
+ * reprend tout compte dont `last_posts_sync_at` est vide, au plus tard une demi-heure
+ * plus tard.
+ */
+async function queueInitialPostsSync(accounts, admin) {
+  await Promise.all(
+    accounts
+      .filter((account) => account.provider === 'FACEBOOK')
+      .map(async (account) => {
+        try {
+          await enqueuePostsSync({ socialAccountId: account.id, requestedBy: admin.id });
+        } catch (error) {
+          console.error({ scope: 'posts-sync', action: 'enqueue_after_link', socialAccountId: account.id, error: error?.message });
+        }
+      })
+  );
+}
+
 export async function linkPageSelection(selectionId, { pageIds }, admin, request) {
   const selection = await getPageSelection(selectionId, admin);
 
@@ -187,6 +212,10 @@ export async function linkPageSelection(selectionId, { pageIds }, admin, request
       },
     });
   }
+
+  // La page est liée : on importe ses publications déjà en ligne (synchronisation
+  // initiale), pour que l'application montre des données réelles dès le départ.
+  await queueInitialPostsSync(result.accounts, admin);
 
   return {
     user: selection.user,

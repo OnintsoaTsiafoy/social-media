@@ -1,5 +1,7 @@
 import { prisma } from '../db/prisma.js';
+import { writeAuditLog } from '../lib/audit.js';
 import { HttpError } from '../lib/http.js';
+import { enqueuePostsSync } from '../lib/jobs.js';
 import { providerOf } from './metrics.js';
 import { autoReplyPageIds, setPageAutoReply } from './settings.js';
 
@@ -67,7 +69,7 @@ export async function listPages({ network, status }) {
   });
 
   const ids = accounts.map((account) => account.id);
-  const [recent, untreated, autoReply] = await Promise.all([
+  const [recent, untreated, autoReply, published] = await Promise.all([
     prisma.socialComment.groupBy({
       by: ['socialAccountId'],
       where: { socialAccountId: { in: ids }, createdAt: { gte: new Date(now.getTime() - DAY_MS) } },
@@ -79,6 +81,13 @@ export async function listPages({ network, status }) {
       _count: { _all: true },
     }),
     autoReplyPageIds(),
+    // Posts de la page connus de Hootly, publiés par lui ou importés : ce que la
+    // synchronisation des publications a (ou n'a pas encore) ramené.
+    prisma.publicationTarget.groupBy({
+      by: ['socialAccountId'],
+      where: { socialAccountId: { in: ids }, status: 'SENT', publication: { deletedAt: null } },
+      _count: { _all: true },
+    }),
   ]);
   const countOf = (rows, id) => rows.find((row) => row.socialAccountId === id)?._count._all ?? 0;
 
@@ -104,6 +113,9 @@ export async function listPages({ network, status }) {
         teamCount: team.length,
         autoReply: autoReply.has(account.id),
         lastCommentsSyncAt: account.lastCommentsSyncAt?.toISOString() ?? null,
+        // null = l'historique de la page n'a jamais été importé en entier.
+        lastPostsSyncAt: account.lastPostsSyncAt?.toISOString() ?? null,
+        postsCount: countOf(published, account.id),
       };
     })
     .filter((item) => status === 'all' || item.status === status);
@@ -119,6 +131,41 @@ async function pageCounts() {
   });
   const count = (provider) => rows.find((row) => row.provider === provider)?._count._all ?? 0;
   return { all: count('FACEBOOK') + count('INSTAGRAM'), facebook: count('FACEBOOK'), instagram: count('INSTAGRAM') };
+}
+
+/**
+ * « Synchroniser » : relance l'import des publications de la page. Le job est
+ * asynchrone (202) ; initiale ou incrémentale est décidé côté graph-api d'après
+ * `last_posts_sync_at` — sur une page dont l'import initial a été interrompu, ce
+ * bouton le reprend donc de zéro.
+ */
+export async function requestPostsSync(pageId, { userId, requestId }) {
+  const page = await prisma.socialAccount.findFirst({
+    where: { id: pageId, status: { not: 'DISCONNECTED' } },
+    select: { id: true, name: true, provider: true, status: true },
+  });
+  if (!page) throw new HttpError(404, 'not_found', 'Page introuvable.');
+  if (page.provider !== 'FACEBOOK') {
+    throw new HttpError(409, 'conflict', 'L’import des publications n’est pas encore disponible pour Instagram.');
+  }
+  if (!['CONNECTED', 'EXPIRING'].includes(page.status)) {
+    throw new HttpError(409, 'conflict', 'Cette page doit être reconnectée avant de pouvoir être synchronisée.');
+  }
+
+  // Erreur 503 si la file est indisponible : l'administrateur vient de le demander,
+  // il doit le savoir (à la liaison, en revanche, l'échec est silencieux).
+  const jobId = await enqueuePostsSync({ socialAccountId: page.id, requestedBy: userId });
+
+  await writeAuditLog(prisma, {
+    userId,
+    action: 'admin.page.sync_requested',
+    resourceType: 'social_account',
+    resourceId: page.id,
+    requestId,
+    metadata: { pageName: page.name, provider: page.provider.toLowerCase() },
+  });
+
+  return { status: jobId ? 'queued' : 'already_queued' };
 }
 
 export async function updatePage(pageId, { autoReply }, context) {

@@ -1,5 +1,27 @@
-from fastapi import APIRouter, Body, File, Form, UploadFile
+"""Routes historiques `/facebook/*` (Sprint 01-04), conservées et protégées.
 
+Ces routes agissent sur la « page globale » du `.env`
+(`FACEBOOK_PAGE_ID` / `FACEBOOK_PAGE_ACCESS_TOKEN`) et non sur un compte social
+d'une marque : elles publient, modifient, suppriment et répondent chez Meta.
+Elles étaient exposées sans aucune authentification, alors que le port 8000 est
+publié par Compose et que `PUBLIC_BASE_URL` peut être un domaine accessible
+depuis Internet — n'importe qui pouvait donc écrire sur la page.
+
+Elles exigent désormais le même JWT de service que `/internal/v1`
+(audience `social-service`, voir `core/security.py`) : `social:read` pour les
+lectures, `social:write` pour les écritures. Les appelants n'émettent qu'un
+scope à la fois (`services/api/src/lib/serviceJwt.js`,
+`services/worker/src/social-account-client.js`), d'où une dépendance par route
+plutôt qu'une dépendance de routeur qui les cumulerait.
+
+Aucun appelant applicatif n'utilise ces routes — Express et le worker passent
+par `/internal/v1`, qui cible un compte social précis. Elles restent montées
+pour la compatibilité et l'exploitation manuelle (collection Postman).
+"""
+
+from fastapi import APIRouter, Body, Depends, File, Form, UploadFile
+
+from core.security import require_service_jwt
 from modules.facebook.schemas.comments import (
     CommentResponse,
     ReplyCreate,
@@ -51,6 +73,7 @@ async def list_posts(
     limit: int = 25,
     after: str | None = None,
     before: str | None = None,
+    _auth: dict = Depends(require_service_jwt("social:read")),
 ):
     """Récupère les publications de la page Facebook.
 
@@ -66,6 +89,7 @@ async def list_posts(
 async def publish_post(
     message: str | None = Form(None),
     files: list[UploadFile] = File(default=[]),
+    _auth: dict = Depends(require_service_jwt("social:write")),
 ):
     """
     Publie un post sur la page Facebook.
@@ -78,13 +102,20 @@ async def publish_post(
 
 
 @router.put("/posts/{post_id}")
-async def edit_post(post_id: str, body: PostUpdate = Body(...)):
+async def edit_post(
+    post_id: str,
+    body: PostUpdate = Body(...),
+    _auth: dict = Depends(require_service_jwt("social:write")),
+):
     """Modifie le message d'une publication Facebook existante."""
     return await update_post(post_id=post_id, message=body.message)
 
 
 @router.delete("/posts/{post_id}")
-async def remove_post(post_id: str):
+async def remove_post(
+    post_id: str,
+    _auth: dict = Depends(require_service_jwt("social:write")),
+):
     """Supprime une publication Facebook."""
     return await delete_post(post_id)
 
@@ -95,9 +126,10 @@ async def schedule_post(
     scheduled_publish_time: str = Form(...),
     timezone_offset_minutes: int | None = Form(None),
     files: list[UploadFile] = File(default=[]),
+    _auth: dict = Depends(require_service_jwt("social:write")),
 ):
     """Programme une publication Facebook pour une date future.
-    
+
     Supports :
     - Texte seul
     - 1 image + message optionnel
@@ -113,7 +145,12 @@ async def schedule_post(
 
 
 @router.get("/scheduled-posts", response_model=PaginatedList[ScheduledPostResponse])
-async def get_scheduled_posts(limit: int = 25, after: str | None = None, before: str | None = None):
+async def get_scheduled_posts(
+    limit: int = 25,
+    after: str | None = None,
+    before: str | None = None,
+    _auth: dict = Depends(require_service_jwt("social:read")),
+):
     """Liste les publications Facebook programmees."""
     return await list_scheduled_posts(limit=limit, after=after, before=before)
 
@@ -125,9 +162,10 @@ async def edit_scheduled_post(
     scheduled_publish_time: str | None = Form(None),
     timezone_offset_minutes: int | None = Form(None),
     files: list[UploadFile] = File(default=[]),
+    _auth: dict = Depends(require_service_jwt("social:write")),
 ):
     """Modifie le contenu ou la date d'une publication programmee.
-    
+
     Peut aussi uploader des médias pour remplacer l'attachement.
     """
     return await update_scheduled_post(
@@ -140,14 +178,21 @@ async def edit_scheduled_post(
 
 
 @router.delete("/scheduled-posts/{post_id}")
-async def remove_scheduled_post(post_id: str):
+async def remove_scheduled_post(
+    post_id: str,
+    _auth: dict = Depends(require_service_jwt("social:write")),
+):
     """Annule (supprime) une publication programmee."""
     return await delete_scheduled_post(post_id)
 
 
 @router.get("/posts/{post_id}/comments", response_model=PaginatedList[CommentResponse])
 async def list_post_comments(
-    post_id: str, limit: int = 25, after: str | None = None, before: str | None = None
+    post_id: str,
+    limit: int = 25,
+    after: str | None = None,
+    before: str | None = None,
+    _auth: dict = Depends(require_service_jwt("social:read")),
 ):
     """Récupère les commentaires d'une publication Facebook."""
     return await get_post_comments(post_id, limit=limit, after=after, before=before)
@@ -155,7 +200,11 @@ async def list_post_comments(
 
 @router.get("/comments/{comment_id}/replies", response_model=PaginatedList[ReplyResponse])
 async def list_comment_replies(
-    comment_id: str, limit: int = 25, after: str | None = None, before: str | None = None
+    comment_id: str,
+    limit: int = 25,
+    after: str | None = None,
+    before: str | None = None,
+    _auth: dict = Depends(require_service_jwt("social:read")),
 ):
     """Récupère les réponses à un commentaire Facebook."""
     return await get_comment_replies(comment_id, limit=limit, after=after, before=before)
@@ -165,31 +214,45 @@ async def list_comment_replies(
 async def create_comment_reply(
     comment_id: str,
     body: ReplyCreate = Body(...),
+    _auth: dict = Depends(require_service_jwt("social:write")),
 ):
     """Répond à un commentaire Facebook."""
     return await reply_to_comment(comment_id, body)
 
 
 @router.get("/posts/{post_id}/stats", response_model=PostStatsResponse)
-async def post_stats(post_id: str):
+async def post_stats(
+    post_id: str,
+    _auth: dict = Depends(require_service_jwt("social:read")),
+):
     """Récupère les statistiques d'une publication Facebook (réactions, commentaires, partages)."""
     return await get_post_stats(post_id)
 
 
 @router.get("/community-managers/stats", response_model=CommunityManagersStatsResponse)
-async def community_managers_stats(since: str | None = None, until: str | None = None):
+async def community_managers_stats(
+    since: str | None = None,
+    until: str | None = None,
+    _auth: dict = Depends(require_service_jwt("social:read")),
+):
     """Récupère les statistiques d'activité agrégées par auteur de publication."""
     return await get_community_managers_stats(since=since, until=until)
 
 
 @router.get("/posts/{post_id}/analytics", response_model=PostAnalyticsResponse)
-async def post_analytics(post_id: str):
+async def post_analytics(
+    post_id: str,
+    _auth: dict = Depends(require_service_jwt("social:read")),
+):
     """Récupère une vue analytique complète d'une publication Facebook."""
     return await get_post_analytics(post_id)
 
 
 @router.get("/posts/{post_id}/insights", response_model=PostInsightsResponse)
-async def post_insights(post_id: str):
+async def post_insights(
+    post_id: str,
+    _auth: dict = Depends(require_service_jwt("social:read")),
+):
     """Récupère stats + analytiques complètes d'une publication Facebook."""
     return await get_post_insights(post_id)
 
@@ -198,18 +261,27 @@ async def post_insights(post_id: str):
 async def publish_story(
     file: UploadFile = File(...),
     message: str | None = Form(None),
+    _auth: dict = Depends(require_service_jwt("social:write")),
 ):
     """Publie une story Facebook (image ou vidéo)."""
     return await create_story(file=file, message=message)
 
 
 @router.get("/stories", response_model=PaginatedList[StoryResponse])
-async def get_stories(limit: int = 25, after: str | None = None, before: str | None = None):
+async def get_stories(
+    limit: int = 25,
+    after: str | None = None,
+    before: str | None = None,
+    _auth: dict = Depends(require_service_jwt("social:read")),
+):
     """Liste les stories de la page."""
     return await list_stories(limit=limit, after=after, before=before)
 
 
 @router.delete("/stories/{story_id}")
-async def remove_story(story_id: str):
+async def remove_story(
+    story_id: str,
+    _auth: dict = Depends(require_service_jwt("social:write")),
+):
     """Supprime une story."""
     return await delete_story(story_id)

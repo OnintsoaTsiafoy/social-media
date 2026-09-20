@@ -21,6 +21,8 @@
  * reste ce qu'il est partout ailleurs — la seule porte vers Meta, sans état.
  */
 
+import { activeBrand } from './lib/active-brand.js';
+
 const SELECT_COMPETITOR = `
   SELECT c.id,
          c.brand_id,
@@ -29,7 +31,8 @@ const SELECT_COMPETITOR = `
          c.external_id,
          c.status,
          c.name,
-         sa.id AS social_account_id
+         sa.id AS social_account_id,
+         ${activeBrand('c.brand_id')} AS brand_alive
     FROM competitors c
     LEFT JOIN LATERAL (
       SELECT id
@@ -52,13 +55,16 @@ const SELECT_COMPETITORS_DUE = `
   SELECT id
     FROM competitors
    WHERE (
-           status <> 'UNAVAILABLE'
-           AND (last_synced_at IS NULL OR last_synced_at < now() - make_interval(mins => $1::int))
+           (
+             status <> 'UNAVAILABLE'
+             AND (last_synced_at IS NULL OR last_synced_at < now() - make_interval(mins => $1::int))
+           )
+           OR (
+             status = 'UNAVAILABLE'
+             AND (last_synced_at IS NULL OR last_synced_at < now() - make_interval(mins => $2::int))
+           )
          )
-      OR (
-           status = 'UNAVAILABLE'
-           AND (last_synced_at IS NULL OR last_synced_at < now() - make_interval(mins => $2::int))
-         )
+     AND ${activeBrand('competitors.brand_id')}
    ORDER BY last_synced_at NULLS FIRST
    LIMIT $3::int
 `;
@@ -206,6 +212,9 @@ export function createCompetitorSync({ query, fetchProfile, fetchPosts, fetchAud
   async function syncProfile({ competitorId }) {
     const competitor = await loadCompetitor(competitorId);
     if (!competitor) return { skipped: 'unknown_competitor' };
+    // Le balayage exclut déjà les marques archivées ; il reste le job ciblé
+    // enfilé juste avant l'archivage.
+    if (!competitor.brand_alive) return { skipped: 'brand_archived' };
 
     if (!competitor.social_account_id) {
       // Compte social déconnecté depuis l'ajout du concurrent : ce n'est pas
@@ -274,6 +283,7 @@ export function createCompetitorSync({ query, fetchProfile, fetchPosts, fetchAud
   async function syncPosts({ competitorId, followersCount = null, postsCount = null }) {
     const competitor = await loadCompetitor(competitorId);
     if (!competitor) return { skipped: 'unknown_competitor' };
+    if (!competitor.brand_alive) return { skipped: 'brand_archived' };
     if (!competitor.social_account_id) return { skipped: 'no_social_account' };
 
     let result;
@@ -334,6 +344,7 @@ export function createCompetitorSync({ query, fetchProfile, fetchPosts, fetchAud
   async function syncMetrics({ competitorId, followersCount = null, postsCount = null }) {
     const competitor = await loadCompetitor(competitorId);
     if (!competitor) return { skipped: 'unknown_competitor' };
+    if (!competitor.brand_alive) return { skipped: 'brand_archived' };
 
     let followers = followersCount;
     if (followers === null || followers === undefined) {

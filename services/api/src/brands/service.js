@@ -239,24 +239,35 @@ export async function activateBrand(brandId, userId, request) {
 
 export async function deleteBrand(brandId, membership, request) {
   if (membership.role !== 'OWNER') {
-    throw new HttpError(403, 'forbidden', 'Seul le propriÃ©taire peut supprimer une marque.');
+    throw new HttpError(403, 'forbidden', 'Seul le propriétaire peut supprimer une marque.');
   }
   return prisma.$transaction(async (tx) => {
     await tx.brand.update({ where: { id: brandId }, data: { status: 'ARCHIVED', deletedAt: new Date() } });
     await tx.brandMember.updateMany({ where: { brandId, isActive: true }, data: { isActive: false } });
+
+    // Les planifications en attente sont annulées ici : le worker refuse déjà
+    // d'envoyer pour une marque archivée (services/worker/src/delivery.js), mais
+    // sans cette annulation elles resteraient « en attente » indéfiniment, et le
+    // calendrier continuerait d'annoncer des envois qui n'auront jamais lieu.
+    const cancelled = await tx.scheduledPublication.updateMany({
+      where: { status: 'PENDING', publication: { brandId } },
+      data: { status: 'CANCELLED', jobId: null },
+    });
+
     await writeAuditLog(tx, {
       userId: request.auth.user.id,
       action: 'brand.archived',
       resourceType: 'brand',
       resourceId: brandId,
       requestId: request.requestId,
+      metadata: { cancelledSchedules: cancelled.count },
     });
   });
 }
 
 export async function getAiSettings(brandId) {
   const current = await prisma.brandAiSetting.findFirst({ where: { brandId }, orderBy: { version: 'desc' } });
-  if (!current) throw new HttpError(404, 'not_found', 'ParamÃ¨tres IA introuvables.');
+  if (!current) throw new HttpError(404, 'not_found', 'Paramètres IA introuvables.');
   return toPublicAiSettings(current);
 }
 
@@ -264,9 +275,9 @@ export async function updateAiSettings(brandId, payload, userId, request) {
   try {
     return await prisma.$transaction(async (tx) => {
       const current = await tx.brandAiSetting.findFirst({ where: { brandId }, orderBy: { version: 'desc' } });
-      if (!current) throw new HttpError(404, 'not_found', 'ParamÃ¨tres IA introuvables.');
+      if (!current) throw new HttpError(404, 'not_found', 'Paramètres IA introuvables.');
       if (payload.expectedVersion !== current.version) {
-        throw new HttpError(409, 'version_conflict', 'Ces paramÃ¨tres ont Ã©tÃ© modifiÃ©s. Rechargez-les avant de les enregistrer.');
+        throw new HttpError(409, 'version_conflict', 'Ces paramètres ont été modifiés. Rechargez-les avant de les enregistrer.');
       }
       const next = await tx.brandAiSetting.create({
         data: {
@@ -288,7 +299,7 @@ export async function updateAiSettings(brandId, payload, userId, request) {
     });
   } catch (error) {
     if (error?.code === 'P2002') {
-      throw new HttpError(409, 'version_conflict', 'Ces paramÃ¨tres ont Ã©tÃ© modifiÃ©s. Rechargez-les avant de les enregistrer.');
+      throw new HttpError(409, 'version_conflict', 'Ces paramètres ont été modifiés. Rechargez-les avant de les enregistrer.');
     }
     throw error;
   }

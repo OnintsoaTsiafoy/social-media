@@ -8,7 +8,7 @@ import { listAuditTrail } from './audit.js';
 import { requirePlatformAdmin } from './middleware.js';
 import { adminLive, adminOverview, adminSummary } from './overview.js';
 import { getPageSelection, linkPageSelection, startPageConnection } from './pageConnection.js';
-import { listPages, updatePage } from './pages.js';
+import { listPages, requestPostsSync, updatePage } from './pages.js';
 import {
   addKeywordSchema,
   approveDraftSchema,
@@ -148,6 +148,12 @@ router.post('/pages/connect/selections/:selectionId/link', async (request, respo
   const id = parseId(request.params.selectionId);
   const body = parse(linkSelectionSchema, request.body);
   sendSuccess(response, await linkPageSelection(id, body, request.auth.user, request));
+});
+
+// Relance l'import des publications de la page (asynchrone : 202, le worker travaille).
+router.post('/pages/:pageId/sync', async (request, response) => {
+  const id = parseId(request.params.pageId);
+  sendSuccess(response, await requestPostsSync(id, contextOf(request)), 202);
 });
 
 router.patch('/pages/:pageId', async (request, response) => {

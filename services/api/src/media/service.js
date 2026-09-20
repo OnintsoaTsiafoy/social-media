@@ -7,21 +7,56 @@ import {
   publicationObjectKey,
   temporaryObjectKey,
 } from '../../../shared/media-inspect.js';
+import { hasBrandRole } from '../brands/middleware.js';
 import { prisma } from '../db/prisma.js';
 import { writeAuditLog } from '../lib/audit.js';
 import { HttpError } from '../lib/http.js';
 import { deleteObject, isStorageConfigured, moveObject, putObject, signedReadUrl, storageConfig } from '../lib/storage.js';
 import { MEDIA_LIMITS } from './schemas.js';
 
-/** Un média n'est visible que par son déposant ou par un membre de sa marque. */
+/**
+ * Qui peut lire un média. Fonction pure, donc testable sans base.
+ *
+ * Deux familles de médias, deux règles :
+ * - sans marque (avatar, dépôt encore non rattaché) : son déposant, lui seul ;
+ * - rattaché à une marque : les membres actifs de cette marque, quel que soit
+ *   leur rôle — c'est un actif de la marque, pas une affaire personnelle.
+ *
+ * Le déposant n'a délibérément PAS de passe-droit sur un média de marque : un
+ * ancien membre garderait sinon l'accès aux visuels de la marque qu'il a
+ * quittée, indéfiniment.
+ *
+ * @param {string|null} role rôle du demandeur dans la marque du média, `null`
+ *   s'il n'en est pas membre actif.
+ */
+export function mayReadMedia(media, userId, role) {
+  if (!media.brandId) return media.ownerUserId === userId;
+  return role !== null && role !== undefined;
+}
+
+/**
+ * Qui peut supprimer un média. Plus restrictif que la lecture : effacer le
+ * visuel d'autrui n'est pas un acte de lecture. Son déposant (encore membre)
+ * ou un administrateur de la marque.
+ */
+export function mayDeleteMedia(media, userId, role) {
+  if (!media.brandId) return media.ownerUserId === userId;
+  if (role === null || role === undefined) return false;
+  if (media.ownerUserId === userId) return true;
+  return hasBrandRole(role, 'ADMIN');
+}
+
+/** Rôle du demandeur dans la marque du média, `null` s'il n'en est pas membre actif. */
+async function brandRoleFor(brandId, userId) {
+  if (!brandId) return null;
+  const membership = await prisma.brandMember.findFirst({
+    where: { brandId, userId, brand: { deletedAt: null, status: 'ACTIVE' } },
+  });
+  return membership?.role ?? null;
+}
+
 async function assertMediaVisible(media, userId) {
-  if (media.ownerUserId === userId) return;
-  if (media.brandId) {
-    const membership = await prisma.brandMember.findFirst({
-      where: { brandId: media.brandId, userId, brand: { deletedAt: null, status: 'ACTIVE' } },
-    });
-    if (membership) return;
-  }
+  if (mayReadMedia(media, userId, await brandRoleFor(media.brandId, userId))) return;
   // Comme pour les marques, l'existence d'un média d'autrui n'est pas divulguée.
   throw new HttpError(404, 'not_found', 'Média introuvable.');
 }
@@ -67,10 +102,16 @@ export async function uploadMedia(user, { file, brandId, purpose }, request) {
   }
 
   if (brandId) {
-    const membership = await prisma.brandMember.findFirst({
-      where: { brandId, userId: user.id, brand: { deletedAt: null, status: 'ACTIVE' } },
-    });
-    if (!membership) throw new HttpError(404, 'not_found', 'Marque introuvable.');
+    // Même barre que la création d'une publication (COMMUNITY_MANAGER) : un
+    // média de marque n'existe que pour être publié. Un lecteur n'a donc aucune
+    // raison d'en déposer, et ne peut pas remplir le stockage de la marque.
+    const role = await brandRoleFor(brandId, user.id);
+    // Non-membre : 404, l'existence d'une marque ne se devine pas. Membre au
+    // rôle insuffisant : 403, comme `requireBrandAccess`.
+    if (role === null) throw new HttpError(404, 'not_found', 'Marque introuvable.');
+    if (!hasBrandRole(role, 'COMMUNITY_MANAGER')) {
+      throw new HttpError(403, 'forbidden', 'Vous n’avez pas les droits suffisants pour cette marque.');
+    }
   }
 
   const mediaId = randomUUID();
@@ -124,7 +165,11 @@ export async function deleteMedia(userId, mediaId, request) {
     include: { publications: true, avatarFor: true },
   });
   if (!media) throw new HttpError(404, 'not_found', 'Média introuvable.');
-  await assertMediaVisible(media, userId);
+  if (!mayDeleteMedia(media, userId, await brandRoleFor(media.brandId, userId))) {
+    // Même discrétion qu'à la lecture : ni l'existence du média, ni celle de
+    // sa marque ne sont divulguées à qui n'y a pas accès.
+    throw new HttpError(404, 'not_found', 'Média introuvable.');
+  }
 
   if (media.publications.length > 0) {
     throw new HttpError(409, 'media_in_use', 'Ce média est utilisé par une publication.');
@@ -133,9 +178,22 @@ export async function deleteMedia(userId, mediaId, request) {
     throw new HttpError(409, 'media_in_use', 'Ce média est l’avatar du compte. Retirez-le depuis le profil.');
   }
 
-  await deleteObject(media.objectKey);
-  // Suppression logique puis physique : la ligne reste pour l'audit, l'objet non.
+  // Suppression logique PUIS physique, dans cet ordre : c'est ce que le
+  // commentaire annonçait déjà, mais l'objet partait en premier. Si le
+  // stockage échouait, la ligne restait « READY » en pointant un objet
+  // disparu — un média fantôme, affiché puis cassé à l'ouverture.
   await prisma.media.update({ where: { id: media.id }, data: { status: 'DELETED', deletedAt: new Date() } });
+
+  try {
+    await deleteObject(media.objectKey);
+  } catch (error) {
+    // L'objet reste alors dans le bucket sans que rien ne le ramasse : le
+    // nettoyage horaire ne balaie que les médias `TEMPORARY` jamais rattachés
+    // (services/worker/src/cleanup-media.js), pas ceux déjà marqués
+    // supprimés. C'est une fuite de stockage connue, préférée à un échec
+    // rendu à l'utilisateur alors que le média a bien disparu de son espace.
+    console.error({ scope: 'media', action: 'delete_object', mediaId: media.id, error: error?.message });
+  }
 
   await writeAuditLog(prisma, {
     userId,

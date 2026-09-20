@@ -7,8 +7,16 @@ sprint_listing/01_AUDIT_GRAPH_API_EXISTANT.md). Tests marked "BUG:" assert the
 matching Day-2/Day-4 fix lands.
 """
 import httpx
+import pytest
 
 from tests.conftest import META_BASE_URL, PAGE_ID
+
+
+@pytest.fixture
+def client(authenticated_client):
+    """`/facebook/*` exige un JWT de service depuis qu'elles ont ete fermees ;
+    le refus sans jeton est teste dans tests/test_facebook_auth.py."""
+    return authenticated_client
 
 
 def test_list_posts_maps_reactions_comments_shares(client, respx_mock):

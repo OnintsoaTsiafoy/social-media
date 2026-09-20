@@ -9,6 +9,8 @@
  * depuis longtemps (Facebook aujourd'hui).
  */
 
+import { activeBrand } from './lib/active-brand.js';
+
 const SELECT_ACCOUNTS_NEEDING_REFRESH = `
   SELECT sa.id, sa.status, sa.brand_id, sa.connected_by_user_id, sa.provider, sa.name
     FROM social_accounts sa
@@ -18,6 +20,7 @@ const SELECT_ACCOUNTS_NEEDING_REFRESH = `
        (ot.expires_at IS NOT NULL AND ot.expires_at < now() + make_interval(hours => $1::int))
        OR sa.updated_at < now() - make_interval(hours => $2::int)
      )
+     AND ${activeBrand('sa.brand_id')}
    ORDER BY sa.updated_at
    LIMIT $3::int
 `;

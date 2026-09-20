@@ -2,8 +2,16 @@
 and /comments/{id}/reply.
 """
 import httpx
+import pytest
 
 from tests.conftest import META_BASE_URL
+
+
+@pytest.fixture
+def client(authenticated_client):
+    """`/facebook/*` exige un JWT de service depuis qu'elles ont ete fermees ;
+    le refus sans jeton est teste dans tests/test_facebook_auth.py."""
+    return authenticated_client
 
 
 def test_list_post_comments_includes_one_level_of_nested_replies(client, respx_mock):

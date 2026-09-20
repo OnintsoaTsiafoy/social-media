@@ -101,6 +101,56 @@ class CommentsReplyResponse(BaseModel):
     model_config = {"populate_by_name": True, "validate_by_alias": True}
 
 
+class PostSyncItem(BaseModel):
+    """Un post du fil d'un compte, tel que lu chez Meta.
+
+    `reactions`/`comments` valent None quand Meta n'a rien renvoyé (permission
+    absente) : jamais un 0 inventé. `shares` fait exception — Meta omet le champ
+    quand il n'y a aucun partage, l'absence EST alors la valeur (même règle que
+    post_analytics_service).
+    """
+
+    external_publication_id: str = Field(alias="externalPublicationId")
+    content: str = ""
+    permalink_url: str | None = Field(default=None, alias="permalinkUrl")
+    published_at: str | None = Field(default=None, alias="publishedAt")
+    reactions: int | None = None
+    comments: int | None = None
+    shares: int | None = None
+
+    model_config = {"populate_by_name": True, "validate_by_alias": True}
+
+
+# Import des publications d'une Page. `socialAccountId` est obligatoire (pas de
+# repli sur la Page globale de l'.env comme pour les commentaires) : un post
+# importé doit être rattaché à une marque, donc à un compte réel. Pas de
+# `since`/`full` côté appelant : initiale ou incrémentale est déduit de
+# `social_accounts.last_posts_sync_at`, dont graph-api est seul écrivain — une
+# seule source de vérité, impossible à désynchroniser d'un job.
+class PostsSyncRequest(BaseModel):
+    social_account_id: str = Field(alias="socialAccountId")
+    provider: str
+    cursor: str | None = None
+
+    model_config = {"populate_by_name": True}
+
+
+class PostsSyncResponse(BaseModel):
+    mode: str
+    created: int
+    updated: int
+    unchanged: int
+    # Posts ignorés parce que inexploitables (pas de date de création) — jamais
+    # une erreur de base de données, qui fait échouer l'appel.
+    skipped: int
+    # Curseur de reprise tant que `done` est faux ; le dernier appel (done=True)
+    # est celui qui note la synchronisation comme achevée.
+    next_cursor: str | None = Field(default=None, alias="nextCursor")
+    done: bool
+
+    model_config = {"populate_by_name": True, "validate_by_alias": True}
+
+
 class MetricsSyncRequest(BaseModel):
     social_account_id: str | None = Field(default=None, alias="socialAccountId")
     provider: str

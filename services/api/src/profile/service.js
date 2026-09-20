@@ -82,7 +82,7 @@ export async function updatePreferences(userId, payload, request) {
 
 export async function saveAvatar(userId, payload, request) {
   if (!payload.objectKey.startsWith(`avatars/${userId}/`)) {
-    throw new HttpError(400, 'validation_failed', 'La clÃ© de l’avatar doit appartenir Ã  l’utilisateur connectÃ©.');
+    throw new HttpError(400, 'validation_failed', 'La clé de l’avatar doit appartenir à l’utilisateur connecté.');
   }
 
   return prisma.$transaction(async (tx) => {

@@ -16,6 +16,7 @@ import type {
   PageList,
   PagePerformance,
   PageSelection,
+  PageSyncResult,
   Period,
   RejectReason,
   SentimentFilter,
@@ -68,6 +69,8 @@ export const adminApi = {
     api<PageList>("/admin/pages", { query: params, ...options }),
   setPageAutoReply: (id: string, autoReply: boolean) =>
     api<{ id: string; autoReply: boolean }>(`/admin/pages/${id}`, { method: "PATCH", body: { autoReply } }),
+  /** Relance l'import des publications de la page (asynchrone : le worker travaille en arrière-plan). */
+  syncPage: (id: string) => api<PageSyncResult>(`/admin/pages/${id}/sync`, { method: "POST" }),
   /** Démarre la liaison : renvoie l'adresse Meta où rediriger l'administrateur. */
   startPageConnection: (userId: string, brandId: string) =>
     api<PageConnectionStart>("/admin/pages/connect", { method: "POST", body: { userId, brandId } }),

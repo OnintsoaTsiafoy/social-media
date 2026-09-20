@@ -10,6 +10,8 @@ from modules.facebook.schemas.internal import (
     CommentsSyncResponse,
     MetricsSyncRequest,
     MetricsSyncResponse,
+    PostsSyncRequest,
+    PostsSyncResponse,
     PublishRequest,
     PublishResponse,
 )
@@ -95,6 +97,18 @@ async def comments_sync(
     _auth: dict = Depends(require_service_jwt("social:read")),
 ):
     return await internal_service.sync_comments(body)
+
+
+@router.post("/posts/sync", response_model=PostsSyncResponse)
+async def posts_sync(
+    body: PostsSyncRequest,
+    _auth: dict = Depends(require_service_jwt("social:read")),
+):
+    """Import des publications d'une Page (initial, puis incrémental) : lit le fil
+    chez Meta et écrit en base, `posts_sync_pages_per_call` pages par appel — voir
+    `internal_service.sync_posts`. Scope `social:read` comme /comments/sync et
+    /metrics/sync : rien n'est écrit chez Meta."""
+    return await internal_service.sync_posts(body)
 
 
 @router.post("/comments/reply", response_model=CommentsReplyResponse)

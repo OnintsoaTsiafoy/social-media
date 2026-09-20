@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from core.config import settings
 from db import (
     idempotency_repository,
+    imported_posts_repository,
     oauth_selections_repository,
     oauth_states_repository,
     oauth_tokens_repository,
@@ -54,7 +55,25 @@ def client(configured_settings):
     # raise_server_exceptions=True (the default) lets tests that document a
     # currently-uncaught bug assert on the exact exception with pytest.raises,
     # instead of a generic 500 response.
+    #
+    # N'envoie aucun en-tête Authorization : plusieurs tests vérifient qu'une
+    # route protégée refuse un appel anonyme. Pour les routes qui exigent un
+    # JWT de service, voir `authenticated_client`.
     return TestClient(app)
+
+
+@pytest.fixture
+def authenticated_client(configured_settings, monkeypatch):
+    """Client portant un JWT de service valide (tous scopes).
+
+    Les routes `/facebook/*` exigent ce jeton depuis qu'elles ont été fermées
+    (voir api/routes/facebook_routes.py) : leurs tests de caractérisation
+    décrivent le comportement métier, pas l'authentification — celle-ci est
+    couverte à part par tests/test_facebook_auth.py. Les modules concernés
+    redéfinissent `client` à partir de cette fixture.
+    """
+    monkeypatch.setattr(settings, "service_jwt_secret", SERVICE_JWT_SECRET)
+    return TestClient(app, headers={"Authorization": f"Bearer {make_service_jwt()}"})
 
 
 @pytest.fixture
@@ -247,6 +266,12 @@ def fake_social_accounts_store(monkeypatch):
             if account["id"] == account_id:
                 account["last_metrics_sync_at"] = "2026-01-01T00:00:00+00:00"
 
+    async def fake_mark_posts_synced(account_id):
+        for account in store.values():
+            if account["id"] == account_id:
+                account["last_posts_sync_at"] = "2026-01-01T00:00:00+00:00"
+
+    monkeypatch.setattr(social_accounts_repository, "mark_posts_synced", fake_mark_posts_synced)
     monkeypatch.setattr(social_accounts_repository, "upsert_account", fake_upsert_account)
     monkeypatch.setattr(social_accounts_repository, "get_by_id", fake_get_by_id)
     monkeypatch.setattr(social_accounts_repository, "get_by_external_id", fake_get_by_external_id)
@@ -458,6 +483,54 @@ def fake_publication_targets_store(monkeypatch):
     monkeypatch.setattr(
         publication_targets_repository, "find_id_by_external_publication", fake_find_id_by_external_publication
     )
+    return store
+
+
+@pytest.fixture(autouse=True)
+def fake_imported_posts_store(monkeypatch):
+    """In-memory fake for the posts-import writes (publications +
+    publication_targets), keyed like the real unique(social_account_id,
+    external_publication_id). It reproduces the real upsert's rules rather than
+    just recording calls, because those rules ARE what the tests check: a post
+    already known (published by Hootly, or imported earlier) is never created
+    twice, a link may always be filled in, and text is only rewritten for an
+    IMPORTED publication.
+
+    Tests seed a row directly to model a post Hootly published itself
+    (``origin: "HOOTLY"``)."""
+    store: dict[tuple[str, str], dict] = {}
+
+    async def fake_upsert_post(
+        *, social_account_id, brand_id, provider, created_by_user_id, external_publication_id,
+        content, hashtags, permalink_url, published_at,
+    ):
+        key = (social_account_id, external_publication_id)
+        existing = store.get(key)
+        if existing is None:
+            store[key] = {
+                "target_id": f"target-{len(store) + 1}",
+                "origin": "IMPORTED",
+                "brand_id": brand_id,
+                "provider": provider,
+                "created_by_user_id": created_by_user_id,
+                "content": content,
+                "hashtags": hashtags,
+                "external_url": permalink_url,
+                "published_at": published_at,
+            }
+            return {"target_id": store[key]["target_id"], "outcome": "created"}
+
+        changed = False
+        if permalink_url and existing.get("external_url") != permalink_url:
+            existing["external_url"] = permalink_url
+            changed = True
+        if existing["origin"] == "IMPORTED" and existing["content"] != content:
+            existing["content"] = content
+            existing["hashtags"] = hashtags
+            changed = True
+        return {"target_id": existing["target_id"], "outcome": "updated" if changed else "unchanged"}
+
+    monkeypatch.setattr(imported_posts_repository, "upsert_post", fake_upsert_post)
     return store
 
 

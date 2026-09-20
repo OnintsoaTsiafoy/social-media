@@ -76,6 +76,31 @@ test('un compte en échec de synchronisation n’interrompt pas les suivants', a
   assert.deepEqual(result, { inspected: 2, synced: 1, skipped: 0, failed: 1 });
 });
 
+test('seuls les posts les plus récents sont relus, pas tout l’historique importé', async () => {
+  const db = createFakeDb({
+    socialAccounts: [{ id: 'imported', provider: 'FACEBOOK', status: 'CONNECTED', last_comments_sync_at: null }],
+    // 120 posts importés : sans plafond, graph-api les parcourrait tous, un par un,
+    // toutes les 15 minutes.
+    targets: Array.from({ length: 120 }, (_, index) => ({
+      social_account_id: 'imported',
+      external_publication_id: `post-${index}`,
+      sent_at: new Date(Date.UTC(2026, 0, 1) + index * 86_400_000).toISOString(),
+    })),
+  });
+  const synced = [];
+  const { run } = createCommentSync({
+    query: db.query,
+    syncComments: async (accountId, provider, ids) => synced.push(ids),
+  });
+
+  await run({ staleAfterMinutes: 15 });
+
+  assert.equal(synced[0].length, 50);
+  // Les plus récents : post-119 (le dernier publié) d'abord, post-70 en dernier.
+  assert.equal(synced[0][0], 'post-119');
+  assert.equal(synced[0].at(-1), 'post-70');
+});
+
 test('un compte déconnecté n’est jamais repris', async () => {
   const db = createFakeDb({
     socialAccounts: [{ id: 'gone', provider: 'FACEBOOK', status: 'DISCONNECTED', last_comments_sync_at: null }],

@@ -8,8 +8,16 @@ files=...)``, and ``post_form`` has no ``files`` parameter.
 import time
 
 import httpx
+import pytest
 
 from tests.conftest import META_BASE_URL, PAGE_ID
+
+
+@pytest.fixture
+def client(authenticated_client):
+    """`/facebook/*` exige un JWT de service depuis qu'elles ont ete fermees ;
+    le refus sans jeton est teste dans tests/test_facebook_auth.py."""
+    return authenticated_client
 
 
 def _future_timestamp(seconds_ahead: int = 3600) -> str:

@@ -4,7 +4,7 @@ import type { PageLinkResult } from "@/api/types";
 import { NetBadge } from "@/components/Network";
 import { ScreenState } from "@/components/shell/ScreenState";
 import { Toggle } from "@/components/Toggle";
-import { BACKLOG_CRITICAL, BACKLOG_WARNING, describeToken, PAGE_STATUS_TONE } from "@/domain/pages";
+import { BACKLOG_CRITICAL, BACKLOG_WARNING, describePostsSync, describeToken, PAGE_STATUS_TONE } from "@/domain/pages";
 import { useI18n, type MessageKey } from "@/i18n";
 import { cx } from "@/lib/css";
 import { NET_NAME } from "@/lib/network";
@@ -25,7 +25,7 @@ const backlogTone = (backlog: number): Tone | undefined =>
 export function PagesScreen() {
   const { t, format } = useI18n();
   const { say, summary } = useAdmin();
-  const { resource, toggleAutoReply } = usePages();
+  const { resource, toggleAutoReply, syncPage, syncing } = usePages();
   const data = resource.data;
 
   // Retour de Facebook : soit les pages à choisir, soit la raison de l'échec.
@@ -125,6 +125,22 @@ export function PagesScreen() {
                   <div className="pg-card__token" data-tone={page.status === "healthy" ? undefined : statusTone}>
                     {describeToken(page.token, t, format)}
                   </div>
+                  {/* Instagram : pas encore d'import de son fil (graph-api le refuse). */}
+                  {page.network === "facebook" && (
+                    <div className="pg-card__sync">
+                      <span className="pg-card__sync-text">{describePostsSync(page, t, format)}</span>
+                      <button
+                        type="button"
+                        className={cx("btn", "btn--outline", "btn--sm")}
+                        // Une page à reconnecter n'est pas synchronisable : le serveur répondrait 409.
+                        disabled={syncing.has(page.id) || page.status === "action_required"}
+                        aria-label={t("pages.sync.aria", { name: page.name })}
+                        onClick={() => void syncPage(page)}
+                      >
+                        {t("pages.sync.button")}
+                      </button>
+                    </div>
+                  )}
                 </article>
               );
             })}

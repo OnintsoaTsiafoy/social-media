@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 
 import { adminApi } from "@/api/endpoints";
 import type { ConnectedPage } from "@/api/types";
@@ -42,5 +42,29 @@ export function usePages() {
     [setAutoReply, say, sayError, reload, t],
   );
 
-  return { resource, toggleAutoReply };
+  // Pages dont une demande de synchronisation est en vol : le bouton s'y désactive.
+  const [syncing, setSyncing] = useState<ReadonlySet<string>>(new Set());
+
+  const syncPage = useCallback(
+    async (page: ConnectedPage) => {
+      setSyncing((current) => new Set(current).add(page.id));
+      try {
+        const result = await adminApi.syncPage(page.id);
+        // Le worker importe en arrière-plan : les compteurs bougent un peu plus tard,
+        // la liste se rafraîchit d'elle-même (PAGES_REFRESH_MS).
+        say(t(result.status === "queued" ? "pages.sync.toastQueued" : "pages.sync.toastAlready", { name: page.name }));
+      } catch (error) {
+        sayError(error);
+      } finally {
+        setSyncing((current) => {
+          const next = new Set(current);
+          next.delete(page.id);
+          return next;
+        });
+      }
+    },
+    [say, sayError, t],
+  );
+
+  return { resource, toggleAutoReply, syncPage, syncing };
 }

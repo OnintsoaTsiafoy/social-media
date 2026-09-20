@@ -54,6 +54,14 @@ enum PublicationStatus {
   CANCELLED
 }
 
+// D'où vient la publication : composée dans Hootly, ou importée depuis le réseau
+// par la synchronisation des publications d'une page (graph-api). Une importée
+// naît PUBLISHED et n'est jamais rééditée ni renvoyée par Hootly.
+enum PublicationOrigin {
+  HOOTLY
+  IMPORTED
+}
+
 enum PublicationApprovalStatus {
   PENDING
   APPROVED
@@ -466,6 +474,7 @@ model Publication {
   language        String                @default("fr") @db.VarChar(8)
   hashtags        Json                  @default("[]")
   status          PublicationStatus     @default(DRAFT)
+  origin          PublicationOrigin     @default(HOOTLY)
   contentRevision Int                   @default(1) @map("content_revision")
   approvedRevision Int?                 @map("approved_revision")
   scheduledAt     DateTime?             @map("scheduled_at") @db.Timestamptz(6)
@@ -527,6 +536,10 @@ model PublicationTarget {
   adaptedHashtags       Json                         @default("[]") @map("adapted_hashtags")
   status                PublicationTargetStatus      @default(PENDING)
   externalPublicationId String?                      @map("external_publication_id") @db.VarChar(255)
+  // Lien vers le post sur le réseau. Renseigné par la synchronisation des
+  // publications (graph-api) — y compris pour un post publié par Hootly, dont
+  // l'adresse n'est connue qu'à la première lecture du fil de la page.
+  externalUrl           String?                      @map("external_url") @db.VarChar(2048)
   lastErrorCode         String?                      @map("last_error_code") @db.VarChar(80)
   lastErrorMessage      String?                      @map("last_error_message") @db.Text
   attemptCount          Int                          @default(0) @map("attempt_count")
@@ -545,8 +558,11 @@ model PublicationTarget {
   @@index([publicationId, provider])
   @@index([status])
   // Sprint 12 : graph-api résout un publication_target_id à partir du couple
-  // (social_account_id, external_publication_id) reçu de Meta.
-  @@index([socialAccountId, externalPublicationId])
+  // (social_account_id, external_publication_id) reçu de Meta. Unique depuis
+  // l'import des publications d'une page : c'est aussi la clé de dédoublonnage
+  // entre un post publié par Hootly et le même post relu sur le fil de la page.
+  // NULL n'égale jamais NULL : brouillons et envois en cours ne sont pas concernés.
+  @@unique([socialAccountId, externalPublicationId], map: "publication_targets_account_external_key")
   @@map("publication_targets")
 }
 
@@ -666,6 +682,11 @@ model SocialAccount {
   connectedByUserId  String                  @map("connected_by_user_id") @db.Uuid
   lastCommentsSyncAt DateTime?               @map("last_comments_sync_at") @db.Timestamptz(6)
   lastMetricsSyncAt  DateTime?               @map("last_metrics_sync_at") @db.Timestamptz(6)
+  // Dernière synchronisation des publications ACHEVÉE (écrite par graph-api à la
+  // fin de la dernière passe). Vide = l'historique de la page n'a jamais été
+  // importé en entier : la prochaine passe est la synchronisation initiale ; sinon
+  // elle est incrémentale (depuis cette date, moins une fenêtre de recouvrement).
+  lastPostsSyncAt    DateTime?               @map("last_posts_sync_at") @db.Timestamptz(6)
   // Audience du compte de la marque, relevée par la même passe que celle des
   // concurrents (TODO analyse concurrentielle, section 8). Sans elle, le taux
   // d'engagement de la marque et celui d'un concurrent ne se calculeraient pas

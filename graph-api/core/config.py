@@ -64,6 +64,21 @@ class Settings(BaseSettings):
     # for a post with an unusually large comment count. Kept low in tests.
     comments_sync_max_pages_per_post: int = 20
 
+    # Import des publications d'une Page. L'historique d'une grande Page ne tient
+    # pas dans une seule requête HTTP (chaque page de posts, puis chaque fil de
+    # commentaires, est un aller-retour vers Meta) : un appel à
+    # /internal/v1/posts/sync ne parcourt que `posts_sync_pages_per_call` pages et
+    # renvoie le curseur de reprise — c'est l'appelant qui boucle. 3 × 50 posts
+    # gardent un appel très en deçà du délai d'attente du worker.
+    posts_sync_page_size: int = 50
+    posts_sync_pages_per_call: int = 3
+    # Une synchronisation incrémentale ne relit pas seulement « depuis la dernière
+    # fois » : Meta filtre `since` sur la date de CRÉATION, donc une modification
+    # de texte sur un post plus ancien passerait inaperçue. La fenêtre relue
+    # rattrape aussi une interruption (le point de départ est la dernière passe
+    # ACHEVÉE, jamais la dernière tentative).
+    posts_sync_overlap_days: int = 7
+
     # Sprint 08 — Meta webhook challenge handshake secret (hub.verify_token),
     # distinct from facebook_app_secret/instagram_app_secret (those sign the
     # POST body's payload, this one is only compared against the GET

@@ -19,7 +19,7 @@ export const updateBrandSchema = z
     industry: z.string().trim().min(1).max(100).nullable().optional(),
     primaryLanguage: languageSchema.optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'Au moins un champ doit Ãªtre modifiÃ©.');
+  .refine((value) => Object.keys(value).length > 0, 'Au moins un champ doit être modifié.');
 
 export const listBrandSchema = z.object({
   search: z.string().trim().max(120).optional(),
@@ -46,9 +46,9 @@ export const updateAiSettingsSchema = z
     urgencyInstructions: z.string().trim().max(10_000).nullable().optional(),
     supportInstructions: z.string().trim().max(10_000).nullable().optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'Au moins un paramÃ¨tre doit Ãªtre modifiÃ©.')
+  .refine((value) => Object.keys(value).length > 0, 'Au moins un paramètre doit être modifié.')
   .superRefine((value, context) => {
     if (value.tone === 'custom' && !value.customTone?.trim()) {
-      context.addIssue({ code: 'custom', path: ['customTone'], message: 'La description du ton personnalisÃ© est requise.' });
+      context.addIssue({ code: 'custom', path: ['customTone'], message: 'La description du ton personnalisé est requise.' });
     }
   });

@@ -49,6 +49,7 @@ const openApiDocument = {
     '/api/v1/admin/users/{userId}': { patch: { summary: 'Suspendre / réactiver, rôle plateforme, rôles par marque (une transaction, un audit par changement)' } },
     '/api/v1/admin/pages': { get: { summary: 'Pages connectées : état, jeton, arriéré, équipe, réponse automatique (network, status)' } },
     '/api/v1/admin/pages/{pageId}': { patch: { summary: 'Activer / désactiver la réponse automatique d’une page' } },
+    '/api/v1/admin/pages/{pageId}/sync': { post: { summary: 'Relancer l’import des publications de la page (202, asynchrone) : initial si jamais achevé, incrémental sinon' } },
     '/api/v1/admin/pages/connect': { post: { summary: 'Lier un compte utilisateur à une page Facebook (userId, brandId) : renvoie l’adresse de la boîte de dialogue Meta' } },
     '/api/v1/admin/pages/connect/selections/{selectionId}': { get: { summary: 'Pages que le compte Facebook autorisé peut gérer, sans jeton, avec la marque à laquelle chacune est déjà liée' } },
     '/api/v1/admin/pages/connect/selections/{selectionId}/link': { post: { summary: 'Lier les pages choisies (pageIds), une seule fois ; 409 si l’une appartient déjà à une autre marque' } },
@@ -93,9 +94,9 @@ const openApiDocument = {
       delete: { summary: 'Désactiver le compte (409 si une marque possédée a d’autres membres actifs)' },
     },
     '/api/v1/profile': { get: { summary: 'Lire le profil' }, patch: { summary: 'Modifier le profil' } },
-    '/api/v1/profile/preferences': { get: { summary: 'Lire les prÃ©fÃ©rences' }, patch: { summary: 'Modifier les prÃ©fÃ©rences' } },
+    '/api/v1/profile/preferences': { get: { summary: 'Lire les préférences' }, patch: { summary: 'Modifier les préférences' } },
     '/api/v1/profile/avatar': { post: { summary: 'Associer un avatar' }, delete: { summary: 'Retirer l’avatar' } },
-    '/api/v1/brands': { get: { summary: 'Lister les marques autorisÃ©es' }, post: { summary: 'CrÃ©er une marque' } },
+    '/api/v1/brands': { get: { summary: 'Lister les marques autorisées' }, post: { summary: 'Créer une marque' } },
     '/api/v1/brands/{brandId}': {
       get: { summary: 'Lire une marque' },
       patch: { summary: 'Modifier une marque' },
@@ -103,8 +104,8 @@ const openApiDocument = {
     },
     '/api/v1/brands/{brandId}/activate': { post: { summary: 'Activer une marque' } },
     '/api/v1/brands/{brandId}/ai-settings': {
-      get: { summary: 'Lire les paramÃ¨tres IA' },
-      patch: { summary: 'Versionner les paramÃ¨tres IA' },
+      get: { summary: 'Lire les paramètres IA' },
+      patch: { summary: 'Versionner les paramètres IA' },
     },
     '/api/v1/media': { post: { summary: 'Déposer un média (multipart/form-data)' } },
     '/api/v1/media/{mediaId}': {

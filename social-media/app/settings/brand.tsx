@@ -91,7 +91,7 @@ export default function BrandSettingsScreen() {
     request.setData(result.data);
     setDraft(result.data);
     setBrand(result.data);
-    toast('Marque crÃ©Ã©e. Vous pouvez maintenant dÃ©finir son ton IA.', 'success');
+    toast('Marque créée. Vous pouvez maintenant définir son ton IA.', 'success');
   };
 
   const handleBack = async () => {
@@ -143,7 +143,7 @@ export default function BrandSettingsScreen() {
     const term = newRecommendedTerm.trim();
     if (!term || !draft) return;
     if (draft.recommendedTerms.includes(term)) {
-      toast('Ce terme est dÃ©jÃ  dans la liste.', 'info');
+      toast('Ce terme est déjà dans la liste.', 'info');
       return;
     }
     patch({ recommendedTerms: [...draft.recommendedTerms, term] });
@@ -153,7 +153,7 @@ export default function BrandSettingsScreen() {
   const removeRecommendedTerm = async (term: string) => {
     const confirmed = await confirm({
       title: 'Retirer ce terme ?',
-      message: `Â« ${term} Â» ne sera plus suggÃ©rÃ© Ã  lâ€™IA.`,
+      message: `« ${term} » ne sera plus suggéré à l’IA.`,
       confirmLabel: 'Retirer',
       destructive: true,
     });
@@ -330,19 +330,19 @@ export default function BrandSettingsScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text variant="eyebrow">Termes recommandÃ©s</Text>
+            <Text variant="eyebrow">Termes recommandés</Text>
             <ChipWrap>
               {brand.recommendedTerms.map((term) => (
                 <Chip
                   key={term}
-                  label={`Â« ${term} Â» âœ•`}
+                  label={`« ${term} » ✕`}
                   variant="tag"
                   onPress={() => removeRecommendedTerm(term)}
                 />
               ))}
               {brand.recommendedTerms.length === 0 ? (
                 <Text variant="footnote" color={palette.inkFaint}>
-                  Aucun terme recommandÃ© pour le moment.
+                  Aucun terme recommandé pour le moment.
                 </Text>
               ) : null}
             </ChipWrap>
@@ -351,7 +351,7 @@ export default function BrandSettingsScreen() {
               <TextField
                 value={newRecommendedTerm}
                 onChangeText={setNewRecommendedTerm}
-                placeholder="Ajouter un terme recommandÃ©"
+                placeholder="Ajouter un terme recommandé"
                 onSubmitEditing={addRecommendedTerm}
                 returnKeyType="done"
                 containerStyle={styles.addField}
@@ -400,10 +400,10 @@ export default function BrandSettingsScreen() {
       ) : (
         <View style={styles.section}>
           <Text variant="title2" weight="bold">
-            CrÃ©er votre premiÃ¨re marque
+            Créer votre première marque
           </Text>
           <Text variant="body" color={palette.inkFaint}>
-            Une marque isole vos comptes sociaux, publications et rÃ¨gles IA.
+            Une marque isole vos comptes sociaux, publications et règles IA.
           </Text>
           <TextField
             label="Nom de la marque"
@@ -415,7 +415,7 @@ export default function BrandSettingsScreen() {
             label="Description"
             value={newBrand.description}
             onChangeText={(description) => setNewBrand((current) => ({ ...current, description }))}
-            placeholder="DÃ©crivez briÃ¨vement votre activitÃ©"
+            placeholder="Décrivez brièvement votre activité"
             multiline
           />
           <View style={styles.row}>
@@ -436,7 +436,7 @@ export default function BrandSettingsScreen() {
           </View>
           {mutation.error ? <Callout tone="danger">{mutation.error}</Callout> : null}
           <Button
-            label="CrÃ©er la marque"
+            label="Créer la marque"
             onPress={createBrand}
             loading={mutation.pending}
             disabled={newBrand.name.trim().length < 2}

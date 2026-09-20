@@ -9,7 +9,7 @@ Meta doesn't offer for that network (e.g. carousels, video-by-URL).
 from typing import Protocol
 
 from core.exceptions import GraphAPIError
-from modules.facebook.schemas.internal import CommentSyncItem
+from modules.facebook.schemas.internal import CommentSyncItem, PostSyncItem
 
 
 class SocialProvider(Protocol):
@@ -35,6 +35,16 @@ class SocialProvider(Protocol):
         own upsert-by-key to make re-seeing an unchanged comment a cheap
         no-op — simpler and correct, not an approximation of something the
         Graph API doesn't actually offer."""
+        ...
+
+    async def list_posts(
+        self, *, account: dict, token: str, limit: int, cursor: str | None, since: int | None
+    ) -> tuple[list[PostSyncItem], str | None, bool]:
+        """Returns (posts, next_cursor, has_more), newest first — one page of
+        the account's own feed, for the posts sync. `since` is a Unix timestamp
+        Meta applies to the post's CREATION date (so it can find new posts, not
+        edits to old ones — the caller re-reads an overlap window for that).
+        Unlike comments, this edge does support the filter."""
         ...
 
     async def reply_to_comment(

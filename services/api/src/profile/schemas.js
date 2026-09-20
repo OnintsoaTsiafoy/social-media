@@ -21,7 +21,7 @@ const timezoneSchema = z
 const phoneSchema = z
   .string()
   .trim()
-  .regex(/^\+?[1-9][0-9 .()\-]{5,28}$/, 'NumÃ©ro de tÃ©lÃ©phone invalide.')
+  .regex(/^\+?[1-9][0-9 .()\-]{5,28}$/, 'Numéro de téléphone invalide.')
   .max(30);
 
 export const updateProfileSchema = z
@@ -33,7 +33,7 @@ export const updateProfileSchema = z
     language: languageSchema.optional(),
     timezone: timezoneSchema.optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'Au moins un champ doit Ãªtre modifiÃ©.');
+  .refine((value) => Object.keys(value).length > 0, 'Au moins un champ doit être modifié.');
 
 export const updatePreferencesSchema = z
   .object({
@@ -41,7 +41,7 @@ export const updatePreferencesSchema = z
     pushNotifications: z.boolean().optional(),
     weekStartsOn: z.enum(['monday', 'sunday']).optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, 'Au moins une prÃ©fÃ©rence doit Ãªtre modifiÃ©.');
+  .refine((value) => Object.keys(value).length > 0, 'Au moins une préférence doit être modifié.');
 
 export const avatarMetadataSchema = z.object({
   bucket: z.string().trim().min(1).max(100).default('hootly'),

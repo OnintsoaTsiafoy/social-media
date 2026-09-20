@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 
 import { createAccessToken } from '../src/auth/tokens.js';
 import { prisma } from '../src/db/prisma.js';
+import { stopBoss } from '../src/lib/jobs.js';
 import { app } from '../src/server.js';
 
 // Base PostgreSQL réelle (celle de Compose) : les agrégats SQL de la console ne
@@ -438,6 +439,7 @@ test('console d’administration : liaison d’un compte utilisateur à une page
   const userIds = [];
   const brandIds = [];
   const previousEnv = { url: process.env.SOCIAL_SERVICE_URL, web: process.env.ADMIN_WEB_URL };
+  const queuedAccountIds = [];
 
   // --- Faux graph-api -----------------------------------------------------------------------------
   const received = [];
@@ -650,6 +652,18 @@ test('console d’administration : liaison d’un compte utilisateur à une page
     assert.equal(linked.user.id, owner.id);
     assert.equal(linked.brand.id, brand.id);
 
+    // --- Import initial des publications ------------------------------------------------------------------
+    // Chaque page Facebook liée met en file l'import de ses publications déjà en ligne. Le job n'emporte
+    // que l'identifiant du compte : initial ou incrémental se décide côté graph-api.
+    queuedAccountIds.push(...linked.accounts.map((entry) => entry.id));
+    const queued = await prisma.$queryRawUnsafe(
+      "SELECT data->>'socialAccountId' AS account, data->>'requestedBy' AS requested_by FROM pgboss.job " +
+        "WHERE name = 'sync-social-posts' AND data->>'socialAccountId' = ANY($1::text[])",
+      queuedAccountIds
+    );
+    assert.deepEqual(queued.map((row) => row.account).sort(), [...queuedAccountIds].sort(), 'un import par page liée');
+    assert.ok(queued.every((row) => row.requested_by === admin.id));
+
     // --- Audit et liste des pages ------------------------------------------------------------------------------
     const audit = await ok(admin, '/audit?pageSize=100');
     const mine = audit.items.filter((item) => item.actor?.id === admin.id);
@@ -670,9 +684,17 @@ test('console d’administration : liaison d’un compte utilisateur à une page
     else process.env.ADMIN_WEB_URL = previousEnv.web;
     graph.close();
     server.close();
+    if (queuedAccountIds.length > 0) {
+      await prisma.$executeRawUnsafe(
+        "DELETE FROM pgboss.job WHERE name = 'sync-social-posts' AND data->>'socialAccountId' = ANY($1::text[])",
+        queuedAccountIds
+      );
+    }
     await prisma.brand.deleteMany({ where: { id: { in: brandIds } } });
     await prisma.auditLog.deleteMany({ where: { userId: { in: userIds } } });
     await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+    // La liaison met un import des publications en file : pg-boss garde le processus en vie.
+    await stopBoss();
     await prisma.$disconnect();
   }
 });

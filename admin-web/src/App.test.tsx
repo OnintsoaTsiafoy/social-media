@@ -133,7 +133,7 @@ describe("langue", () => {
     expect(nav.getByRole("link", { name: /Supervision IA/ })).toBeTruthy();
     expect(nav.getByRole("link", { name: /Utilisateurs et rôles/ })).toBeTruthy();
     expect(document.documentElement.lang).toBe("fr");
-    expect(document.title).toBe("Vue d'ensemble de la plateforme · Pulse");
+    expect(document.title).toBe("Vue d'ensemble de la plateforme · Hootly");
   });
 
   it("passe en anglais, le mémorise et met à jour la langue du document", async () => {
@@ -146,7 +146,7 @@ describe("langue", () => {
     expect(screen.getByRole("link", { name: /AI supervision/ })).toBeTruthy();
     expect(window.localStorage.getItem("pulse.locale")).toBe("en");
     expect(document.documentElement.lang).toBe("en");
-    expect(document.title).toBe("Platform overview · Pulse");
+    expect(document.title).toBe("Platform overview · Hootly");
     // Les valeurs suivent aussi la langue : 4 min 12 s devient 4m 12s.
     expect(screen.getByText("4m 12s")).toBeTruthy();
     expect(within(screen.getByText("AI resolved").closest(".kpi") as HTMLElement).getByText("68.4%")).toBeTruthy();
@@ -870,6 +870,68 @@ describe("pages connectées", () => {
     expect(aurora.getByText("Aucun manager")).toBeTruthy();
     expect(aurora.getByText("88").getAttribute("data-tone")).toBe("danger"); // arriéré au-delà du seuil critique
     expect(aurora.getByText("Reconnexion requise : Invalid OAuth access token")).toBeTruthy();
+  });
+
+  it("montre l'état de l'import des publications, et seulement pour une page Facebook", async () => {
+    await openApp(mockApi(), "#/pages");
+    await heading("Pages connectées");
+
+    const [nova, aurora] = (await screen.findAllByRole("article")).map((card) => within(card as HTMLElement));
+    // « il y a … » dépend de l'heure d'exécution : on vérifie tout sauf la durée relative.
+    expect(nova?.getByText(/^42 publications · synchronisées /)).toBeTruthy();
+    // Instagram : graph-api ne lit pas encore son fil, aucune action proposée.
+    expect(aurora?.queryByRole("button", { name: /Synchroniser/ })).toBeNull();
+  });
+
+  it("dit qu'un historique n'a jamais été importé plutôt que d'afficher une date inventée", async () => {
+    const never = { ...fixtures.PAGES.items[0]!, lastPostsSyncAt: null, postsCount: 1 };
+    await openApp(mockApi({ "GET /admin/pages": () => ({ data: { ...fixtures.PAGES, items: [never] } }) }), "#/pages");
+    await heading("Pages connectées");
+
+    expect(await screen.findByText("Historique non importé · 1 publication connue")).toBeTruthy();
+  });
+
+  it("lance la synchronisation des publications d'une page", async () => {
+    const api = mockApi({ "POST /admin/pages/p1/sync": () => ({ status: 202, data: { status: "queued" } }) });
+    await openApp(api, "#/pages");
+    await heading("Pages connectées");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Synchroniser les publications de Nova Cosmetics" }));
+
+    await waitFor(() => expect(lastCall(api, "POST", "/admin/pages/p1/sync")).toBeTruthy());
+    expect((await screen.findAllByText("Synchronisation des publications lancée · Nova Cosmetics")).length).toBeGreaterThan(0);
+  });
+
+  it("prévient quand une synchronisation vient déjà d'être demandée", async () => {
+    const api = mockApi({ "POST /admin/pages/p1/sync": () => ({ status: 202, data: { status: "already_queued" } }) });
+    await openApp(api, "#/pages");
+    await heading("Pages connectées");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Synchroniser les publications de Nova Cosmetics" }));
+
+    expect((await screen.findAllByText("Une synchronisation vient déjà d'être demandée · Nova Cosmetics")).length).toBeGreaterThan(0);
+  });
+
+  it("montre l'erreur du serveur et réactive le bouton quand la synchronisation échoue", async () => {
+    const api = mockApi({ "POST /admin/pages/p1/sync": () => ({ status: 503, error: { code: "provider_unavailable" } }) });
+    await openApp(api, "#/pages");
+    await heading("Pages connectées");
+
+    const button = await screen.findByRole("button", { name: "Synchroniser les publications de Nova Cosmetics" });
+    fireEvent.click(button);
+
+    await waitFor(() => expect(lastCall(api, "POST", "/admin/pages/p1/sync")).toBeTruthy());
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.queryByText("Synchronisation des publications lancée · Nova Cosmetics")).toBeNull();
+  });
+
+  it("ne propose pas de synchroniser une page Facebook à reconnecter", async () => {
+    const expired = { ...fixtures.PAGES.items[0]!, status: "action_required" as const, rawStatus: "reauth_required" };
+    await openApp(mockApi({ "GET /admin/pages": () => ({ data: { ...fixtures.PAGES, items: [expired] } }) }), "#/pages");
+    await heading("Pages connectées");
+
+    const button = await screen.findByRole("button", { name: "Synchroniser les publications de Nova Cosmetics" });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("active la réponse automatique d'une page puis la coupe", async () => {

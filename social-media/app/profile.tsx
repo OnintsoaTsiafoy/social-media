@@ -92,7 +92,7 @@ export default function ProfileScreen() {
       displayName: validateDisplayName(draft.displayName),
       phone:
         draft.phone.trim() && !/^\+?[1-9][0-9 .()\-]{5,28}$/.test(draft.phone.trim())
-          ? 'NumÃ©ro de tÃ©lÃ©phone invalide.'
+          ? 'Numéro de téléphone invalide.'
           : undefined,
     };
     setErrors(next);
@@ -218,7 +218,7 @@ export default function ProfileScreen() {
           />
 
           <TextField
-            label="TÃ©lÃ©phone"
+            label="Téléphone"
             value={draft.phone}
             onChangeText={(value) => {
               setDraft((current) => ({ ...current, phone: value }));
@@ -257,7 +257,7 @@ export default function ProfileScreen() {
             <Divider />
             <DetailRow label="Nom affiché" value={user?.displayName ?? '-'} />
             <Divider />
-            <DetailRow label="TÃ©lÃ©phone" value={user?.phone ?? '-'} />
+            <DetailRow label="Téléphone" value={user?.phone ?? '-'} />
             <Divider />
             <DetailRow
               label="Langue"

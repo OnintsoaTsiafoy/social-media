@@ -8,7 +8,13 @@
 
 import PgBoss from 'pg-boss';
 
-import { ALL_QUEUES, QUEUES, competitorSingletonKey, singletonKeyFor } from '../../../shared/jobs.js';
+import {
+  ALL_QUEUES,
+  QUEUES,
+  competitorSingletonKey,
+  postsSyncSingletonKey,
+  singletonKeyFor,
+} from '../../../shared/jobs.js';
 import { HttpError } from './http.js';
 
 export { QUEUES };
@@ -140,6 +146,30 @@ export function enqueueCompetitorSync({ competitorId, requestedBy }) {
     QUEUES.syncCompetitor,
     { competitorId, requestedBy },
     { singletonKey: competitorSingletonKey(competitorId), singletonSeconds: 60, retryLimit: 0 }
+  );
+}
+
+/**
+ * Import des publications d'une page : à la liaison (synchronisation initiale) et à
+ * la demande (bouton « Synchroniser »), sur la même file que le balayage périodique
+ * du worker (services/worker/index.js).
+ *
+ * Le job n'emporte que l'identifiant du compte : initiale ou incrémentale se décide
+ * côté graph-api d'après `last_posts_sync_at`, jamais d'après une copie figée dans
+ * le job. `singletonSeconds` accompagne `singletonKey` pour la même raison qu'avec
+ * `enqueueMetricsSync` : sans lui la clé est inerte et deux clics rapprochés
+ * relanceraient tout le parcours du fil chez Meta.
+ *
+ * @returns {Promise<string|null>} identifiant du job, ou `null` si une
+ *   synchronisation vient déjà d'être demandée pour ce compte.
+ */
+export function enqueuePostsSync({ socialAccountId, requestedBy }) {
+  return send(
+    QUEUES.syncSocialPosts,
+    { socialAccountId, requestedBy },
+    // Une passe initiale sur une grande page dépasse le quart d'heure par défaut
+    // d'expiration de pg-boss : un job « expiré » serait relancé pendant qu'il tourne.
+    { singletonKey: postsSyncSingletonKey(socialAccountId), singletonSeconds: 60, retryLimit: 0, expireInSeconds: 3600 }
   );
 }
 

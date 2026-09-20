@@ -29,7 +29,7 @@ function parse(schema, input) {
   throw new HttpError(
     400,
     'validation_failed',
-    'Les donnÃ©es envoyÃ©es ne sont pas valides.',
+    'Les données envoyées ne sont pas valides.',
     result.error.issues.map((issue) => ({ field: issue.path.join('.'), code: issue.code, message: issue.message }))
   );
 }

@@ -264,11 +264,20 @@ export interface ConnectedPage {
   teamCount: number;
   autoReply: boolean;
   lastCommentsSyncAt: string | null;
+  /** Fin de la dernière synchronisation des publications ; `null` = historique jamais importé en entier. */
+  lastPostsSyncAt: string | null;
+  /** Publications de la page connues de Hootly (publiées par lui ou importées). */
+  postsCount: number;
 }
 
 export interface PageList {
   items: ConnectedPage[];
   totals: PageCounts;
+}
+
+/** L'import des publications est asynchrone : `already_queued` = une demande vient d'être faite. */
+export interface PageSyncResult {
+  status: "queued" | "already_queued";
 }
 
 // --- Liaison d'un compte utilisateur à une page Facebook ---------------------------------------------------------

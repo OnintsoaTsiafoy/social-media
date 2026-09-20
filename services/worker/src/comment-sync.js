@@ -7,30 +7,40 @@
  * last_comments_sync_at) est faite par graph-api dans le même appel
  * /internal/v1/comments/sync, pas par le worker.
  *
- * Filet de secours pour les webhooks manqués, mais seulement pour les posts
- * publiés par Hootly : rien n'énumère les posts organiques d'une Page (pas
- * d'appel à /{page-id}/feed dans ce sprint), donc un commentaire sur un post
- * organique jamais reçu par webhook n'a aucun rattrapage ici — limite
- * documentée, pas cachée.
+ * Filet de secours pour les webhooks manqués. Il couvre les posts connus de
+ * Hootly : ceux qu'il a publiés, et depuis l'import des publications d'une page
+ * (posts-sync.js) ceux qui existaient déjà sur la page. Seuls les plus récents
+ * sont relus (`postsPerAccount`) : graph-api parcourt chaque post l'un après
+ * l'autre, et l'historique importé en compte des centaines — les relire tous
+ * toutes les 15 minutes épuiserait le quota Meta et dépasserait le délai d'attente.
+ * Les commentaires d'un post ancien ne sont donc pas rattrapés ici (le webhook
+ * reste leur voie normale) : limite documentée, pas cachée.
  */
+
+import { activeBrand } from './lib/active-brand.js';
 
 const SELECT_ACCOUNTS_DUE_FOR_SYNC = `
   SELECT id, provider
     FROM social_accounts
    WHERE status IN ('CONNECTED', 'EXPIRING')
      AND (last_comments_sync_at IS NULL OR last_comments_sync_at < now() - make_interval(mins => $1::int))
+     AND ${activeBrand('social_accounts.brand_id')}
    ORDER BY last_comments_sync_at NULLS FIRST
    LIMIT $2::int
 `;
 
+// Les plus récents d'abord. Pas de DISTINCT (voir metrics-sync.js : refusé avec cet
+// ORDER BY, et inutile grâce à l'unicité de (compte, identifiant externe)).
 const SELECT_PUBLISHED_EXTERNAL_IDS = `
-  SELECT DISTINCT external_publication_id
+  SELECT external_publication_id
     FROM publication_targets
    WHERE social_account_id = $1 AND external_publication_id IS NOT NULL
+   ORDER BY sent_at DESC NULLS LAST
+   LIMIT $2::int
 `;
 
 export function createCommentSync({ query, syncComments, logger = console }) {
-  async function run({ staleAfterMinutes = 15, limit = 50 } = {}) {
+  async function run({ staleAfterMinutes = 15, limit = 50, postsPerAccount = 50 } = {}) {
     const accounts = await query(SELECT_ACCOUNTS_DUE_FOR_SYNC, [staleAfterMinutes, limit]);
 
     let synced = 0;
@@ -38,10 +48,10 @@ export function createCommentSync({ query, syncComments, logger = console }) {
     let failed = 0;
     for (const account of accounts) {
       try {
-        const rows = await query(SELECT_PUBLISHED_EXTERNAL_IDS, [account.id]);
+        const rows = await query(SELECT_PUBLISHED_EXTERNAL_IDS, [account.id, postsPerAccount]);
         const publicationExternalIds = rows.map((row) => row.external_publication_id);
         if (publicationExternalIds.length === 0) {
-          // Rien publié par Hootly pour ce compte — pas de post à revérifier.
+          // Aucun post connu de Hootly pour ce compte — rien à revérifier.
           skipped += 1;
           continue;
         }

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { BrandMark } from "@/components/BrandMark";
 import {
   AnalyticsIcon,
   OverviewIcon,
@@ -53,7 +54,7 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="brand__mark" />
+        <BrandMark />
         <div>
           <div className="brand__name">{PRODUCT_NAME}</div>
           <div className="brand__tag">{t("brand.tag")}</div>

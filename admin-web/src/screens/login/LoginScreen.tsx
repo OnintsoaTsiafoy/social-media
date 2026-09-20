@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 
 import { toUserMessage } from "@/api/errors";
 import { ApiError } from "@/api/transport";
+import { BrandMark } from "@/components/BrandMark";
 import { LocaleSwitch } from "@/components/LocaleSwitch";
 import { PRODUCT_NAME } from "@/config";
 import { useI18n } from "@/i18n";
@@ -38,7 +39,7 @@ export function LoginScreen() {
       </div>
       <form className="login__card" onSubmit={submit}>
         <div className="brand login__brand">
-          <div className="brand__mark" />
+          <BrandMark />
           <div>
             <div className="brand__name login__name">{PRODUCT_NAME}</div>
             <div className="brand__tag login__tag">{t("brand.tag")}</div>

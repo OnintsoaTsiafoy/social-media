@@ -140,6 +140,8 @@ const checkboxStyles = StyleSheet.create({
   boxOn: { backgroundColor: palette.lime },
   boxOff: { borderWidth: 1.5, borderColor: palette.borderStrong },
   boxError: { borderColor: palette.danger },
-  label: { flex: 1 },
+  // `flexShrink` and not `flex: 1`: a zero flex-basis makes the checkbox
+  // measure as its box alone inside a row, which collapses the label.
+  label: { flexShrink: 1 },
   error: { marginTop: spacing.xs, marginLeft: 34 },
 });

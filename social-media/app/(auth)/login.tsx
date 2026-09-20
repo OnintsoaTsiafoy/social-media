@@ -99,9 +99,10 @@ export default function LoginScreen() {
             label="Se souvenir de moi"
           />
           <Text
-            variant="body"
+            variant="footnote"
             weight="semibold"
             accessibilityRole="link"
+            style={styles.forgotLink}
             onPress={() => router.push('/forgot-password')}
           >
             Mot de passe oublié ?
@@ -120,9 +121,6 @@ export default function LoginScreen() {
           block
         />
       </View>
-
-      <View style={styles.spacer} />
-
     </Screen>
   );
 }
@@ -135,8 +133,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    flexWrap: 'wrap',
     gap: spacing.xl,
   },
-  spacer: { flex: 1, minHeight: spacing['4xl'] },
+  /** Same touch height as the checkbox row so the two stay aligned. */
+  forgotLink: { paddingVertical: spacing.sm },
 });

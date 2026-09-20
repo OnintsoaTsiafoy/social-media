@@ -4,6 +4,7 @@ import { hasBrandRole } from '../brands/middleware.js';
 import { prisma } from '../db/prisma.js';
 import { writeAuditLog } from '../lib/audit.js';
 import { HttpError } from '../lib/http.js';
+import { enqueuePostsSync } from '../lib/jobs.js';
 import { callSocialService } from '../lib/socialServiceClient.js';
 
 // Same one-way hash as graph-api's core/crypto.py::hash_state — the raw
@@ -56,6 +57,7 @@ function toPublicAccount(account) {
     connectedAt: account.createdAt.toISOString(),
     lastCommentsSyncAt: account.lastCommentsSyncAt?.toISOString() ?? null,
     lastMetricsSyncAt: account.lastMetricsSyncAt?.toISOString() ?? null,
+    lastPostsSyncAt: account.lastPostsSyncAt?.toISOString() ?? null,
     permissions: account.permissions.map((permission) => ({
       permission: permission.permission,
       granted: permission.status === 'GRANTED',
@@ -99,8 +101,9 @@ async function requireAccountAccess(socialAccountId, userId, minimumRole = 'VIEW
 }
 
 // "Sync" revalidates the connection against Meta (catches a silent
-// revocation) rather than fetching comments/metrics — that persistence
-// layer doesn't exist yet (Sprint 08/12, see docs/MATRICE_ENDPOINT_SPRINT.md).
+// revocation), refreshes the displayed profile, and queues an incremental
+// import of the page's posts. Comments and metrics keep their own periodic
+// syncs (services/worker).
 // graph-api's REAUTHENTICATION_REQUIRED (409) is translated to this
 // codebase's own token_expired by callSocialService, so the mobile's
 // existing token_expired copy ("reconnect the account") actually fires
@@ -119,6 +122,17 @@ export async function syncAccount({ userId, socialAccountId }, request) {
     method: 'GET',
     scope: 'social:read',
   });
+
+  // Le token vient d'être revalidé : c'est aussi le moment de rapatrier les
+  // publications récentes (import incrémental, asynchrone). Au mieux — la
+  // revalidation qui fait l'objet de cet appel a réussi quoi qu'il arrive.
+  if (account.provider === 'FACEBOOK') {
+    try {
+      await enqueuePostsSync({ socialAccountId, requestedBy: userId });
+    } catch (error) {
+      console.error({ scope: 'posts-sync', action: 'enqueue_on_sync', socialAccountId, error: error?.message });
+    }
+  }
 
   await writeAuditLog(prisma, {
     userId,

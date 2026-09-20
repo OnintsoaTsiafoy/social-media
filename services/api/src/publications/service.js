@@ -68,6 +68,10 @@ async function buildPublicPublication(record, metricsByTarget, commentStats) {
     language: record.language,
     hashtags: asStringList(record.hashtags),
     status: record.status.toLowerCase(),
+    // 'imported' : publication déjà en ligne sur la page, ramenée par la
+    // synchronisation. Son « auteur » (authorId/authorName) est l'utilisateur au nom
+    // duquel la page a été liée, faute de connaître l'auteur du post sur Facebook.
+    origin: record.origin.toLowerCase(),
     media,
     targets: record.targets.map((target) => ({
       provider: target.provider.toLowerCase(),
@@ -79,6 +83,7 @@ async function buildPublicPublication(record, metricsByTarget, commentStats) {
       adaptedContent: target.adaptedContent,
       adaptedHashtags: asStringList(target.adaptedHashtags),
       externalPublicationId: target.externalPublicationId,
+      externalUrl: target.externalUrl,
       lastErrorCode: target.lastErrorCode,
       lastErrorMessage: target.lastErrorMessage,
       attemptCount: target.attemptCount,

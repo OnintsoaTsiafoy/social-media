@@ -264,6 +264,8 @@ export const PAGES: PageList = {
       teamCount: 2,
       autoReply: true,
       lastCommentsSyncAt: null,
+      lastPostsSyncAt: "2026-09-20T10:00:00.000Z",
+      postsCount: 42,
     },
     {
       id: "p2",
@@ -282,6 +284,8 @@ export const PAGES: PageList = {
       teamCount: 0,
       autoReply: false,
       lastCommentsSyncAt: null,
+      lastPostsSyncAt: null,
+      postsCount: 0,
     },
   ],
 };

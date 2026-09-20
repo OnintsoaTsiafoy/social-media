@@ -15,20 +15,28 @@
  * partie.
  */
 
+import { activeBrand } from './lib/active-brand.js';
+
 const SELECT_ACCOUNTS_DUE_FOR_SYNC = `
   SELECT id, provider
     FROM social_accounts
    WHERE status IN ('CONNECTED', 'EXPIRING')
      AND (last_metrics_sync_at IS NULL OR last_metrics_sync_at < now() - make_interval(mins => $1::int))
+     AND ${activeBrand('social_accounts.brand_id')}
    ORDER BY last_metrics_sync_at NULLS FIRST
    LIMIT $2::int
 `;
 
+// Pas de DISTINCT : PostgreSQL le refuse avec un ORDER BY sur une colonne absente du
+// SELECT (« for SELECT DISTINCT, ORDER BY expressions must appear in select list »),
+// et cette requête échouait donc pour chaque compte. Il est de toute façon inutile —
+// (social_account_id, external_publication_id) est unique depuis l'import des
+// publications d'une page.
 const SELECT_TARGETS_DUE_FOR_METRICS_SYNC = `
-  SELECT DISTINCT external_publication_id
+  SELECT external_publication_id
     FROM publication_targets
    WHERE social_account_id = $1 AND status = 'SENT' AND external_publication_id IS NOT NULL
-   ORDER BY sent_at DESC
+   ORDER BY sent_at DESC NULLS LAST
    LIMIT $2::int
 `;
 

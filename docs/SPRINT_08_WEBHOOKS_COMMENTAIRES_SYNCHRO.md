@@ -90,6 +90,12 @@ les posts publiés par Hootly (`PublicationTarget.externalPublicationId`) —
 rien n'énumère les posts organiques d'une Page. Un commentaire manqué par
 webhook sur un post organique n'a aucun rattrapage ce sprint.
 
+> **Mise à jour.** L'import des publications d'une page
+> ([SYNCHRO_PUBLICATIONS.md](SYNCHRO_PUBLICATIONS.md)) énumère désormais le fil de
+> la Page et en fait des publications locales : ce filet couvre aussi les posts
+> organiques — mais seulement les 50 plus récents de chaque compte, pour ne pas
+> relire un historique entier toutes les 15 minutes.
+
 ## API Express
 
 | Route | Rôle |
