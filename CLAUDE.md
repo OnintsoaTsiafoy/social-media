@@ -14,6 +14,8 @@ Hootly — a monorepo for a community-manager mobile app. Five deployables, one 
 | [graph-api/](graph-api/) | FastAPI gateway to Meta Graph API (Facebook today, Instagram later) | 8000 |
 | [services/ai-service/](services/ai-service/) | FastAPI NLP service: sentiment/intent analysis (Sprint 09) and LangGraph reply generation (Sprint 10) | 8080 |
 
+[admin-web/](admin-web/) is a sixth package outside the Compose stack: the Vite + React + TypeScript admin console (Overview, AI supervision, Analytics, Users & roles, Pages, Configuration; dev server on 5173). It currently runs on typed fixtures in `src/data/` — the API has no platform-admin role yet — so wiring a screen means replacing its hook in `src/state/`. See [admin-web/README.md](admin-web/README.md). Its test tooling (Vitest 3, jsdom 26, Vite 7) is pinned for Node 20.
+
 Plus PostgreSQL (5432) and MinIO (9000/9001) from [compose.yaml](compose.yaml), and [services/shared/](services/shared/) — dependency-free modules imported by both the API and the worker (publication statuses, mock social provider, image inspection, queue names). Never import an npm package there: each service keeps its own `node_modules` and the shared files would not resolve it.
 
 Work is sprint-driven: `sprint_listing/` holds the 14-sprint plan and per-sprint specs (git-ignored, local only), [docs/](docs/) holds the delivered-state documentation. Before implementing a feature, read the matching `sprint_listing/SPRINT_XX_*.md` and the corresponding `docs/SPRINT_XX_*.md`. Sprints 01–10 are delivered; the current branch is `backend-develop`.

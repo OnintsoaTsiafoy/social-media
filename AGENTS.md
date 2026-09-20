@@ -5,6 +5,7 @@
 Hootly is a monorepo for a community-manager application:
 
 - `social-media/` contains the Expo Router mobile app; screens are in `app/` and shared TypeScript code in `src/`.
+- `admin-web/` is the Vite/React admin console (fixtures only for now); screens in `src/screens/`, state in `src/state/`, mock data in `src/data/`.
 - `services/api/` is the Express 5 + Prisma public API. Domain modules are under `src/{auth,profile,brands,publications,media,social-accounts}/`; migrations are under `prisma/`.
 - `services/worker/` consumes pg-boss jobs; reusable dependency-free code is in `services/shared/`.
 - `graph-api/` is the FastAPI/Meta gateway (`api/routes`, `modules`, `core`, `tests`); `services/ai-service/` is the FastAPI NLP stub.
@@ -14,7 +15,7 @@ Hootly is a monorepo for a community-manager application:
 
 From the repository root, copy `.env.example` to `.env`, install dependencies, then run `./scripts/start.ps1` to build and start Docker/Podman services. Use `./scripts/stop.ps1`, `./scripts/logs.ps1 api`, and `./scripts/seed.ps1` for lifecycle, logs, and demo data. Run `./scripts/verify-readiness.ps1` for health checks and `./scripts/test.ps1` for the full suite.
 
-Useful focused commands include `npm --prefix services/api test`, `npm --prefix services/worker test`, `python -m pytest -q` from `graph-api/`, `npm --prefix social-media run typecheck`, and `npm --prefix social-media run lint`. Start the mobile app with `npm --prefix social-media start`.
+Useful focused commands include `npm --prefix services/api test`, `npm --prefix services/worker test`, `python -m pytest -q` from `graph-api/`, `npm --prefix social-media run typecheck`, and `npm --prefix social-media run lint`. Start the mobile app with `npm --prefix social-media start`. For the admin console, run `npm install` inside `admin-web/` once, then `npm --prefix admin-web run dev` (or `test`, `typecheck`, `lint`).
 
 ## Coding Style & Naming Conventions
 

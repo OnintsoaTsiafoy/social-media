@@ -1,0 +1,331 @@
+.an-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.an-controls .segmented {
+  width: fit-content;
+}
+.tab {
+  padding: 8px 15px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition:
+    background 0.3s var(--ease-out),
+    color 0.25s ease,
+    transform 0.25s ease;
+}
+.tab:hover {
+  transform: translateY(-1px);
+}
+.tab[aria-pressed="true"] {
+  background: var(--tab-active);
+  color: var(--success-text);
+  font-weight: 600;
+}
+.period {
+  padding: 8px 13px;
+  border-radius: 9px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition:
+    background 0.3s var(--ease-out),
+    color 0.25s ease;
+}
+.period[aria-pressed="true"] {
+  background: var(--night);
+  color: var(--lime);
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.sent-filter {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 13px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--white);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: all 0.28s var(--ease-out);
+}
+.sent-filter:hover {
+  transform: translateY(-2px);
+}
+.sent-filter[aria-pressed="true"] {
+  border-color: var(--lime);
+  background: var(--tab-active);
+  color: var(--night);
+}
+.sent-filter i {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--swatch);
+}
+.page-filter {
+  margin-left: auto;
+  padding: 9px 14px;
+  border-radius: 11px;
+}
+.page-filter:hover {
+  border-color: var(--lime);
+}
+
+/* Trend chart ---------------------------------------------------------------------- */
+.chart {
+  padding: 22px;
+  animation: fadeUp 0.4s ease backwards;
+}
+.chart__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 6px;
+}
+.chart__big {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+.chart__value {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.trend {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 7px;
+  background: var(--tone-bg);
+  color: var(--tone-fg);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  animation: popScale 0.3s ease backwards;
+  transition:
+    background 0.3s ease,
+    color 0.3s ease;
+}
+.trend__arrow {
+  display: inline-block;
+  transition: transform 0.35s var(--ease-out);
+}
+.trend__arrow[data-down="true"] {
+  transform: rotate(180deg);
+}
+.chart__plot {
+  position: relative;
+  margin-top: 10px;
+  cursor: crosshair;
+}
+.chart__svg {
+  display: block;
+  width: 100%;
+  height: 240px;
+}
+.chart__area {
+  fill: rgba(196, 240, 74, 0.22);
+  animation: fadeIn 0.9s 0.3s ease backwards;
+}
+.chart__prev {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 2;
+  stroke-dasharray: 6 6;
+}
+.chart__line {
+  fill: none;
+  stroke: var(--lime-deep);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 2600;
+  stroke-dashoffset: 2600;
+  animation: drawLine 1.6s ease forwards;
+}
+.chart__cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-strong);
+  pointer-events: none;
+}
+.chart__dot {
+  position: absolute;
+  left: -5px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--white);
+  border-radius: 50%;
+  background: var(--lime-deep);
+  box-shadow: 0 2px 8px rgba(150, 196, 40, 0.6);
+  animation: popScale 0.18s ease backwards;
+}
+.chart__tip {
+  position: absolute;
+  top: 8px;
+  padding: 9px 13px;
+  border-radius: 11px;
+  background: var(--night);
+  color: var(--white);
+  white-space: nowrap;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.3);
+  pointer-events: none;
+  /* `translate`, not `transform`: the entrance animation owns `transform`. */
+  translate: -50% 0;
+  animation: popIn 0.15s ease backwards;
+}
+.chart__tip-week {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.09em;
+  color: var(--on-dark-muted);
+}
+.chart__tip-value {
+  margin-top: 2px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.chart__tip-prev {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--on-dark);
+}
+.chart__axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--placeholder);
+}
+
+/* Performance by page ----------------------------------------------------------------- */
+.perf-cols {
+  grid-template-columns: minmax(150px, 2fr) repeat(4, minmax(78px, 1fr));
+}
+.perf-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 2fr) repeat(4, minmax(78px, 1fr));
+  gap: 10px;
+  align-items: center;
+  padding: 13px 20px;
+  border-bottom: 1px solid var(--chip);
+  font-size: 13px;
+  transition: background 0.2s ease;
+}
+.perf-row:hover {
+  background: var(--bg);
+}
+.perf-row__page {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.perf-row__name {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.perf-row__num {
+  font-family: var(--font-mono);
+}
+.perf-row__num--slow {
+  color: var(--danger-text);
+}
+.perf-row__num--ok {
+  color: var(--text-body);
+}
+.perf-row__comments {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.trend-mark {
+  display: inline-block;
+  font-size: 9px;
+  font-style: normal;
+  color: var(--success-text);
+}
+.trend-mark[data-down="true"] {
+  color: var(--danger-text);
+  transform: rotate(180deg);
+}
+.sent-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sent-cell__track {
+  flex: 1;
+  min-width: 34px;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--chip);
+}
+.sent-cell__fill {
+  height: 100%;
+  border-radius: 5px;
+  background: var(--lime);
+}
+.sent-cell b {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+/* Peak activity ------------------------------------------------------------------------ */
+.hours {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 130px;
+  margin-top: 16px;
+}
+.hours__bar {
+  flex: 1;
+  border-radius: 4px;
+  background: var(--bar);
+  transform-origin: bottom;
+  animation: growUp 0.55s var(--delay, 0s) var(--ease-out) backwards;
+  transition: background 0.2s ease;
+}
+.hours__bar:hover {
+  background: var(--lime-deep);
+}
+.hours__axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--placeholder);
+}
+.hours__note {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--info-bg);
+  color: var(--info-text);
+  font-size: 12.5px;
+  line-height: 1.55;
+}

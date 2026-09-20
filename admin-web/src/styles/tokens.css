@@ -1,0 +1,69 @@
+/* Palette from the design's colour note ("code couleur"). */
+:root {
+  /* Brand */
+  --night: #0f172a;
+  --lime: #c4f04a;
+  --lime-deep: #96c428;
+  --lime-shadow: rgba(150, 196, 40, 0.42);
+
+  /* Neutrals */
+  --white: #ffffff;
+  --bg: #f8f9fa;
+  --chip: #f4f5f6;
+  --border: #ecedef;
+  --border-strong: #dfe3e8;
+  --text-body: #3f4653;
+  --text-muted: #6b7280;
+  --text-subtle: #7c8595;
+  --placeholder: #a2a8b3;
+  --text-faint: #9aa1ad;
+  --disabled: #b3b9c4;
+  --ghost: #c3c8d1;
+
+  /* States */
+  --danger: #f9736b;
+  --danger-text: #c2493f;
+  --danger-bg: #fff0ee;
+  --warning: #f6c453;
+  --warning-text: #8a5b12;
+  --warning-bg: #fff8ec;
+  --success-text: #4d6414;
+  --success-bg: #f6fbe9;
+  --info: #6fd0e8;
+  --info-text: #1c6f85;
+  --info-bg: #eef8fb;
+
+  /* Social networks */
+  --fb-bg: #eef2fb;
+  --fb-text: #3b5998;
+  --ig-bg: #fdeef4;
+  --ig-text: #c13584;
+
+  /* Other */
+  --tab-active: #f4fae4;
+  --on-dark: rgba(255, 255, 255, 0.74);
+  --on-dark-muted: rgba(255, 255, 255, 0.62);
+  --on-dark-fill: rgba(255, 255, 255, 0.08);
+  --on-dark-fill-hover: rgba(255, 255, 255, 0.16);
+  --on-dark-line: rgba(255, 255, 255, 0.12);
+  --backdrop: rgba(15, 23, 42, 0.45);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --font-sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+}
+
+/*
+ * Tones. An element carrying `data-tone` exposes its colour pair as custom properties,
+ * which any class can consume: `background: var(--tone-bg); color: var(--tone-fg)`.
+ * `--tone-solid` is the saturated variant used for bars and dots.
+ */
+[data-tone="success"] { --tone-bg: var(--success-bg); --tone-fg: var(--success-text); --tone-solid: var(--lime-deep); --tone-dot: var(--lime); }
+[data-tone="warning"] { --tone-bg: var(--warning-bg); --tone-fg: var(--warning-text); --tone-solid: var(--warning); --tone-dot: var(--warning); }
+[data-tone="danger"]  { --tone-bg: var(--danger-bg); --tone-fg: var(--danger-text); --tone-solid: var(--danger); --tone-dot: var(--danger); }
+[data-tone="info"]    { --tone-bg: var(--info-bg); --tone-fg: var(--info-text); --tone-solid: var(--info); --tone-dot: var(--info); }
+[data-tone="muted"]   { --tone-bg: var(--chip); --tone-fg: var(--text-muted); --tone-solid: var(--disabled); --tone-dot: var(--disabled); }
+[data-tone="body"]    { --tone-bg: var(--chip); --tone-fg: var(--text-body); }
+[data-tone="lime"]    { --tone-bg: var(--tab-active); --tone-fg: var(--success-text); }
+[data-tone="fb"]      { --tone-bg: var(--fb-bg); --tone-fg: var(--fb-text); }
+[data-tone="ig"]      { --tone-bg: var(--ig-bg); --tone-fg: var(--ig-text); }

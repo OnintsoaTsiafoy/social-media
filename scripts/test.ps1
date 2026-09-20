@@ -26,3 +26,8 @@ npm --prefix services/api test
 npm --prefix services/worker test
 npm --prefix social-media run typecheck
 npm --prefix social-media run lint
+
+# Console d'administration web : `cd admin-web; npm install` au préalable.
+npm --prefix admin-web run typecheck
+npm --prefix admin-web run lint
+npm --prefix admin-web test
