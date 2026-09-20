@@ -12,6 +12,15 @@ enum UserStatus {
   DISABLED
 }
 
+// Rôle à l'échelle de la PLATEFORME, indépendant des rôles par marque
+// (BrandMemberRole). Seul PLATFORM_ADMIN ouvre l'API /api/v1/admin et la
+// console web `admin-web/` ; il ne donne aucun accès implicite aux routes par
+// marque, qui continuent d'exiger une appartenance à la marque.
+enum PlatformRole {
+  USER
+  PLATFORM_ADMIN
+}
+
 enum BrandMemberRole {
   OWNER
   ADMIN
@@ -226,6 +235,7 @@ model User {
   preferences             Json                   @default("{}")
   avatarMediaId           String?                @unique @map("avatar_media_id") @db.Uuid
   status                  UserStatus             @default(ACTIVE)
+  platformRole            PlatformRole           @default(USER) @map("platform_role")
   createdAt               DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt               DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
   sessions                UserSession[]
@@ -254,8 +264,10 @@ model User {
   aiFeedback              AiFeedback[]
   analyticsInsightFeedback AnalyticsInsightFeedback[]
   competitorsAdded Competitor[]  @relation("CompetitorAuthor")
+  platformSettingsUpdated PlatformSetting[] @relation("PlatformSettingAuthor")
 
   @@index([status])
+  @@index([platformRole])
   @@map("users")
 }
 
@@ -1249,4 +1261,25 @@ model CompetitorPost {
   @@unique([competitorId, externalPostId])
   @@index([competitorId, publishedAt])
   @@map("competitor_posts")
+}
+
+// ---------------------------------------------------------------------------
+// Console d'administration web (admin-web/)
+// ---------------------------------------------------------------------------
+
+// Réglages de la plateforme : une ligne par clé (`moderation.keywords`,
+// `service_levels`, `ai.supervision`, `pages.auto_reply`), valeur JSON validée
+// par Zod dans admin/settings.js. Créée à la première écriture — tant qu'aucune
+// ligne n'existe, l'API sert les valeurs par défaut du code, exactement comme
+// `notification_settings`. `version` est incrémenté à chaque écriture ; les
+// écritures d'une même clé sont sérialisées par un verrou de ligne.
+model PlatformSetting {
+  key             String   @id @db.VarChar(80)
+  value           Json
+  version         Int      @default(1)
+  updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy       User?    @relation("PlatformSettingAuthor", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("platform_settings")
 }

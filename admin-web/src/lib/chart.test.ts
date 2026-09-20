@@ -1,117 +1,130 @@
 import { describe, expect, it } from "vitest";
 
-import { ANALYTICS_TABS, PAGE_FILTERS, PERIODS, SENTIMENT_FILTERS } from "@/data/analytics";
+import { formatMetric } from "@/lib/chart";
+import { formatDuration } from "@/i18n/format";
 import {
-  computeSeries,
-  formatMetric,
+  CHART_BASELINE,
+  CHART_TOP,
+  CHART_WIDTH,
+  hasData,
+  layoutSeries,
   pointIndexAt,
-  previousPeriod,
   sparkPoints,
   toAreaPolygon,
   toPolyline,
   trendOf,
-  type SeriesFilters,
-} from "@/lib/chart";
+  xAt,
+} from "./chart";
 
-const base = { period: "30 d", sentiment: "All", page: "All pages" } as const;
-
-describe("computeSeries", () => {
-  it("returns ten weekly points that stay inside the plot for every filter combination", () => {
-    for (const tab of ANALYTICS_TABS)
-      for (const period of PERIODS)
-        for (const sentiment of SENTIMENT_FILTERS)
-          for (const page of PAGE_FILTERS) {
-            const series = computeSeries({ tab, period, sentiment, page });
-            expect(series).toHaveLength(10);
-            for (const y of series) {
-              expect(y).toBeGreaterThanOrEqual(20);
-              expect(y).toBeLessThanOrEqual(222);
-            }
-          }
+describe("layoutSeries", () => {
+  it("place le plus haut relevé sous le plafond et zéro sur la ligne de base", () => {
+    const { current } = layoutSeries([0, 50, 100], [10, 10, 10]);
+    expect(current[0]?.y).toBe(CHART_BASELINE);
+    // Le plafond est 115 % du plus haut relevé : 100 % reste sous le haut du cadre.
+    expect(current[2]?.y).toBeGreaterThan(CHART_TOP);
+    expect(current[2]?.y).toBeLessThan(current[1]?.y ?? 0);
   });
 
-  it("applies the period, sentiment and page multipliers (first point has no wobble)", () => {
-    const first = (overrides: Partial<SeriesFilters>) =>
-      computeSeries({ tab: "Engagement", ...base, ...overrides })[0];
-
-    expect(first({})).toBeCloseTo(140);
-    expect(first({ sentiment: "Positive" })).toBeCloseTo(112);
-    expect(first({ sentiment: "Negative" })).toBeCloseTo(176.4);
-    expect(first({ period: "7 d" })).toBeCloseTo(117.6);
-    expect(first({ page: "Helio Energy" })).toBeCloseTo(182);
+  it("garde les trous : une période sans donnée n'est pas ramenée à zéro", () => {
+    const { current } = layoutSeries([10, null, 30], [null, null, null]);
+    expect(current[1]).toBeNull();
+    expect(current[0]?.value).toBe(10);
   });
 
-  it("clamps values that the multipliers would push off the chart", () => {
-    const series = computeSeries({ tab: "AI performance", period: "90 d", sentiment: "Negative", page: "Helio Energy" });
-    expect(Math.max(...series)).toBe(222);
+  it("met la courbe précédente à la même échelle que la courante", () => {
+    const { current, previous } = layoutSeries([40], [40]);
+    expect(previous[0]?.y).toBe(current[0]?.y);
+  });
+
+  it("ne divise pas par zéro quand tout vaut zéro ou que rien n'est connu", () => {
+    const zero = layoutSeries([0, 0], [0, 0]);
+    expect(zero.current.every((point) => point?.y === CHART_BASELINE)).toBe(true);
+    const none = layoutSeries([null, null], [null]);
+    expect(none.current).toEqual([null, null]);
   });
 });
 
-describe("previousPeriod", () => {
-  it("stays inside the plot", () => {
-    for (const y of previousPeriod(computeSeries({ tab: "Sentiment", ...base }))) {
-      expect(y).toBeGreaterThanOrEqual(24);
-      expect(y).toBeLessThanOrEqual(218);
-    }
+describe("tracé", () => {
+  it("répartit les points sur toute la largeur", () => {
+    expect(xAt(0, 5)).toBe(0);
+    expect(xAt(4, 5)).toBe(CHART_WIDTH);
+    expect(xAt(0, 1)).toBe(CHART_WIDTH / 2);
+  });
+
+  it("saute les trous dans la polyligne", () => {
+    const { current } = layoutSeries([10, null, 30], [null, null, null]);
+    expect(toPolyline(current).split(" ")).toHaveLength(2);
+  });
+
+  it("ne dessine une aire que pour deux points ou plus, fermée sur la ligne de base", () => {
+    const one = layoutSeries([10], [null]).current;
+    expect(toAreaPolygon(one)).toBe("");
+    const two = layoutSeries([10, 20], [null, null]).current;
+    const polygon = toAreaPolygon(two).split(" ");
+    expect(polygon).toHaveLength(4);
+    expect(polygon[2]).toBe(`${CHART_WIDTH.toFixed(1)},${CHART_BASELINE}`);
+    expect(polygon[3]).toBe(`0.0,${CHART_BASELINE}`);
+  });
+
+  it("ramène la position du curseur au point le plus proche", () => {
+    expect(pointIndexAt(0, 10)).toBe(0);
+    expect(pointIndexAt(1, 10)).toBe(9);
+    expect(pointIndexAt(0.5, 10)).toBe(5);
+    expect(pointIndexAt(2, 10)).toBe(9);
+    expect(pointIndexAt(-1, 10)).toBe(0);
+    expect(pointIndexAt(0.5, 1)).toBe(0);
+  });
+
+  it("détecte l'absence totale de donnée", () => {
+    expect(hasData([null, null])).toBe(false);
+    expect(hasData([null, 0])).toBe(true);
   });
 });
 
-describe("polyline helpers", () => {
-  it("spreads points across the 800px width", () => {
-    expect(toPolyline([10, 20, 30])).toBe("0,10.0 400,20.0 800,30.0");
+describe("sparkPoints", () => {
+  it("met à l'échelle sur le min et le max de la série", () => {
+    const points = sparkPoints([0, 5, 10]).split(" ");
+    expect(points[0]).toBe("0,28");
+    expect(points[2]).toBe("120,2");
   });
 
-  it("closes the area down to the baseline", () => {
-    expect(toAreaPolygon([10, 20]).endsWith("800,220 0,220")).toBe(true);
+  it("saute les trous et renvoie une chaîne vide sans donnée", () => {
+    expect(sparkPoints([null, null])).toBe("");
+    expect(sparkPoints([1, null, 3]).split(" ")).toHaveLength(2);
   });
 
-  it("scales a sparkline to its own min and max", () => {
-    expect(sparkPoints([0, 10])).toBe("0,28 120,2");
-    expect(sparkPoints([5, 5])).toBe("0,28 120,28");
-  });
-});
-
-describe("formatMetric", () => {
-  it("reads response time in minutes and seconds", () => {
-    expect(formatMetric("Response time", 22 * 4)).toBe("4m 00s");
-    expect(formatMetric("Response time", 22 * 3.5)).toBe("3m 30s");
-  });
-
-  it("never prints 60 seconds (regression: the mock-up rounded seconds independently)", () => {
-    expect(formatMetric("Response time", 22 * 3.9999)).toBe("4m 00s");
-  });
-
-  it("reads the other tabs as percentages", () => {
-    expect(formatMetric("Engagement", 240 - 22 * 5)).toBe("5.0%");
-    expect(formatMetric("Sentiment", 240 - 2.6 * 50)).toBe("50%");
-    expect(formatMetric("AI performance", 240 - 2.6 * 68)).toBe("68%");
+  it("dessine une ligne plate quand toutes les valeurs sont égales", () => {
+    const points = sparkPoints([4, 4, 4]).split(" ");
+    expect(new Set(points.map((point) => point.split(",")[1])).size).toBe(1);
   });
 });
 
 describe("trendOf", () => {
-  it("counts a falling response time as an improvement", () => {
-    expect(trendOf("Response time", [162, 100, 70]).improving).toBe(true);
-    expect(trendOf("Response time", [70, 100, 162]).improving).toBe(false);
+  it("ne fabrique pas de tendance sans période de référence", () => {
+    expect(trendOf("engagement", { value: 0.1, previousValue: null, deltaPercent: null })).toBeNull();
   });
 
-  it("counts a rising metric as an improvement everywhere else", () => {
-    // Higher on the plot (smaller y) is worse for these tabs: y drops as the value rises.
-    const rising = computeSeries({ tab: "Engagement", ...base });
-    expect(trendOf("Engagement", rising).improving).toBe(true);
-    expect(trendOf("Engagement", rising).deltaPercent).toBeGreaterThan(0);
-    expect(trendOf("Engagement", [...rising].reverse()).improving).toBe(false);
+  it("une hausse est une amélioration, sauf pour le temps de réponse", () => {
+    expect(trendOf("engagement", { value: 1, previousValue: 0.5, deltaPercent: 100 })).toEqual({ improving: true, deltaPercent: 100 });
+    expect(trendOf("sentiment", { value: 0.4, previousValue: 0.5, deltaPercent: -20 })).toEqual({ improving: false, deltaPercent: 20 });
+    expect(trendOf("response_time", { value: 100, previousValue: 200, deltaPercent: -50 })).toEqual({ improving: true, deltaPercent: 50 });
+    expect(trendOf("response_time", { value: 300, previousValue: 200, deltaPercent: 50 })).toEqual({ improving: false, deltaPercent: 50 });
   });
 });
 
-describe("pointIndexAt", () => {
-  it("snaps a pointer ratio to the nearest weekly point", () => {
-    expect(pointIndexAt(0)).toBe(0);
-    expect(pointIndexAt(1)).toBe(9);
-    expect(pointIndexAt(0.5)).toBe(5);
+describe("formatMetric", () => {
+  const format = {
+    percent: (ratio: number, digits = 1) => `${(ratio * 100).toFixed(digits)}%`,
+    duration: (seconds: number) => formatDuration("fr", seconds),
+  } as Parameters<typeof formatMetric>[2];
+
+  it("écrit un taux d'engagement avec une décimale, les autres taux sans", () => {
+    expect(formatMetric("engagement", 0.0731, format)).toBe("7.3%");
+    expect(formatMetric("sentiment", 0.6, format)).toBe("60%");
+    expect(formatMetric("ai_performance", 0.684, format)).toBe("68%");
   });
 
-  it("stays in range when the pointer leaves the plot", () => {
-    expect(pointIndexAt(-0.4)).toBe(0);
-    expect(pointIndexAt(1.7)).toBe(9);
+  it("écrit un délai en minutes et secondes", () => {
+    expect(formatMetric("response_time", 188, format)).toBe("3 min 08 s");
   });
 });

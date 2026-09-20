@@ -1,11 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { ScreenId } from "@/types";
 
 export const SCREENS: ScreenId[] = ["overview", "supervision", "analytics", "users", "pages", "configuration"];
-
-/** How long the skeleton shows while a screen "loads" (mirrors the design). */
-export const SKELETON_MS = 520;
 
 export function screenFromHash(hash: string): ScreenId {
   const id = hash.replace(/^#\/?/, "");
@@ -18,30 +15,16 @@ export function hrefFor(screen: ScreenId): string {
 
 /**
  * Hash-based routing: the URL survives a reload and the browser's back button works,
- * with no router dependency. Switching screens flashes the skeleton for `SKELETON_MS`.
+ * with no router dependency. Each screen shows its own loading skeleton while its data loads.
  */
-export function useRoute(): { screen: ScreenId; loading: boolean } {
+export function useRoute(): { screen: ScreenId } {
   const [screen, setScreen] = useState<ScreenId>(() => screenFromHash(window.location.hash));
-  const [loading, setLoading] = useState(false);
-  const current = useRef(screen);
-  const timer = useRef(0);
 
   useEffect(() => {
-    const onHashChange = () => {
-      const next = screenFromHash(window.location.hash);
-      if (next === current.current) return;
-      current.current = next;
-      setScreen(next);
-      setLoading(true);
-      window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(() => setLoading(false), SKELETON_MS);
-    };
+    const onHashChange = () => setScreen(screenFromHash(window.location.hash));
     window.addEventListener("hashchange", onHashChange);
-    return () => {
-      window.removeEventListener("hashchange", onHashChange);
-      window.clearTimeout(timer.current);
-    };
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  return { screen, loading };
+  return { screen };
 }

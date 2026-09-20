@@ -2,6 +2,7 @@ import express from 'express';
 import { approvalsRouter, publicationApprovalRouter } from './approvals/routes.js';
 import { fileURLToPath } from 'node:url';
 
+import { adminRouter } from './admin/routes.js';
 import { analyticsRouter } from './analytics/routes.js';
 import { aiRouter } from './ai-feedback/routes.js';
 import { knowledgeRouter } from './knowledge/routes.js';
@@ -17,6 +18,7 @@ import { calendarRouter, publicationRouter } from './publications/routes.js';
 import { profileRouter } from './profile/routes.js';
 import { hashtagRouter, responseSuggestionRouter } from './response-suggestions/routes.js';
 import { socialAccountRouter } from './social-accounts/routes.js';
+import { corsMiddleware } from './lib/cors.js';
 import { addRequestContext, errorHandler, notFoundHandler } from './lib/http.js';
 import { stopBoss } from './lib/jobs.js';
 import { ensureBucket, isStorageConfigured } from './lib/storage.js';
@@ -32,6 +34,27 @@ const openApiDocument = {
     description: 'API publique Hootly.',
   },
   paths: {
+    '/api/v1/admin/session': { get: { summary: 'PLATFORM_ADMIN : profil et rôle plateforme de la session (403 sinon)' } },
+    '/api/v1/admin/summary': { get: { summary: 'Compteurs de la coque : pages, utilisateurs, brouillons à relire, escalades, SLA' } },
+    '/api/v1/admin/overview': { get: { summary: 'Vue d’ensemble (period=7d|30d|90d, network=all|facebook|instagram) : KPI, volume, santé, escalades, classement' } },
+    '/api/v1/admin/live': { get: { summary: 'Activité en direct : commentaires de la dernière heure et flux récent (network)' } },
+    '/api/v1/admin/supervision': { get: { summary: 'File des brouillons IA à relire, pipeline, performance du modèle, réglages d’autonomie' } },
+    '/api/v1/admin/supervision/drafts/{suggestionId}/approve': { post: { summary: 'Approuver (texte facultatif) puis envoyer la réponse' } },
+    '/api/v1/admin/supervision/drafts/{suggestionId}/reject': { post: { summary: 'Rejeter un brouillon (reason : wrong_tone|incorrect_facts|policy_risk|too_generic)' } },
+    '/api/v1/admin/supervision/drafts/{suggestionId}/escalate': { post: { summary: 'Escalader le commentaire du brouillon' } },
+    '/api/v1/admin/escalations/{commentId}/resolve': { post: { summary: 'Clore une escalade (le commentaire passe à « traité »)' } },
+    '/api/v1/admin/analytics/trend': { get: { summary: 'Courbe (metric=engagement|response_time|sentiment|ai_performance, period, sentiment, pageId, network) et période précédente' } },
+    '/api/v1/admin/analytics/pages': { get: { summary: 'Performance par page, activité par heure et pages filtrables (period, network, pageId)' } },
+    '/api/v1/admin/users': { get: { summary: 'Comptes de la plateforme (status, q, page, pageSize) avec rôles par marque' } },
+    '/api/v1/admin/users/{userId}': { patch: { summary: 'Suspendre / réactiver, rôle plateforme, rôles par marque (une transaction, un audit par changement)' } },
+    '/api/v1/admin/pages': { get: { summary: 'Pages connectées : état, jeton, arriéré, équipe, réponse automatique (network, status)' } },
+    '/api/v1/admin/pages/{pageId}': { patch: { summary: 'Activer / désactiver la réponse automatique d’une page' } },
+    '/api/v1/admin/settings': { get: { summary: 'Mots-clés de modération, délais de service, réglages de supervision' } },
+    '/api/v1/admin/settings/keywords': { post: { summary: 'Ajouter un mot-clé (409 s’il existe déjà)' } },
+    '/api/v1/admin/settings/keywords/{word}': { delete: { summary: 'Retirer un mot-clé' } },
+    '/api/v1/admin/settings/service-levels': { patch: { summary: 'Modifier les délais de service (minutes)' } },
+    '/api/v1/admin/settings/supervision': { patch: { summary: 'Modifier l’envoi automatique, le seuil d’autonomie et les règles d’escalade' } },
+    '/api/v1/admin/audit': { get: { summary: 'Journal d’audit de l’administration (page, pageSize)' } },
     '/api/v1/analytics/insights': {
       get: { summary: 'Faits, métriques sources, variations et anomalies (brandId, period=7d|30d|90d, network=all|facebook|instagram)' },
       post: { summary: 'COMMUNITY_MANAGER : générer et conserver une analyse, avec repli local' },
@@ -286,6 +309,7 @@ const openApiDocument = {
 };
 
 app.disable('x-powered-by');
+app.use(corsMiddleware());
 app.use(express.json({ limit: '1mb' }));
 app.use(addRequestContext);
 
@@ -340,6 +364,8 @@ app.use('/api/v1/device-tokens', deviceTokenRouter);
 app.use('/api/v1/notification-settings', notificationSettingsRouter);
 app.use('/api/v1/analytics', analyticsRouter);
 app.use('/api/v1/dashboard', dashboardRouter);
+// Console d'administration web : réservé aux users.platform_role = PLATFORM_ADMIN.
+app.use('/api/v1/admin', adminRouter);
 // Sprint 11 Jour 3 : seul point d'entrée /internal/v1 exposé par Express —
 // jusqu'ici l'API n'était qu'appelante de graph-api/ai-service, jamais
 // appelée (voir lib/serviceAuth.js).

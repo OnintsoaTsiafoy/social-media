@@ -1,3 +1,5 @@
+import type { NetworkFilter } from "@/api/types";
+
 export type ScreenId =
   | "overview"
   | "supervision"
@@ -6,11 +8,8 @@ export type ScreenId =
   | "pages"
   | "configuration";
 
-export type NetworkCode = "FB" | "IG";
-/** Network filter shared by the overview live stream and the analytics table. */
-export type NetFilter = "all" | "fb" | "ig";
-
-export type SentimentLabel = "Positive" | "Neutral" | "Negative";
+/** Filtre de réseau partagé par le flux en direct, les escalades et le tableau d'analytique. */
+export type NetFilter = NetworkFilter;
 
 /**
  * Colour pair applied through `data-tone` (see `styles/tokens.css`). Every badge,

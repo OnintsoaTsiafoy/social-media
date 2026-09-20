@@ -1,84 +1,125 @@
 import { useMemo, useState, type CSSProperties } from "react";
 
-import { buildDayColumns, SENTIMENT_SPLIT, TOTAL_PROCESSED } from "@/data/overview";
+import type { DailyVolume } from "@/api/types";
+import { useI18n } from "@/i18n";
 import { delay } from "@/lib/css";
-import { formatInt } from "@/lib/format";
 
 /** Height in px of the tallest stacked bar. */
 const BAR_AREA = 168;
 
 const swatch = (color: string) => ({ "--swatch": color }) as CSSProperties;
 
-export function VolumeChart({ progress }: { progress: number }) {
-  const [active, setActive] = useState<number | null>(null);
-  const columns = useMemo(() => buildDayColumns(new Date()), []);
+interface DayColumn extends DailyVolume {
+  /** « sam. 20 » : titre de l'infobulle. */
+  full: string;
+  weekday: string;
+  /** « S20 » : étiquette de l'axe. */
+  label: string;
+  total: number;
+}
 
-  const scale = BAR_AREA / Math.max(...columns.map((column) => column.total));
-  const peak = columns.reduce((best, column) => (column.total > best.total ? column : best));
-  const negativeShare = (SENTIMENT_SPLIT.negative / TOTAL_PROCESSED) * 100;
+export function VolumeChart({ daily, progress }: { daily: DailyVolume[]; progress: number }) {
+  const { t, format } = useI18n();
+  const [active, setActive] = useState<number | null>(null);
+
+  const columns = useMemo<DayColumn[]>(
+    () =>
+      daily.map((day) => {
+        // AAAA-MM-JJ est un jour civil : on le construit à midi, sans dépendre du fuseau du navigateur.
+        const [year = 0, month = 1, dayOfMonth = 1] = day.date.split("-").map(Number);
+        const date = new Date(year, month - 1, dayOfMonth, 12);
+        const weekday = format.weekday(date);
+        return {
+          ...day,
+          weekday,
+          full: `${weekday} ${dayOfMonth}`,
+          label: `${weekday.charAt(0).toUpperCase()}${dayOfMonth}`,
+          total: day.positive + day.neutral + day.negative,
+        };
+      }),
+    [daily, format],
+  );
+
+  const grandTotal = columns.reduce((sum, column) => sum + column.total, 0);
+  const negativeTotal = columns.reduce((sum, column) => sum + column.negative, 0);
+  const tallest = Math.max(1, ...columns.map((column) => column.total));
+  const scale = BAR_AREA / tallest;
+  const peak = columns.reduce<DayColumn | null>((best, column) => (!best || column.total > best.total ? column : best), null);
   const hovered = active === null ? null : (columns[active] ?? null);
 
   return (
     <div className="card card--pad span-2 rise" style={delay(60)}>
       <div className="volume__head">
         <div>
-          <div className="card__title">Comment volume &amp; sentiment</div>
-          <div className="card__sub">Aggregated across all connected pages</div>
+          <div className="card__title">{t("volume.title")}</div>
+          <div className="card__sub">{t("volume.subtitle")}</div>
         </div>
         <div className="legend">
-          <span className="legend__item"><i className="swatch" style={swatch("var(--lime)")} />Positive</span>
-          <span className="legend__item"><i className="swatch" style={swatch("var(--border-strong)")} />Neutral</span>
-          <span className="legend__item"><i className="swatch" style={swatch("var(--danger)")} />Negative</span>
+          <span className="legend__item"><i className="swatch" style={swatch("var(--lime)")} />{t("sentiment.positive")}</span>
+          <span className="legend__item"><i className="swatch" style={swatch("var(--border-strong)")} />{t("sentiment.neutral")}</span>
+          <span className="legend__item"><i className="swatch" style={swatch("var(--danger)")} />{t("sentiment.negative")}</span>
         </div>
       </div>
 
-      <div className="bars" onMouseLeave={() => setActive(null)}>
-        {columns.map((column, i) => (
-          <div
-            key={column.full}
-            className="bars__col"
-            data-dim={active !== null && active !== i}
-            style={delay(i * 35)}
-            tabIndex={0}
-            aria-label={`${column.full}: ${column.positive} positive, ${column.neutral} neutral, ${column.negative} negative`}
-            onMouseEnter={() => setActive(i)}
-            onFocus={() => setActive(i)}
-            onBlur={() => setActive(null)}
-          >
-            <div className="bars__seg bars__seg--neg" style={{ height: Math.round(column.negative * scale) }} />
-            <div className="bars__seg bars__seg--neu" style={{ height: Math.round(column.neutral * scale) }} />
-            <div className="bars__seg bars__seg--pos" style={{ height: Math.round(column.positive * scale) }} />
-            <div className="bars__label">{column.label}</div>
+      {grandTotal === 0 ? (
+        <div className="empty">{t("volume.empty")}</div>
+      ) : (
+        <div className="bars" onMouseLeave={() => setActive(null)}>
+          {columns.map((column, i) => (
+            <div
+              key={column.date}
+              className="bars__col"
+              data-dim={active !== null && active !== i}
+              style={delay(i * 35)}
+              tabIndex={0}
+              aria-label={t("volume.bar.aria", {
+                date: column.full,
+                positive: column.positive,
+                neutral: column.neutral,
+                negative: column.negative,
+              })}
+              onMouseEnter={() => setActive(i)}
+              onFocus={() => setActive(i)}
+              onBlur={() => setActive(null)}
+            >
+              <div className="bars__seg bars__seg--neg" style={{ height: Math.round(column.negative * scale) }} />
+              <div className="bars__seg bars__seg--neu" style={{ height: Math.round(column.neutral * scale) }} />
+              <div className="bars__seg bars__seg--pos" style={{ height: Math.round(column.positive * scale) }} />
+              <div className="bars__label">{column.label}</div>
+            </div>
+          ))}
+          {hovered && active !== null && (
+            <div className="tip" style={{ left: `${((active + 0.5) / columns.length) * 100}%` }}>
+              <div className="tip__title">{hovered.full}</div>
+              <div>
+                {t("sentiment.positive")} <b>{format.int(hovered.positive)}</b> · {t("sentiment.neutral")}{" "}
+                <b>{format.int(hovered.neutral)}</b> · {t("sentiment.negative")} <b>{format.int(hovered.negative)}</b>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {grandTotal > 0 && peak && (
+        <div className="totals">
+          <div>
+            <div className="totals__label">{t("volume.total")}</div>
+            <div className="totals__value">{format.int(grandTotal * progress)}</div>
           </div>
-        ))}
-        {hovered && active !== null && (
-          <div className="tip" style={{ left: `${((active + 0.5) / columns.length) * 100}%` }}>
-            <div className="tip__title">{hovered.full}</div>
-            <div>
-              Positive <b>{hovered.positive}</b> · Neutral <b>{hovered.neutral}</b> · Negative <b>{hovered.negative}</b>
+          <div>
+            <div className="totals__label">{t("volume.peak")}</div>
+            <div className="totals__value">
+              {peak.weekday} · {format.int(peak.total)}
             </div>
           </div>
-        )}
-      </div>
-
-      <div className="totals">
-        <div>
-          <div className="totals__label">Total processed</div>
-          <div className="totals__value">{formatInt(TOTAL_PROCESSED * progress)}</div>
-        </div>
-        <div>
-          <div className="totals__label">Peak day</div>
-          <div className="totals__value">
-            {peak.weekday} · {formatInt(peak.total)}
+          <div>
+            <div className="totals__label">{t("volume.negativeShare")}</div>
+            <div className="totals__value" style={{ color: "var(--danger-text)" }}>
+              {format.percent(negativeTotal / grandTotal, 1)}
+            </div>
           </div>
         </div>
-        <div>
-          <div className="totals__label">Negative share</div>
-          <div className="totals__value" style={{ color: "var(--danger-text)" }}>
-            {negativeShare.toFixed(1)}%
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

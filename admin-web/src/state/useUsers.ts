@@ -1,117 +1,153 @@
 import { useCallback, useMemo, useState } from "react";
 
-import {
-  INITIAL_USERS,
-  USER_FILTERS,
-  type PermissionKey,
-  type PermissionSet,
-  type Role,
-  type UserFilter,
-  type UserRecord,
-} from "@/data/users";
+import { adminApi } from "@/api/endpoints";
+import type { AdminUser, EditableRole, UserFilter, UserPatch } from "@/api/types";
+import { USERS_PAGE_SIZE } from "@/domain/users";
+import { useI18n } from "@/i18n";
+import { useAdmin } from "@/state/AdminContext";
+import { useDebounced } from "@/state/useDebounced";
+import { useResource } from "@/state/useResource";
 
-interface Draft {
-  role: Role;
-  permissions: PermissionSet;
+/** Brouillon du tiroir : rien n'atteint le serveur avant « Enregistrer ». */
+export interface Draft {
+  platformAdmin: boolean;
+  roles: Record<string, EditableRole>;
+}
+
+function draftOf(user: AdminUser): Draft {
+  return {
+    platformAdmin: user.platformRole === "platform_admin",
+    roles: Object.fromEntries(
+      user.memberships.filter((membership) => membership.role !== "owner").map((membership) => [membership.brandId, membership.role as EditableRole]),
+    ),
+  };
+}
+
+/** Ce qui a réellement changé entre le compte et le brouillon (vide = rien à envoyer). */
+export function diffDraft(user: AdminUser, draft: Draft): UserPatch {
+  const patch: UserPatch = {};
+  if (draft.platformAdmin !== (user.platformRole === "platform_admin")) {
+    patch.platformRole = draft.platformAdmin ? "platform_admin" : "user";
+  }
+  const memberships = user.memberships
+    .filter((membership) => membership.role !== "owner" && draft.roles[membership.brandId] !== membership.role)
+    .map((membership) => ({ brandId: membership.brandId, role: draft.roles[membership.brandId] as EditableRole }));
+  if (memberships.length > 0) patch.memberships = memberships;
+  return patch;
 }
 
 /**
- * Users & roles: the filterable member list plus the detail drawer. Edits in the
- * drawer are a draft — they only reach the list on "Save changes".
+ * Utilisateurs et rôles : la liste filtrable (côté serveur : statut, recherche, page) et le tiroir
+ * de détail. Les modifications du tiroir sont un brouillon, appliquées en une transaction à
+ * « Enregistrer ».
  */
-export function useUsers(say: (message: string) => void) {
-  const [users, setUsers] = useState<UserRecord[]>(INITIAL_USERS);
-  const [filter, setFilter] = useState<UserFilter>("All");
-  const [query, setQuery] = useState("");
-  const [openId, setOpenId] = useState<number | null>(null);
+export function useUsers() {
+  const { t } = useI18n();
+  const { say, sayError, memberQuery, setMemberQuery, profile, summary } = useAdmin();
+  const [filter, setFilterState] = useState<UserFilter>("all");
+  const [page, setPage] = useState(1);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return users
-      .filter((user) => filter === "All" || user.status === filter)
-      .filter((user) => `${user.name} ${user.email}`.toLowerCase().includes(needle));
-  }, [users, filter, query]);
-
-  const counts = useMemo(
-    () =>
-      Object.fromEntries(
-        USER_FILTERS.map((name) => [
-          name,
-          name === "All" ? users.length : users.filter((user) => user.status === name).length,
-        ]),
-      ) as Record<UserFilter, number>,
-    [users],
+  // La frappe met à jour l'écran tout de suite ; le serveur n'est interrogé qu'à la pause.
+  const search = useDebounced(memberQuery.trim());
+  const resource = useResource(
+    (signal) => adminApi.users({ status: filter, q: search, page, pageSize: USERS_PAGE_SIZE }, { signal }),
+    `users:${filter}:${search}:${page}`,
   );
+  const { update, reload } = resource;
 
-  const openUser = users.find((user) => user.id === openId) ?? null;
-
-  const open = useCallback(
-    (id: number) => {
-      const user = users.find((candidate) => candidate.id === id);
-      if (!user) return;
-      setOpenId(id);
-      setDraft({ role: user.role, permissions: { ...user.permissions } });
+  const setFilter = useCallback((next: UserFilter) => {
+    setFilterState(next);
+    setPage(1);
+  }, []);
+  const setQuery = useCallback(
+    (next: string) => {
+      setMemberQuery(next);
+      setPage(1);
     },
-    [users],
+    [setMemberQuery],
   );
 
+  const openUser = useMemo(
+    () => resource.data?.items.find((user) => user.id === openId) ?? null,
+    [resource.data, openId],
+  );
+
+  const open = useCallback((user: AdminUser) => {
+    setOpenId(user.id);
+    setDraft(draftOf(user));
+  }, []);
   const close = useCallback(() => {
     setOpenId(null);
     setDraft(null);
   }, []);
 
   const setDraftRole = useCallback(
-    (role: Role) => setDraft((current) => (current ? { ...current, role } : current)),
+    (brandId: string, role: EditableRole) =>
+      setDraft((current) => (current ? { ...current, roles: { ...current.roles, [brandId]: role } } : current)),
+    [],
+  );
+  const toggleDraftPlatformAdmin = useCallback(
+    () => setDraft((current) => (current ? { ...current, platformAdmin: !current.platformAdmin } : current)),
     [],
   );
 
-  const toggleDraftPermission = useCallback(
-    (key: PermissionKey) =>
-      setDraft((current) =>
-        current
-          ? { ...current, permissions: { ...current.permissions, [key]: !current.permissions[key] } }
-          : current,
-      ),
-    [],
+  const apply = useCallback(
+    async (user: AdminUser, patch: UserPatch, message: string) => {
+      setSaving(true);
+      try {
+        const updated = await adminApi.updateUser(user.id, patch);
+        update((current) => ({ ...current, items: current.items.map((entry) => (entry.id === updated.id ? updated : entry)) }));
+        say(message);
+        close();
+        summary.reload();
+        // Un changement de statut modifie les pastilles du filtre et la liste filtrée.
+        if (patch.status) reload();
+      } catch (error) {
+        sayError(error);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [update, reload, close, say, sayError, summary],
   );
 
   const save = useCallback(() => {
-    if (openId !== null && draft) {
-      setUsers((list) =>
-        list.map((user) =>
-          user.id === openId ? { ...user, role: draft.role, permissions: draft.permissions } : user,
-        ),
-      );
+    if (!openUser || !draft) return;
+    const patch = diffDraft(openUser, draft);
+    if (Object.keys(patch).length === 0) {
+      say(t("drawer.toast.nothing"));
+      close();
+      return;
     }
-    close();
-    say("Permissions updated · synced to mobile app");
-  }, [openId, draft, close, say]);
+    void apply(openUser, patch, t("drawer.toast.saved"));
+  }, [openUser, draft, apply, say, close, t]);
 
-  const suspend = useCallback(() => {
-    if (openId !== null) {
-      setUsers((list) =>
-        list.map((user) => (user.id === openId ? { ...user, status: "Suspended" } : user)),
-      );
-    }
-    close();
-    say("Account suspended");
-  }, [openId, close, say]);
+  const toggleSuspension = useCallback(() => {
+    if (!openUser) return;
+    const suspending = openUser.status === "active";
+    void apply(openUser, { status: suspending ? "suspended" : "active" }, t(suspending ? "drawer.toast.suspended" : "drawer.toast.reactivated"));
+  }, [openUser, apply, t]);
 
   return {
-    visible,
-    counts,
+    resource,
     filter,
     setFilter,
-    query,
+    query: memberQuery,
     setQuery,
+    page,
+    setPage,
     openUser,
     draft,
+    saving,
+    isSelf: openUser?.id === profile.id,
     open,
     close,
     setDraftRole,
-    toggleDraftPermission,
+    toggleDraftPlatformAdmin,
     save,
-    suspend,
+    toggleSuspension,
   };
 }

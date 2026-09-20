@@ -1,102 +1,180 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 
-import {
-  DEFAULT_RULES,
-  DEFAULT_THRESHOLD,
-  QUEUE_ITEMS,
-  type QueueItem,
-  type RuleKey,
-} from "@/data/supervision";
+import { adminApi } from "@/api/endpoints";
+import type { QueueDraft, RejectReason, RuleKey, Supervision, SupervisionSettings } from "@/api/types";
+import { useI18n } from "@/i18n";
+import { omit } from "@/lib/object";
+import { useAdmin } from "@/state/AdminContext";
+import { useDebouncedSave } from "@/state/useDebouncedSave";
+import { useResource } from "@/state/useResource";
 
-/** Time the "publishing…" state stays up before the reply counts as sent. */
-const PUBLISH_MS = 1150;
+const SUPERVISION_REFRESH_MS = 30_000;
+
+type SettingsPatch = { autoReply?: boolean; threshold?: number; rules?: Partial<Record<RuleKey, boolean>> };
+
+/** Retire un brouillon de la file (résolu) sans attendre le prochain rafraîchissement. */
+function withoutDraft(supervision: Supervision, id: string): Supervision {
+  const items = supervision.queue.items.filter((item) => item.id !== id);
+  const removed = items.length !== supervision.queue.items.length;
+  return {
+    ...supervision,
+    queue: { total: Math.max(0, supervision.queue.total - (removed ? 1 : 0)), items },
+    pipeline: { ...supervision.pipeline, inReview: Math.max(0, supervision.pipeline.inReview - (removed ? 1 : 0)) },
+  };
+}
 
 /**
- * AI-supervision state: the review queue, the autonomy threshold and the escalation
- * rules. Every resolved draft (approved, rejected, escalated) counts as human feedback.
+ * Supervision IA : la file de relecture, les réglages d'autonomie et les règles d'escalade.
+ * Approuver envoie réellement la réponse ; chaque décision est un retour humain pour le modèle.
  */
-export function useSupervision(say: (message: string) => void) {
-  const [autoReply, setAutoReply] = useState(true);
-  const [threshold, setThreshold] = useState(DEFAULT_THRESHOLD);
-  const [rules, setRules] = useState(DEFAULT_RULES);
-  const [removed, setRemoved] = useState<string[]>([]);
+export function useSupervision() {
+  const { t } = useI18n();
+  const { say, sayError, summary } = useAdmin();
+  const resource = useResource((signal) => adminApi.supervision({ signal }), "supervision", {
+    refreshMs: SUPERVISION_REFRESH_MS,
+  });
+  const { update, reload } = resource;
+
+  /** Brouillons dont la réponse est en cours d'envoi. */
   const [sending, setSending] = useState<Record<string, boolean>>({});
+  /** Brouillon dont on demande le motif de rejet. */
   const [feedbackFor, setFeedbackFor] = useState<string | null>(null);
-  const [taught, setTaught] = useState(0);
-  const timers = useRef<number[]>([]);
+  /** Texte en cours de modification, par brouillon. */
+  const [editing, setEditing] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    const pending = timers.current;
-    return () => pending.forEach((id) => window.clearTimeout(id));
-  }, []);
-
-  const queue = useMemo(() => QUEUE_ITEMS.filter((item) => !removed.includes(item.id)), [removed]);
-
-  const resolve = useCallback((id: string) => {
-    setRemoved((ids) => [...ids, id]);
-    setFeedbackFor(null);
-    setTaught((count) => count + 1);
-    setSending((map) => ({ ...map, [id]: false }));
-  }, []);
-
-  const approve = useCallback(
-    (item: QueueItem) => {
-      setSending((map) => ({ ...map, [item.id]: true }));
-      timers.current.push(
-        window.setTimeout(() => {
-          resolve(item.id);
-          say(`Reply published on ${item.page}`);
-        }, PUBLISH_MS),
-      );
+  const settle = useCallback(
+    (id: string) => {
+      update((current) => withoutDraft(current, id));
+      setFeedbackFor((current) => (current === id ? null : current));
+      setEditing((map) => omit(map, id));
+      summary.reload();
     },
-    [resolve, say],
+    [update, summary],
   );
 
-  const askRejectReason = useCallback((id: string) => setFeedbackFor(id), []);
+  const approve = useCallback(
+    async (item: QueueDraft) => {
+      setSending((map) => ({ ...map, [item.id]: true }));
+      try {
+        await adminApi.approveDraft(item.id, editing[item.id]);
+        settle(item.id);
+        say(t("supervision.toast.published", { page: item.page }));
+      } catch (error) {
+        sayError(error);
+        // L'envoi a pu échouer après l'approbation : la proposition change d'état côté serveur.
+        reload();
+      } finally {
+        setSending((map) => ({ ...map, [item.id]: false }));
+      }
+    },
+    [editing, settle, say, sayError, reload, t],
+  );
 
   const reject = useCallback(
-    (id: string, reason: string) => {
-      resolve(id);
-      say(`“${reason}” recorded · model updated`);
+    async (id: string, reason: RejectReason) => {
+      try {
+        await adminApi.rejectDraft(id, reason);
+        settle(id);
+        say(t("supervision.toast.rejected", { reason: t(`reason.${reason}`) }));
+      } catch (error) {
+        sayError(error);
+        reload();
+      }
     },
-    [resolve, say],
+    [settle, say, sayError, reload, t],
   );
 
   const escalate = useCallback(
-    (id: string) => {
-      resolve(id);
-      say("Escalated to a senior community manager");
+    async (id: string) => {
+      try {
+        await adminApi.escalateDraft(id);
+        settle(id);
+        say(t("supervision.toast.escalated"));
+      } catch (error) {
+        sayError(error);
+        reload();
+      }
     },
-    [resolve, say],
+    [settle, say, sayError, reload, t],
   );
 
-  const editDraft = useCallback(() => say("Draft opened in the composer"), [say]);
+  const askRejectReason = useCallback((id: string) => setFeedbackFor(id), []);
+  const startEdit = useCallback((item: QueueDraft) => setEditing((map) => ({ ...map, [item.id]: item.draft })), []);
+  const changeEdit = useCallback((id: string, text: string) => setEditing((map) => ({ ...map, [id]: text })), []);
+  const cancelEdit = useCallback((id: string) => setEditing((map) => omit(map, id)), []);
 
-  const toggleAutoReply = useCallback(() => {
-    setAutoReply((on) => !on);
-    say(autoReply ? "Auto-reply paused platform-wide" : "Auto-reply resumed");
-  }, [autoReply, say]);
+  // --- Réglages (enregistrés côté serveur, appliqués tout de suite à l'écran) ---------------------
+
+  const applySettings = useCallback(
+    (patch: SettingsPatch) =>
+      update((current) => {
+        const settings: SupervisionSettings = {
+          ...current.settings,
+          ...(patch.autoReply === undefined ? {} : { autoReply: patch.autoReply }),
+          ...(patch.threshold === undefined ? {} : { threshold: patch.threshold }),
+          rules: { ...current.settings.rules, ...patch.rules },
+        };
+        return { ...current, settings };
+      }),
+    [update],
+  );
+
+  const saveSettings = useCallback(
+    async (patch: SettingsPatch) => {
+      try {
+        await adminApi.updateSupervision(patch);
+      } catch (error) {
+        sayError(error);
+        reload(); // remet l'écran d'accord avec le serveur
+      }
+    },
+    [sayError, reload],
+  );
+
+  // Le curseur envoie beaucoup de valeurs : une seule est enregistrée, la dernière.
+  const scheduleSettings = useDebouncedSave<SettingsPatch>(saveSettings, (pending, next) => {
+    const rules = { ...pending.rules, ...next.rules };
+    return { ...pending, ...next, ...(Object.keys(rules).length > 0 ? { rules } : {}) };
+  });
+
+  const setThreshold = useCallback(
+    (threshold: number) => {
+      applySettings({ threshold });
+      scheduleSettings({ threshold });
+    },
+    [applySettings, scheduleSettings],
+  );
 
   const toggleRule = useCallback(
-    (key: RuleKey) => setRules((current) => ({ ...current, [key]: !current[key] })),
-    [],
+    (key: RuleKey) => {
+      const enabled = !resource.data?.settings.rules[key];
+      applySettings({ rules: { [key]: enabled } });
+      scheduleSettings({ rules: { [key]: enabled } });
+    },
+    [applySettings, scheduleSettings, resource.data],
   );
 
+  const toggleAutoReply = useCallback(() => {
+    const enabled = !resource.data?.settings.autoReply;
+    applySettings({ autoReply: enabled });
+    void saveSettings({ autoReply: enabled });
+    say(t(enabled ? "supervision.autoReply.toastOn" : "supervision.autoReply.toastOff"));
+  }, [applySettings, saveSettings, resource.data, say, t]);
+
   return {
-    autoReply,
-    threshold,
-    rules,
-    queue,
+    resource,
     sending,
     feedbackFor,
-    taught,
-    setThreshold,
-    toggleAutoReply,
-    toggleRule,
+    editing,
     approve,
-    askRejectReason,
     reject,
     escalate,
-    editDraft,
+    askRejectReason,
+    startEdit,
+    changeEdit,
+    cancelEdit,
+    setThreshold,
+    toggleRule,
+    toggleAutoReply,
   };
 }

@@ -1,111 +1,107 @@
-import { clamp, formatDuration } from "@/lib/format";
-import type { SentimentLabel } from "@/types";
+import type { Metric, Trend } from "@/api/types";
+import type { Formatters } from "@/i18n";
+import { clamp } from "@/i18n/format";
 
-export type AnalyticsTab = "Engagement" | "Response time" | "Sentiment" | "AI performance";
-export type Period = "7 d" | "30 d" | "90 d";
-export type SentimentFilter = "All" | SentimentLabel;
-export type PageFilter = "All pages" | "Nova Cosmetics" | "Aurora Travel" | "Helio Energy";
-
-/** The analytics chart is drawn in a fixed 800×240 viewBox; y grows downwards. */
+/** The trend chart is drawn in a fixed 800×240 viewBox; y grows downwards. */
 export const CHART_WIDTH = 800;
 export const CHART_HEIGHT = 240;
 export const CHART_BASELINE = 220;
-/** Number of weekly points (weeks 29 → 38). */
-export const CHART_POINTS = 10;
-export const FIRST_WEEK = 29;
+/** Marge haute : la courbe ne touche jamais le bord du cadre. */
+export const CHART_TOP = 24;
 
-const BASE_SERIES: Record<AnalyticsTab, number[]> = {
-  Engagement: [140, 122, 150, 118, 96, 104, 82, 70, 62, 58],
-  "Response time": [70, 84, 76, 96, 110, 104, 126, 138, 150, 162],
-  Sentiment: [120, 112, 128, 100, 110, 88, 92, 74, 68, 60],
-  "AI performance": [168, 150, 142, 128, 118, 100, 92, 78, 66, 52],
-};
+/** Une valeur par point de la période ; `null` = non disponible (jamais 0). */
+export type Series = Array<number | null>;
 
-const PERIOD_FACTOR: Record<Period, number> = { "7 d": 0.84, "30 d": 1, "90 d": 1.14 };
-const SENTIMENT_FACTOR: Record<SentimentFilter, number> = {
-  All: 1,
-  Positive: 0.8,
-  Neutral: 1.05,
-  Negative: 1.26,
-};
-const PAGE_FACTOR: Record<PageFilter, number> = {
-  "All pages": 1,
-  "Nova Cosmetics": 0.88,
-  "Aurora Travel": 1.16,
-  "Helio Energy": 1.3,
-};
-
-export interface SeriesFilters {
-  tab: AnalyticsTab;
-  period: Period;
-  sentiment: SentimentFilter;
-  page: PageFilter;
+export interface ChartPoint {
+  index: number;
+  /** Position dans le viewBox. */
+  x: number;
+  y: number;
+  value: number;
 }
 
-/** Chart y-values (SVG space) for the current tab and filters. */
-export function computeSeries({ tab, period, sentiment, page }: SeriesFilters): number[] {
-  const factor = PERIOD_FACTOR[period] * SENTIMENT_FACTOR[sentiment] * PAGE_FACTOR[page];
-  return BASE_SERIES[tab].map((value, i) =>
-    clamp(value * factor + Math.sin(i * 1.3) * 4, 20, 222),
-  );
+export interface ChartLayout {
+  current: Array<ChartPoint | null>;
+  previous: Array<ChartPoint | null>;
 }
 
-/** Dashed comparison line: the previous period, derived from the current one. */
-export function previousPeriod(series: number[]): number[] {
-  return series.map((value, i) => clamp(value + 26 * Math.cos(i * 0.9) + 14, 24, 218));
+export const hasData = (series: Series): boolean => series.some((value) => value !== null);
+
+export function xAt(index: number, count: number): number {
+  return count <= 1 ? CHART_WIDTH / 2 : (index / (count - 1)) * CHART_WIDTH;
 }
 
-export function toPolyline(series: number[]): string {
-  const last = Math.max(1, series.length - 1);
-  return series.map((y, i) => `${(i / last) * CHART_WIDTH},${y.toFixed(1)}`).join(" ");
+/**
+ * Place les deux courbes dans le viewBox. L'axe part de zéro et son plafond est le plus haut
+ * relevé des deux périodes (+ 15 %), pour que la période précédente reste comparable.
+ */
+export function layoutSeries(current: Series, previous: Series): ChartLayout {
+  const values = [...current, ...previous].filter((value): value is number => value !== null);
+  const ceiling = Math.max(...values, 0) * 1.15 || 1;
+  const usable = CHART_BASELINE - CHART_TOP;
+
+  const place = (series: Series): Array<ChartPoint | null> =>
+    series.map((value, index) =>
+      value === null
+        ? null
+        : { index, value, x: xAt(index, series.length), y: CHART_BASELINE - clamp(value / ceiling, 0, 1) * usable },
+    );
+  return { current: place(current), previous: place(previous) };
 }
 
-export function toAreaPolygon(series: number[]): string {
-  return `${toPolyline(series)} ${CHART_WIDTH},${CHART_BASELINE} 0,${CHART_BASELINE}`;
+const present = (points: Array<ChartPoint | null>): ChartPoint[] =>
+  points.filter((point): point is ChartPoint => point !== null);
+
+/** Points reliés d'un trait ; les périodes sans donnée sont sautées, pas mises à zéro. */
+export function toPolyline(points: Array<ChartPoint | null>): string {
+  return present(points)
+    .map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`)
+    .join(" ");
 }
 
-/** Converts a y coordinate back to the metric it represents for the given tab. */
-export function metricAt(tab: AnalyticsTab, y: number): number {
-  if (tab === "Response time") return y / 22;
-  if (tab === "Engagement") return (CHART_HEIGHT - y) / 22;
-  return (CHART_HEIGHT - y) / 2.6;
+export function toAreaPolygon(points: Array<ChartPoint | null>): string {
+  const visible = present(points);
+  const first = visible[0];
+  const last = visible[visible.length - 1];
+  if (!first || !last || visible.length < 2) return "";
+  return `${toPolyline(points)} ${last.x.toFixed(1)},${CHART_BASELINE} ${first.x.toFixed(1)},${CHART_BASELINE}`;
 }
 
-export function formatMetric(tab: AnalyticsTab, y: number): string {
-  const value = metricAt(tab, y);
-  if (tab === "Response time") return formatDuration(value * 60);
-  if (tab === "Engagement") return `${value.toFixed(1)}%`;
-  return `${Math.round(value)}%`;
+/** Maps a pointer x-position (0–1 across the chart) to the nearest point. */
+export function pointIndexAt(ratio: number, count: number): number {
+  return Math.round(clamp(ratio, 0, 1) * Math.max(0, count - 1));
 }
 
-export interface Trend {
-  /** True when the metric moved in the desirable direction. */
+/** Sparkline polyline in a 120×30 viewBox, scaled to the series' own min/max; gaps are skipped. */
+export function sparkPoints(values: Series): string {
+  const known = values.flatMap((value, index) => (value === null ? [] : [{ value, index }]));
+  if (known.length === 0) return "";
+  const max = Math.max(...known.map((entry) => entry.value));
+  const min = Math.min(...known.map((entry) => entry.value));
+  const last = Math.max(1, values.length - 1);
+  return known
+    .map(({ value, index }) => `${(index / last) * 120},${28 - ((value - min) / (max - min || 1)) * 26}`)
+    .join(" ");
+}
+
+/** Valeur d'un indicateur, dans la langue courante ; `null` n'est jamais rendu ici (voir l'appelant). */
+export function formatMetric(metric: Metric, value: number, format: Formatters): string {
+  if (metric === "response_time") return format.duration(value);
+  return format.percent(value, metric === "engagement" ? 1 : 0);
+}
+
+export interface TrendDirection {
+  /** Vrai quand l'indicateur évolue dans le bon sens (un délai plus court est une amélioration). */
   improving: boolean;
   deltaPercent: number;
 }
 
-/** A shorter response time is an improvement; for every other tab, higher is better. */
-export function trendOf(tab: AnalyticsTab, series: number[]): Trend {
-  const first = metricAt(tab, series[0] ?? 0);
-  const last = metricAt(tab, series[series.length - 1] ?? 0);
-  const gain = tab === "Response time" ? first - last : last - first;
+/** Évolution de la période par rapport à la précédente ; `null` sans référence comparable. */
+export function trendOf(metric: Metric, summary: Trend["summary"]): TrendDirection | null {
+  if (summary.deltaPercent === null) return null;
+  const delta = summary.deltaPercent;
   return {
-    improving: gain > 0,
-    deltaPercent: Math.abs(Math.round((gain / Math.max(0.1, first)) * 100)),
+    improving: metric === "response_time" ? delta <= 0 : delta >= 0,
+    deltaPercent: Math.abs(Math.round(delta)),
   };
-}
-
-/** Maps a pointer x-position (0–1 across the chart) to the nearest weekly point. */
-export function pointIndexAt(ratio: number): number {
-  return Math.round(clamp(ratio, 0, 1) * (CHART_POINTS - 1));
-}
-
-/** Sparkline polyline in a 120×30 viewBox, scaled to the series' own min/max. */
-export function sparkPoints(values: number[]): string {
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  const last = Math.max(1, values.length - 1);
-  return values
-    .map((v, i) => `${(i / last) * 120},${28 - ((v - min) / (max - min || 1)) * 26}`)
-    .join(" ");
 }

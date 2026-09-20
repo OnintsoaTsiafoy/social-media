@@ -494,3 +494,54 @@
   border-radius: 50%;
   background: var(--lime);
 }
+
+/* Sign out, under the profile ------------------------------------------------------------- */
+.profile {
+  flex-wrap: wrap;
+}
+.profile__signout {
+  flex-basis: 100%;
+  margin-top: 2px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 500;
+  text-align: left;
+  color: var(--text-subtle);
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+.profile__signout:hover {
+  background: var(--white);
+  color: var(--danger-text);
+}
+
+/* Roles per brand in the member drawer ------------------------------------------------------ */
+.brand-roles {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.brand-role__name {
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.drawer__hint {
+  margin-top: 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-subtle);
+}
+.drawer__hint--note {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--info-bg);
+  color: var(--info-text);
+}
+.drawer__suspend:disabled,
+.drawer__save:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

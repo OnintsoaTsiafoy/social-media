@@ -5,7 +5,7 @@
 Hootly is a monorepo for a community-manager application:
 
 - `social-media/` contains the Expo Router mobile app; screens are in `app/` and shared TypeScript code in `src/`.
-- `admin-web/` is the Vite/React admin console (fixtures only for now); screens in `src/screens/`, state in `src/state/`, mock data in `src/data/`.
+- `admin-web/` is the Vite/React admin console, French by default with typed i18n (`src/i18n/`), wired to the Express `/api/v1/admin` API (`src/api/`); screens in `src/screens/`, one data hook per screen in `src/state/`. See `docs/ADMIN_CONSOLE.md`.
 - `services/api/` is the Express 5 + Prisma public API. Domain modules are under `src/{auth,profile,brands,publications,media,social-accounts}/`; migrations are under `prisma/`.
 - `services/worker/` consumes pg-boss jobs; reusable dependency-free code is in `services/shared/`.
 - `graph-api/` is the FastAPI/Meta gateway (`api/routes`, `modules`, `core`, `tests`); `services/ai-service/` is the FastAPI NLP stub.

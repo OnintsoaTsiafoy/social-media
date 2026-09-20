@@ -561,3 +561,62 @@
   background: var(--lime);
   transition: width 0.6s var(--ease-out);
 }
+
+/* Editing a draft, safety warnings, notes ---------------------------------------------------- */
+.q-draft__edit {
+  width: 100%;
+  min-height: 96px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--white);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--night);
+  resize: vertical;
+}
+.q-draft__edit:focus {
+  border-color: var(--lime-deep);
+  outline: none;
+}
+.q-draft__warnings {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.q-draft__warnings ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.q-draft__blocked {
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.q-draft__warnings-title {
+  font-weight: 600;
+}
+.conf__value--none {
+  color: var(--text-faint);
+}
+.q-more {
+  margin: 0;
+  font-size: 12.5px;
+  text-align: center;
+  color: var(--text-subtle);
+}
+.threshold__caveat {
+  margin-top: 10px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-subtle);
+}
+.perf__period {
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--on-dark-muted);
+}

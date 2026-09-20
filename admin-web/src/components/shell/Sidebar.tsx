@@ -8,33 +8,47 @@ import {
   SupervisionIcon,
   UsersIcon,
 } from "@/components/icons";
-import { CURRENT_ADMIN, PRODUCT_NAME } from "@/config";
-import { NETWORK_PAGE_COUNTS } from "@/data/overview";
-import { TOTAL_ACCOUNTS } from "@/data/users";
+import { PRODUCT_NAME } from "@/config";
+import { useI18n, type MessageKey } from "@/i18n";
 import { useAdmin } from "@/state/AdminContext";
+import { useAuth } from "@/state/AuthContext";
 import { hrefFor } from "@/state/useRoute";
 import type { ScreenId } from "@/types";
 
 interface NavLinkProps {
   id: ScreenId;
-  label: string;
+  label: MessageKey;
   icon: ReactNode;
   trailing?: ReactNode;
 }
 
 function NavLink({ id, label, icon, trailing }: NavLinkProps) {
   const { screen } = useAdmin();
+  const { t } = useI18n();
   return (
     <a className="nav__item" href={hrefFor(id)} aria-current={screen === id ? "page" : undefined}>
       {icon}
-      <span className="nav__label">{label}</span>
+      <span className="nav__label">{t(label)}</span>
       {trailing}
     </a>
   );
 }
 
 export function Sidebar() {
-  const { supervision } = useAdmin();
+  const { t, format } = useI18n();
+  const { summary, profile } = useAdmin();
+  const { signOut } = useAuth();
+  const data = summary.data;
+
+  const syncText = data
+    ? data.lastEventAt
+      ? t("sync.text", {
+          online: data.users.online,
+          total: data.users.total,
+          ago: format.relative(new Date(data.lastEventAt)),
+        })
+      : t("sync.textNoEvent", { online: data.users.online, total: data.users.total })
+    : t("common.loading");
 
   return (
     <aside className="sidebar">
@@ -42,56 +56,61 @@ export function Sidebar() {
         <div className="brand__mark" />
         <div>
           <div className="brand__name">{PRODUCT_NAME}</div>
-          <div className="brand__tag">ADMIN CONSOLE</div>
+          <div className="brand__tag">{t("brand.tag")}</div>
         </div>
       </div>
 
-      <nav className="nav" aria-label="Main">
-        <div className="nav__section">SUPERVISION</div>
-        <NavLink id="overview" label="Overview" icon={<OverviewIcon />} trailing={<span className="nav__dot" />} />
+      <nav className="nav" aria-label={t("nav.aria")}>
+        <div className="nav__section">{t("nav.section.supervision")}</div>
+        <NavLink id="overview" label="nav.overview" icon={<OverviewIcon />} trailing={<span className="nav__dot" />} />
         <NavLink
           id="supervision"
-          label="AI supervision"
+          label="nav.supervision"
           icon={<SupervisionIcon />}
           trailing={
-            <span className="nav__badge">
-              {supervision.queue.length}
-              <span className="sr-only"> drafts to review</span>
-            </span>
+            data && (
+              <span className="nav__badge">
+                {data.supervision.pendingDrafts}
+                <span className="sr-only"> {t("nav.queue", { count: data.supervision.pendingDrafts })}</span>
+              </span>
+            )
           }
         />
-        <NavLink id="analytics" label="Analytics" icon={<AnalyticsIcon />} />
+        <NavLink id="analytics" label="nav.analytics" icon={<AnalyticsIcon />} />
 
-        <div className="nav__section">ADMINISTRATION</div>
+        <div className="nav__section">{t("nav.section.administration")}</div>
         <NavLink
           id="users"
-          label="Users & roles"
+          label="nav.users"
           icon={<UsersIcon />}
-          trailing={<span className="nav__count">{TOTAL_ACCOUNTS}</span>}
+          trailing={data && <span className="nav__count">{format.int(data.users.total)}</span>}
         />
         <NavLink
           id="pages"
-          label="Pages"
+          label="nav.pages"
           icon={<PagesIcon />}
-          trailing={<span className="nav__count">{NETWORK_PAGE_COUNTS.all}</span>}
+          trailing={data && <span className="nav__count">{format.int(data.pages.all)}</span>}
         />
-        <NavLink id="configuration" label="Configuration" icon={<SettingsIcon />} />
+        <NavLink id="configuration" label="nav.configuration" icon={<SettingsIcon />} />
       </nav>
 
       <div className="sidebar__foot">
         <div className="sync-card">
           <div className="sync-card__head">
             <span className="sync-card__dot" />
-            <span className="sync-card__title">Mobile app sync</span>
+            <span className="sync-card__title">{t("sync.title")}</span>
           </div>
-          <div className="sync-card__text">{TOTAL_ACCOUNTS} managers connected · last event 12s ago</div>
+          <div className="sync-card__text">{syncText}</div>
         </div>
         <div className="profile">
-          <div className="profile__avatar">{CURRENT_ADMIN.initials}</div>
+          <div className="profile__avatar">{profile.avatarInitials}</div>
           <div className="profile__body">
-            <div className="profile__name">{CURRENT_ADMIN.name}</div>
-            <div className="profile__role">{CURRENT_ADMIN.role}</div>
+            <div className="profile__name">{profile.displayName}</div>
+            <div className="profile__role">{t("profile.role")}</div>
           </div>
+          <button type="button" className="profile__signout" onClick={() => void signOut()}>
+            {t("common.signOut")}
+          </button>
         </div>
       </div>
     </aside>

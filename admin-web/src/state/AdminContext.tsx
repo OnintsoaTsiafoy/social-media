@@ -1,46 +1,55 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 
-import type { Range } from "@/data/overview";
+import { adminApi } from "@/api/endpoints";
+import { toUserMessage } from "@/api/errors";
+import type { AdminProfile, Metric, Period, SentimentFilter } from "@/api/types";
+import { useI18n } from "@/i18n";
 import type { NetFilter } from "@/types";
-import { useLiveTicker } from "@/state/useLiveTicker";
 import { useRoute } from "@/state/useRoute";
-import { useSupervision } from "@/state/useSupervision";
+import { useResource } from "@/state/useResource";
 import { useToast } from "@/state/useToast";
-import { useUsers } from "@/state/useUsers";
-import { useAnalyticsFilters, usePageSettings, useWorkspaceSettings } from "@/state/useWorkspace";
+
+/** Rafraîchissement silencieux des compteurs de la coque (barre latérale, barre du haut). */
+const SUMMARY_REFRESH_MS = 30_000;
 
 /**
- * Everything the console keeps between screens. The mock-up holds all of its state in
- * one component, so filters, the review queue and edits persist while you navigate;
- * this provider preserves that. Swapping a fixture for the real API happens in the hooks.
+ * Filtres de l'analytique. Ils vivent au-dessus de l'écran pour survivre à une navigation
+ * (aller voir les utilisateurs puis revenir) ; les données, elles, sont chargées par l'écran.
  */
-function useAdminState() {
+function useAnalyticsFilters() {
+  const [metric, setMetric] = useState<Metric>("engagement");
+  const [period, setPeriod] = useState<Period>("30d");
+  const [sentiment, setSentiment] = useState<SentimentFilter>("all");
+  const [pageId, setPageId] = useState<string | undefined>(undefined);
+  return { metric, setMetric, period, setPeriod, sentiment, setSentiment, pageId, setPageId };
+}
+
+/**
+ * État partagé entre les écrans : route, toast, filtres. Les données de chaque écran sont
+ * chargées par son propre hook (`state/use*.ts`), seulement quand l'écran est ouvert. Seuls
+ * les compteurs de la coque sont chargés en permanence.
+ */
+function useAdminState(profile: AdminProfile) {
   const route = useRoute();
+  const { t } = useI18n();
   const { toast, say } = useToast();
   const [net, setNet] = useState<NetFilter>("all");
-  const [range, setRange] = useState<Range>("Last 7 days");
-  const ticker = useLiveTicker();
-  const supervision = useSupervision(say);
-  const users = useUsers(say);
+  const [period, setPeriod] = useState<Period>("7d");
+  const [memberQuery, setMemberQuery] = useState("");
   const analytics = useAnalyticsFilters();
-  const pages = usePageSettings();
-  const settings = useWorkspaceSettings(say);
+  const summary = useResource((signal) => adminApi.summary({ signal }), "summary", { refreshMs: SUMMARY_REFRESH_MS });
 
-  // Leaving a screen closes the member drawer, as in the design.
-  const closeDrawer = users.close;
-  useEffect(() => {
-    closeDrawer();
-  }, [route.screen, closeDrawer]);
+  const sayError = useCallback((error: unknown) => say(toUserMessage(error, t)), [say, t]);
 
-  return { ...route, toast, say, net, setNet, range, setRange, ticker, supervision, users, analytics, pages, settings };
+  return { ...route, profile, toast, say, sayError, net, setNet, period, setPeriod, memberQuery, setMemberQuery, analytics, summary };
 }
 
 export type AdminState = ReturnType<typeof useAdminState>;
 
 const AdminContext = createContext<AdminState | null>(null);
 
-export function AdminProvider({ children }: { children: ReactNode }) {
-  const state = useAdminState();
+export function AdminProvider({ profile, children }: { profile: AdminProfile; children: ReactNode }) {
+  const state = useAdminState(profile);
   return <AdminContext.Provider value={state}>{children}</AdminContext.Provider>;
 }
 

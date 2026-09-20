@@ -1,101 +1,173 @@
 import { useMemo, useState, type MouseEvent } from "react";
 
-import { CHART_META } from "@/data/analytics";
+import type { Metric, SentimentFilter, Trend } from "@/api/types";
+import { useI18n, type MessageKey } from "@/i18n";
+import { clamp } from "@/i18n/format";
 import {
   CHART_HEIGHT,
-  CHART_POINTS,
-  FIRST_WEEK,
+  CHART_WIDTH,
   formatMetric,
+  hasData,
+  layoutSeries,
   pointIndexAt,
-  previousPeriod,
   toAreaPolygon,
   toPolyline,
   trendOf,
-  type AnalyticsTab,
+  xAt,
 } from "@/lib/chart";
-import { clamp } from "@/lib/format";
+import { useTweenedArray } from "@/lib/motion";
 
-/** Weekly points that get an axis label (every third one). */
-const AXIS_STEPS = [0, 3, 6, 9];
+const DAY_MS = 86_400_000;
+
+/** Le titre du sentiment dépend du filtre choisi (positif, neutre, négatif) : il est résolu à part. */
+const TITLE_KEY: Partial<Record<Metric, MessageKey>> = {
+  engagement: "chart.engagement.title",
+  response_time: "chart.response_time.title",
+  ai_performance: "chart.ai_performance.title",
+};
 
 interface TrendChartProps {
-  tab: AnalyticsTab;
-  /** Y-values currently on screen (already eased towards the filtered series). */
-  series: number[];
+  metric: Metric;
+  sentiment: SentimentFilter;
+  trend: Trend;
 }
 
-export function TrendChart({ tab, series }: TrendChartProps) {
+export function TrendChart({ metric, sentiment, trend }: TrendChartProps) {
+  const { t, format } = useI18n();
   const [cursor, setCursor] = useState<number | null>(null);
 
-  const previous = useMemo(() => previousPeriod(series), [series]);
-  const trend = trendOf(tab, series);
-  const meta = CHART_META[tab];
-  const last = series[series.length - 1] ?? 0;
+  const count = trend.points.length;
+  // Les deux périodes sont animées d'un bloc : même forme, mêmes trous.
+  const target = useMemo(
+    () => [...trend.points.map((point) => point.value), ...trend.previous.map((point) => point.value)],
+    [trend],
+  );
+  const shown = useTweenedArray(target);
+  const layout = useMemo(() => layoutSeries(shown.slice(0, count), shown.slice(count)), [shown, count]);
+
+  const direction = trendOf(metric, trend.summary);
+  const unavailable = t("common.unavailable");
+  const title = t(TITLE_KEY[metric] ?? `chart.sentiment.title.${sentiment}`);
+  const dataAvailable = hasData(trend.points.map((point) => point.value));
+
+  const first = trend.points[0];
+  const last = trend.points[count - 1];
+  const dateOf = (iso: string) => format.shortDate(new Date(iso));
+  /** Un seau d'un jour s'étiquette par sa date ; au-delà, par sa plage. */
+  const rangeLabel = (start: string, end: string) => {
+    const spansDays = new Date(end).getTime() - new Date(start).getTime() > DAY_MS * 1.5;
+    return spansDays ? `${dateOf(start)} – ${dateOf(new Date(new Date(end).getTime() - 1).toISOString())}` : dateOf(start);
+  };
 
   const onMove = (event: MouseEvent<HTMLDivElement>) => {
     const box = event.currentTarget.getBoundingClientRect();
-    setCursor(pointIndexAt((event.clientX - box.left) / box.width));
+    setCursor(pointIndexAt((event.clientX - box.left) / box.width, count));
   };
 
-  const at = cursor === null ? null : (series[cursor] ?? null);
+  const cursorPoint = cursor === null ? null : (trend.points[cursor] ?? null);
+  const cursorLayout = cursor === null ? null : (layout.current[cursor] ?? null);
+  const previousValue = cursor === null ? null : (trend.previous[cursor]?.value ?? null);
   const readout =
-    cursor !== null && at !== null
+    cursorPoint && cursor !== null
       ? {
-          x: (cursor / (CHART_POINTS - 1)) * 100,
-          y: (at / CHART_HEIGHT) * 100,
-          week: `WEEK ${FIRST_WEEK + cursor}`,
-          value: formatMetric(tab, at),
-          previous: formatMetric(tab, previous[cursor] ?? at),
+          x: (xAt(cursor, count) / CHART_WIDTH) * 100,
+          y: cursorLayout ? (cursorLayout.y / CHART_HEIGHT) * 100 : null,
+          label: rangeLabel(cursorPoint.start, cursorPoint.end),
+          value: cursorPoint.value === null ? unavailable : formatMetric(metric, cursorPoint.value, format),
+          previous:
+            previousValue === null
+              ? t("chart.tip.previousNone")
+              : t("chart.tip.previous", { value: formatMetric(metric, previousValue, format) }),
         }
       : null;
+
+  // Une valeur isolée (voisins sans donnée) ne forme pas de segment : on la marque d'un point.
+  const isolated = layout.current.filter(
+    (point) => point !== null && layout.current[point.index - 1] == null && layout.current[point.index + 1] == null,
+  );
+
+  // Quatre repères sur l'axe, du premier au dernier point.
+  const axisIndexes = [...new Set([0, Math.round((count - 1) / 3), Math.round(((count - 1) * 2) / 3), count - 1])].filter(
+    (index) => index >= 0 && index < count,
+  );
 
   return (
     <div className="card chart">
       <div className="chart__head">
         <div>
-          <div className="card__title">{meta.title}</div>
-          <div className="card__sub">{meta.subtitle}</div>
+          <div className="card__title">{title}</div>
+          <div className="card__sub">{t(`chart.${metric}.subtitle`)}</div>
         </div>
         <div className="chart__big">
-          <span className="chart__value">{formatMetric(tab, last)}</span>
-          <span className="trend" data-tone={trend.improving ? "success" : "danger"}>
-            <span className="trend__arrow" data-down={!trend.improving} aria-hidden="true">
-              ▲
-            </span>
-            {trend.improving ? "+" : "−"}
-            {trend.deltaPercent}%
+          <span className="chart__value">
+            {trend.summary.value === null ? unavailable : formatMetric(metric, trend.summary.value, format)}
           </span>
+          {direction ? (
+            <span className="trend" data-tone={direction.improving ? "success" : "danger"}>
+              <span className="trend__arrow" data-down={!direction.improving} aria-hidden="true">
+                ▲
+              </span>
+              {direction.improving ? "+" : "−"}
+              {format.points(direction.deltaPercent)}
+            </span>
+          ) : (
+            <span className="trend" data-tone="muted">
+              {t("chart.noDelta")}
+            </span>
+          )}
         </div>
       </div>
 
       <div className="chart__plot" onMouseMove={onMove} onMouseLeave={() => setCursor(null)}>
-        <svg className="chart__svg" viewBox="0 0 800 240" preserveAspectRatio="none" role="img" aria-label={`${meta.title}, weeks ${FIRST_WEEK} to ${FIRST_WEEK + CHART_POINTS - 1}`}>
+        <svg
+          className="chart__svg"
+          viewBox="0 0 800 240"
+          preserveAspectRatio="none"
+          role="img"
+          aria-label={first && last ? t("chart.aria", { title, start: dateOf(first.start), end: dateOf(last.end) }) : title}
+        >
           <line x1="0" y1="40" x2="800" y2="40" stroke="#F4F5F6" strokeWidth="1" />
           <line x1="0" y1="100" x2="800" y2="100" stroke="#F4F5F6" strokeWidth="1" />
           <line x1="0" y1="160" x2="800" y2="160" stroke="#F4F5F6" strokeWidth="1" />
           <line x1="0" y1="220" x2="800" y2="220" stroke="#ECEDEF" strokeWidth="1" />
-          <polygon className="chart__area" points={toAreaPolygon(series)} />
-          <polyline className="chart__prev" points={toPolyline(previous)} />
-          <polyline className="chart__line" points={toPolyline(series)} />
+          {dataAvailable && (
+            <>
+              <polygon className="chart__area" points={toAreaPolygon(layout.current)} />
+              <polyline className="chart__prev" points={toPolyline(layout.previous)} />
+              <polyline className="chart__line" points={toPolyline(layout.current)} />
+            </>
+          )}
         </svg>
-        {readout && (
+        {!dataAvailable && <div className="chart__empty">{t("chart.empty")}</div>}
+        {isolated.map(
+          (point) =>
+            point && (
+              <div
+                key={point.index}
+                className="chart__point"
+                style={{ left: `${(point.x / CHART_WIDTH) * 100}%`, top: `${(point.y / CHART_HEIGHT) * 100}%` }}
+              />
+            ),
+        )}
+        {readout && dataAvailable && (
           <>
             <div className="chart__cursor" style={{ left: `${readout.x}%` }}>
-              <div className="chart__dot" style={{ top: `${readout.y}%` }} />
+              {readout.y !== null && <div className="chart__dot" style={{ top: `${readout.y}%` }} />}
             </div>
             <div className="chart__tip" style={{ left: `${clamp(readout.x, 10, 90)}%` }}>
-              <div className="chart__tip-week">{readout.week}</div>
+              <div className="chart__tip-week">{readout.label}</div>
               <div className="chart__tip-value">{readout.value}</div>
-              <div className="chart__tip-prev">previous period {readout.previous}</div>
+              <div className="chart__tip-prev">{readout.previous}</div>
             </div>
           </>
         )}
       </div>
 
       <div className="chart__axis">
-        {AXIS_STEPS.map((step) => (
-          <span key={step}>Week {FIRST_WEEK + step}</span>
-        ))}
+        {axisIndexes.map((index) => {
+          const point = trend.points[index];
+          return point ? <span key={index}>{dateOf(point.start)}</span> : null;
+        })}
       </div>
     </div>
   );

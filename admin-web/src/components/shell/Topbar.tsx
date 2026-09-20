@@ -1,18 +1,45 @@
-import { BellIcon, SearchIcon } from "@/components/icons";
-import { NETWORK_PAGE_COUNTS } from "@/data/overview";
-import { TOTAL_ACCOUNTS } from "@/data/users";
-import { useAdmin } from "@/state/AdminContext";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
-const UNREAD_NOTIFICATIONS = 7;
+import { BellIcon, SearchIcon } from "@/components/icons";
+import { LocaleSwitch } from "@/components/LocaleSwitch";
+import { useI18n } from "@/i18n";
+import { useAdmin } from "@/state/AdminContext";
+import { hrefFor } from "@/state/useRoute";
 
 export function Topbar() {
-  const { say } = useAdmin();
+  const { t, format } = useI18n();
+  const { summary, say, setMemberQuery } = useAdmin();
+  const data = summary.data;
+  const [draft, setDraft] = useState("");
+  const search = useRef<HTMLInputElement>(null);
+
+  // ⌘K / Ctrl+K met le curseur dans la recherche.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        search.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const unavailable = "—";
   const stats: Array<[string, string]> = [
-    ["Pages", String(NETWORK_PAGE_COUNTS.all)],
-    ["Managers online", `41/${TOTAL_ACCOUNTS}`],
-    ["SLA", "94.2%"],
-    ["AI autonomy", "68.4%"],
+    [t("topbar.stats.pages"), data ? format.int(data.pages.all) : unavailable],
+    [t("topbar.stats.online"), data ? `${format.int(data.users.online)}/${format.int(data.users.total)}` : unavailable],
+    [t("topbar.stats.sla"), data?.sla.complianceRate == null ? unavailable : format.percent(data.sla.complianceRate, 1)],
+    [t("topbar.stats.autonomy"), data?.ai.autonomyRate == null ? unavailable : format.percent(data.ai.autonomyRate, 1)],
   ];
+
+  const alerts = data ? data.alerts.escalations + data.alerts.pagesNeedingAction : 0;
+
+  const submitSearch = (event: FormEvent) => {
+    event.preventDefault();
+    setMemberQuery(draft.trim());
+    window.location.hash = hrefFor("users");
+  };
 
   return (
     <header className="topbar">
@@ -24,21 +51,37 @@ export function Topbar() {
         ))}
       </div>
       <div className="topbar__tools">
-        <label className="search">
+        <form className="search" role="search" onSubmit={submitSearch}>
           <SearchIcon />
-          <input type="search" placeholder="Search users, pages, rules…" aria-label="Search users, pages and rules" />
+          <input
+            ref={search}
+            type="search"
+            value={draft}
+            placeholder={t("topbar.search.placeholder")}
+            aria-label={t("topbar.search.label")}
+            onChange={(event) => setDraft(event.target.value)}
+          />
           <kbd aria-hidden="true">⌘K</kbd>
-        </label>
+        </form>
+        <LocaleSwitch />
         <button
           type="button"
           className="bell"
-          aria-label={`${UNREAD_NOTIFICATIONS} unread notifications`}
-          onClick={() => say(`${UNREAD_NOTIFICATIONS} unread admin notifications`)}
+          aria-label={alerts > 0 ? t("topbar.alerts", { count: alerts }) : t("topbar.alerts.none")}
+          onClick={() =>
+            say(
+              data && alerts > 0
+                ? t("topbar.alerts.toast", { escalations: data.alerts.escalations, pages: data.alerts.pagesNeedingAction })
+                : t("topbar.alerts.none"),
+            )
+          }
         >
           <BellIcon />
-          <span className="bell__badge" aria-hidden="true">
-            {UNREAD_NOTIFICATIONS}
-          </span>
+          {alerts > 0 && (
+            <span className="bell__badge" aria-hidden="true">
+              {alerts}
+            </span>
+          )}
         </button>
       </div>
     </header>

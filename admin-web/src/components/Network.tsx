@@ -1,21 +1,21 @@
 import type { ReactNode } from "react";
 
+import type { Network } from "@/api/types";
 import { InstagramGlyph } from "@/components/icons";
 import { cx } from "@/lib/css";
-import { netTone } from "@/lib/network";
-import type { NetworkCode } from "@/types";
+import { NET_CODE, netTone } from "@/lib/network";
 
 /** "FB" / "IG" pill used in lists and tables. */
-export function NetBadge({ net, size = "md" }: { net: NetworkCode; size?: "sm" | "md" | "tile" }) {
+export function NetBadge({ net, size = "md" }: { net: Network; size?: "sm" | "md" | "tile" }) {
   return (
     <span className={cx("net-badge", `net-badge--${size}`)} data-tone={netTone(net)}>
-      {net}
+      {NET_CODE[net]}
     </span>
   );
 }
 
 interface NetGlyphProps {
-  net: NetworkCode;
+  net: Network;
   /** Square edge in px. */
   size: number;
   radius: number;
@@ -37,7 +37,7 @@ export function NetGlyph({ net, size, radius, fontSize, iconSize, strokeWidth = 
       style={{ width: size, height: size, borderRadius: radius, fontSize }}
     >
       {children ??
-        (net === "FB" ? "f" : <InstagramGlyph size={iconSize ?? Math.round(size * 0.55)} strokeWidth={strokeWidth} />)}
+        (net === "facebook" ? "f" : <InstagramGlyph size={iconSize ?? Math.round(size * 0.55)} strokeWidth={strokeWidth} />)}
     </span>
   );
 }

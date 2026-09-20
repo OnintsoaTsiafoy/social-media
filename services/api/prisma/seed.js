@@ -21,6 +21,37 @@ async function main() {
     },
   });
 
+  // Administrateur de la plateforme : seul rôle qui ouvre la console web
+  // (`admin-web/`) et l'API /api/v1/admin. Compte de démonstration, comme
+  // celui de Léa : à remplacer avant tout environnement partagé.
+  const admin = await prisma.user.upsert({
+    where: { email: 'admin@hootly.app' },
+    update: { platformRole: 'PLATFORM_ADMIN' },
+    create: {
+      email: 'admin@hootly.app',
+      passwordHash,
+      firstName: 'Amine',
+      lastName: 'Rahali',
+      displayName: 'Amine Rahali',
+      language: 'fr',
+      timezone: 'Europe/Paris',
+      platformRole: 'PLATFORM_ADMIN',
+    },
+  });
+
+  // Mots-clés de modération de démonstration : créés une seule fois, jamais
+  // réécrits — l'administrateur peut ensuite les modifier depuis la console.
+  await prisma.platformSetting.upsert({
+    where: { key: 'moderation.keywords' },
+    update: {},
+    create: {
+      key: 'moderation.keywords',
+      value: ['remboursement', 'arnaque', 'scandale', 'avocat', 'boycott', 'plainte'],
+      version: 1,
+      updatedByUserId: admin.id,
+    },
+  });
+
   await prisma.$transaction(async (tx) => {
     let brand = await tx.brand.findFirst({
       where: { ownerUserId: user.id, name: 'Studio Vega', deletedAt: null, status: 'ACTIVE' },

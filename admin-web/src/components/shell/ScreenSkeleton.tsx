@@ -1,9 +1,12 @@
+import { useI18n } from "@/i18n";
 import { columns } from "@/lib/css";
 
-/** Placeholder shown for a beat while a screen "loads" (kpi row + two charts). */
+/** Placeholder shown while a screen's first data loads (kpi row + two charts). */
 export function ScreenSkeleton() {
+  const { t } = useI18n();
+
   return (
-    <div className="skeleton-screen" role="status" aria-busy="true" aria-label="Loading">
+    <div className="skeleton-screen" role="status" aria-busy="true" aria-label={t("common.loading")}>
       <div className="skeleton" style={{ height: 34, width: 290 }} />
       <div className="grid-auto" style={columns(215)}>
         {[0, 80, 160, 240].map((ms) => (

@@ -330,3 +330,82 @@ input::placeholder {
   letter-spacing: 0.07em;
   color: var(--text-faint);
 }
+
+/* Error state (a failed load, with a retry) -------------------------------------------- */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 56px 20px;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--white);
+}
+.error-state--inline {
+  padding: 32px 20px;
+  border: 0;
+  border-radius: 0;
+}
+.error-state__title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.error-state__text {
+  max-width: 420px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-subtle);
+}
+
+/* Language switch (FR / EN) -------------------------------------------------------------- */
+.locale-switch {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--white);
+}
+.locale-switch__option {
+  padding: 5px 10px;
+  border-radius: 7px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+.locale-switch__option:hover {
+  color: var(--night);
+}
+.locale-switch__option[aria-pressed="true"] {
+  background: var(--night);
+  color: var(--lime);
+}
+
+/* Small pieces shared by several screens ------------------------------------------------- */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+}
+.pager__label {
+  font-size: 12.5px;
+  color: var(--text-subtle);
+}
+.btn:disabled,
+.q-btn:disabled,
+.esc-row__take:disabled,
+.sent-filter:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+}
