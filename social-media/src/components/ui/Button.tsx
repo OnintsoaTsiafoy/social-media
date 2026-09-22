@@ -8,7 +8,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { control, palette, radius, spacing } from '@/theme';
+import { control, palette, radius, spacing, themed } from '@/theme';
 
 import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
@@ -101,32 +101,34 @@ export function Button({
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.md,
-    paddingHorizontal: spacing['3xl'],
-  },
-  md: { minHeight: control.buttonHeight },
-  sm: { minHeight: control.buttonHeightSm },
-  block: { alignSelf: 'stretch' },
-  content: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  pressed: { opacity: 0.85 },
-  // The label keeps its contrast; only the surface dims.
-  disabled: { opacity: 0.45 },
+const styles = themed(() =>
+  StyleSheet.create({
+    base: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.md,
+      paddingHorizontal: spacing['3xl'],
+    },
+    md: { minHeight: control.buttonHeight },
+    sm: { minHeight: control.buttonHeightSm },
+    block: { alignSelf: 'stretch' },
+    content: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    pressed: { opacity: 0.85 },
+    // The label keeps its contrast; only the surface dims.
+    disabled: { opacity: 0.45 },
 
-  primary: { backgroundColor: palette.night },
-  accent: { backgroundColor: palette.lime },
-  secondary: { backgroundColor: palette.white, borderWidth: 1, borderColor: palette.border },
-  danger: { backgroundColor: palette.dangerSurface, borderWidth: 1, borderColor: palette.dangerBorder },
-  ghost: { backgroundColor: 'transparent' },
-});
+    primary: { backgroundColor: palette.night },
+    accent: { backgroundColor: palette.lime },
+    secondary: { backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+    danger: { backgroundColor: palette.dangerSurface, borderWidth: 1, borderColor: palette.dangerBorder },
+    ghost: { backgroundColor: 'transparent' },
+  })
+);
 
-const tones: Record<ButtonVariant, { container: ViewStyle; labelColor: string }> = {
-  primary: { container: styles.primary, labelColor: palette.white },
-  accent: { container: styles.accent, labelColor: palette.night },
+const tones: Record<ButtonVariant, { container: ViewStyle; labelColor: string }> = themed(() => ({
+  primary: { container: styles.primary, labelColor: palette.onNight },
+  accent: { container: styles.accent, labelColor: palette.onLime },
   secondary: { container: styles.secondary, labelColor: palette.ink },
   danger: { container: styles.danger, labelColor: palette.dangerText },
   ghost: { container: styles.ghost, labelColor: palette.inkMuted },
-};
+}));

@@ -5,7 +5,7 @@
   padding: 8px 14px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--white);
+  background: var(--surface);
 }
 .auto-toggle__label {
   font-size: 13px;
@@ -72,7 +72,7 @@
 }
 .step[data-active="true"] .step__dot {
   background: var(--lime);
-  color: var(--night);
+  color: var(--on-lime);
   animation: stepGlow 2.4s ease-out infinite;
 }
 .step__line {
@@ -112,7 +112,7 @@
   padding: 16px 18px;
   border: 1px dashed var(--border-strong);
   border-radius: 18px;
-  background: var(--white);
+  background: var(--surface);
   animation: fadeUp 0.45s 0.04s ease backwards;
 }
 .ai-status__spinner {
@@ -170,7 +170,7 @@
   padding: 18px 20px;
   border: 1px solid var(--border);
   border-radius: 18px;
-  background: var(--white);
+  background: var(--surface);
   animation: fadeUp 0.4s ease backwards;
   transition:
     box-shadow 0.3s ease,
@@ -302,7 +302,7 @@
 .q-draft__text {
   font-size: 13.5px;
   line-height: 1.6;
-  color: var(--night);
+  color: var(--ink);
 }
 .q-sending {
   display: flex;
@@ -342,7 +342,7 @@
   padding: 6px 12px;
   border: 1px solid var(--warning);
   border-radius: 9px;
-  background: var(--white);
+  background: var(--surface);
   font-size: 12px;
   font-weight: 600;
   color: var(--warning-text);
@@ -378,7 +378,7 @@
 }
 .q-btn--approve {
   background: var(--lime);
-  color: var(--night);
+  color: var(--on-lime);
   box-shadow: 0 5px 14px var(--lime-shadow);
 }
 .q-btn--approve:hover {
@@ -403,13 +403,13 @@
   color: var(--text-muted);
 }
 .q-btn--escalate:hover {
-  color: var(--night);
+  color: var(--ink);
 }
 .q-empty {
   padding: 48px 20px;
   border: 1px dashed var(--border-strong);
   border-radius: 18px;
-  background: var(--white);
+  background: var(--surface);
   text-align: center;
   animation: popIn 0.3s ease backwards;
 }
@@ -457,7 +457,7 @@
   position: absolute;
   inset: 14px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(196, 240, 74, 0.18), rgba(196, 240, 74, 0) 70%);
+  background: radial-gradient(circle, var(--lime-glow), rgba(76, 212, 54, 0) 70%);
   animation: glowBreathe 5s ease-in-out infinite;
 }
 .ring svg {
@@ -569,11 +569,11 @@
   padding: 10px 12px;
   border: 1px solid var(--border-strong);
   border-radius: 10px;
-  background: var(--white);
+  background: var(--surface);
   font: inherit;
   font-size: 13.5px;
   line-height: 1.6;
-  color: var(--night);
+  color: var(--ink);
   resize: vertical;
 }
 .q-draft__edit:focus {

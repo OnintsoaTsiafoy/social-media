@@ -12,7 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 
 import { Button, Screen, Text } from '@/components/ui';
 import { useSession } from '@/store/SessionProvider';
-import { palette, radius, spacing } from '@/theme';
+import { palette, radius, spacing, themed } from '@/theme';
 
 /**
  * ÉCRAN 01 - Splash / Initialisation (`/`)
@@ -96,31 +96,33 @@ function IndeterminateBar() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: { alignItems: 'center', gap: spacing['4xl'], paddingHorizontal: spacing['4xl'] },
-  logo: {
-    width: 76,
-    height: 76,
-    borderRadius: radius.xl + 6,
-    backgroundColor: palette.lime,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoDot: { width: 24, height: 24, borderRadius: 12, backgroundColor: palette.night },
-  track: {
-    width: 140,
-    height: 5,
-    borderRadius: radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    overflow: 'hidden',
-  },
-  fill: { height: '100%', borderRadius: radius.pill, backgroundColor: palette.lime },
-  errorBlock: { alignSelf: 'stretch', gap: spacing['3xl'], marginTop: spacing.md },
-  errorNotice: {
-    padding: spacing['2xl'],
-    borderRadius: radius.md,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  // Outlined on the night background, per the design.
-  retryButton: { backgroundColor: 'transparent', borderColor: 'rgba(255,255,255,0.24)' },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    content: { alignItems: 'center', gap: spacing['4xl'], paddingHorizontal: spacing['4xl'] },
+    logo: {
+      width: 76,
+      height: 76,
+      borderRadius: radius.xl + 6,
+      backgroundColor: palette.lime,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    logoDot: { width: 24, height: 24, borderRadius: 12, backgroundColor: palette.onLime },
+    track: {
+      width: 140,
+      height: 5,
+      borderRadius: radius.pill,
+      backgroundColor: 'rgba(255,255,255,0.16)',
+      overflow: 'hidden',
+    },
+    fill: { height: '100%', borderRadius: radius.pill, backgroundColor: palette.lime },
+    errorBlock: { alignSelf: 'stretch', gap: spacing['3xl'], marginTop: spacing.md },
+    errorNotice: {
+      padding: spacing['2xl'],
+      borderRadius: radius.md,
+      backgroundColor: 'rgba(255,255,255,0.08)',
+    },
+    // Outlined on the night background, per the design.
+    retryButton: { backgroundColor: 'transparent', borderColor: 'rgba(255,255,255,0.24)' },
+  })
+);

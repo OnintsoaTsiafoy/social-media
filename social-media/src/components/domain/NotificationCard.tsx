@@ -2,7 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { Card, Icon, Text, type IconName } from '@/components/ui';
 import { formatRelative } from '@/lib/format';
-import { palette, radius, spacing } from '@/theme';
+import { palette, radius, spacing, themed } from '@/theme';
 import type { AppNotification, NotificationType } from '@/types';
 
 type Appearance = { icon: IconName; tone: 'danger' | 'warning' | 'success' | 'neutral' };
@@ -26,12 +26,12 @@ const appearances: Record<NotificationType, Appearance> = {
   account_disconnected: { icon: 'link', tone: 'warning' },
 };
 
-const iconColors = {
+const iconColors = themed(() => ({
   danger: { background: palette.dangerBg, foreground: palette.dangerText },
   warning: { background: palette.warningBg, foreground: palette.warningText },
   success: { background: palette.successBg, foreground: palette.successText },
   neutral: { background: palette.surfaceChip, foreground: palette.inkMuted },
-} as const;
+}));
 
 export function NotificationCard({
   notification,
@@ -73,20 +73,22 @@ export function NotificationCard({
   );
 }
 
-const styles = StyleSheet.create({
-  card: { flexDirection: 'row', gap: spacing.xl },
-  read: { opacity: 0.72 },
-  iconTile: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  body: { flex: 1 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  title: { flex: 1 },
-  unreadDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: palette.lime },
-  message: { marginTop: spacing.xs },
-  time: { marginTop: spacing.md },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    card: { flexDirection: 'row', gap: spacing.xl },
+    read: { opacity: 0.72 },
+    iconTile: {
+      width: 38,
+      height: 38,
+      borderRadius: radius.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    body: { flex: 1 },
+    titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    title: { flex: 1 },
+    unreadDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: palette.lime },
+    message: { marginTop: spacing.xs },
+    time: { marginTop: spacing.md },
+  })
+);

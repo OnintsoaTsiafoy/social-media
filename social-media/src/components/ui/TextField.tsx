@@ -9,7 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { control, fontFamily, fontSize, palette, radius, spacing } from '@/theme';
+import { control, fontFamily, fontSize, palette, radius, spacing, themed } from '@/theme';
 
 import { Icon } from './Icon';
 import { Text } from './Text';
@@ -155,38 +155,40 @@ export function SearchField(props: Omit<TextFieldProps, 'leadingIcon'>) {
   );
 }
 
-const styles = StyleSheet.create({
-  labelRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-  },
-  field: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.lg,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: radius.md,
-    backgroundColor: palette.white,
-    paddingHorizontal: spacing['2xl'],
-  },
-  fieldSingle: { minHeight: control.inputHeight },
-  fieldMultiline: { minHeight: 104, paddingVertical: spacing['2xl'], alignItems: 'flex-start' },
-  fieldFocused: { borderColor: palette.night, borderWidth: 1.5 },
-  fieldError: { borderColor: palette.danger, borderWidth: 1.5 },
-  searchField: { minHeight: 46 },
-  input: {
-    flex: 1,
-    fontFamily: fontFamily.medium,
-    fontSize: fontSize.bodyLg,
-    color: palette.ink,
-    padding: 0,
-    // Android adds asymmetric padding around custom fonts without this.
-    includeFontPadding: false,
-  },
-  inputMultiline: { textAlignVertical: 'top', minHeight: 76, lineHeight: 22 },
-  reveal: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  helper: { marginTop: spacing.sm },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    labelRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      marginBottom: spacing.md,
+    },
+    field: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.lg,
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: radius.md,
+      backgroundColor: palette.surface,
+      paddingHorizontal: spacing['2xl'],
+    },
+    fieldSingle: { minHeight: control.inputHeight },
+    fieldMultiline: { minHeight: 104, paddingVertical: spacing['2xl'], alignItems: 'flex-start' },
+    fieldFocused: { borderColor: palette.night, borderWidth: 1.5 },
+    fieldError: { borderColor: palette.danger, borderWidth: 1.5 },
+    searchField: { minHeight: 46 },
+    input: {
+      flex: 1,
+      fontFamily: fontFamily.medium,
+      fontSize: fontSize.bodyLg,
+      color: palette.ink,
+      padding: 0,
+      // Android adds asymmetric padding around custom fonts without this.
+      includeFontPadding: false,
+    },
+    inputMultiline: { textAlignVertical: 'top', minHeight: 76, lineHeight: 22 },
+    reveal: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+    helper: { marginTop: spacing.sm },
+  })
+);

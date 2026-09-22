@@ -136,7 +136,7 @@ export function QueueCard({
               cy="8"
               r="6.4"
               fill="none"
-              stroke="#4D6414"
+              stroke="var(--success-text)"
               strokeWidth="2"
               strokeLinecap="round"
               strokeDasharray="12 30"

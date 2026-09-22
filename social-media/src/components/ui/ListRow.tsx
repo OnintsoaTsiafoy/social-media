@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { control, palette, spacing } from '@/theme';
+import { control, palette, spacing, themed } from '@/theme';
 
 import { Icon } from './Icon';
 import { Text } from './Text';
@@ -103,26 +103,28 @@ export function DetailRow({
   );
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xl,
-    minHeight: control.minTouch + 8,
-    paddingHorizontal: spacing['2xl'],
-    paddingVertical: spacing['2xl'],
-  },
-  pressed: { opacity: 0.6, backgroundColor: palette.surfaceMuted },
-  labels: { flex: 1 },
-  description: { marginTop: 2 },
-  value: { flexShrink: 1, textAlign: 'right' },
+const styles = themed(() =>
+  StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xl,
+      minHeight: control.minTouch + 8,
+      paddingHorizontal: spacing['2xl'],
+      paddingVertical: spacing['2xl'],
+    },
+    pressed: { opacity: 0.6, backgroundColor: palette.surfaceMuted },
+    labels: { flex: 1 },
+    description: { marginTop: 2 },
+    value: { flexShrink: 1, textAlign: 'right' },
 
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: spacing['3xl'],
-  },
-  detailLabel: { flexShrink: 0 },
-  detailValue: { flex: 1, textAlign: 'right' },
-});
+    detailRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      gap: spacing['3xl'],
+    },
+    detailLabel: { flexShrink: 0 },
+    detailValue: { flex: 1, textAlign: 'right' },
+  })
+);

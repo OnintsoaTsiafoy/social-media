@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { palette, radius, spacing } from '@/theme';
+import { palette, radius, spacing, themed } from '@/theme';
 
 import { Text } from './Text';
 
@@ -41,7 +41,7 @@ export function SegmentedControl<T extends string>({
             <Text
               variant="body"
               weight="bold"
-              color={selected ? palette.white : palette.inkBody}
+              color={selected ? palette.onNight : palette.inkBody}
               numberOfLines={1}
             >
               {option.label}
@@ -53,16 +53,18 @@ export function SegmentedControl<T extends string>({
   );
 }
 
-const styles = StyleSheet.create({
-  group: { flexDirection: 'row', gap: spacing.md },
-  segment: {
-    paddingHorizontal: spacing['2xl'],
-    paddingVertical: spacing.lg,
-    borderRadius: radius.pill,
-    minHeight: 36,
-    justifyContent: 'center',
-  },
-  segmentSelected: { backgroundColor: palette.night },
-  segmentIdle: { borderWidth: 1, borderColor: palette.border, backgroundColor: palette.white },
-  pressed: { opacity: 0.75 },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    group: { flexDirection: 'row', gap: spacing.md },
+    segment: {
+      paddingHorizontal: spacing['2xl'],
+      paddingVertical: spacing.lg,
+      borderRadius: radius.pill,
+      minHeight: 36,
+      justifyContent: 'center',
+    },
+    segmentSelected: { backgroundColor: palette.night },
+    segmentIdle: { borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    pressed: { opacity: 0.75 },
+  })
+);

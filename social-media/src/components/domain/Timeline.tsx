@@ -2,11 +2,11 @@ import { StyleSheet, View } from 'react-native';
 
 import { Text } from '@/components/ui';
 import { formatDateTime } from '@/lib/format';
-import { palette, radius, spacing } from '@/theme';
+import { palette, radius, spacing, themed } from '@/theme';
 import type { HistoryEvent, HistoryEventKind } from '@/types';
 
 /** Dot colour per event kind - the design's chronological rail. */
-const dotColors: Record<HistoryEventKind, string> = {
+const dotColors: Record<HistoryEventKind, string> = themed(() => ({
   comment_received: palette.night,
   ai_analysis: palette.info,
   response_proposed: palette.lime,
@@ -15,7 +15,7 @@ const dotColors: Record<HistoryEventKind, string> = {
   response_sent: palette.successText,
   status_changed: palette.inkDisabled,
   escalated: palette.warning,
-};
+}));
 
 export function Timeline({ events }: { events: HistoryEvent[] }) {
   return (
@@ -69,23 +69,25 @@ export function Timeline({ events }: { events: HistoryEvent[] }) {
   );
 }
 
-const styles = StyleSheet.create({
-  item: { flexDirection: 'row', gap: spacing.xl },
-  rail: { alignItems: 'center', width: 12 },
-  dot: { width: 11, height: 11, borderRadius: 6, marginTop: 4 },
-  line: { flex: 1, width: 1.5, backgroundColor: palette.skeleton, marginVertical: 2 },
-  content: { flex: 1, paddingBottom: spacing['4xl'] },
-  contentLast: { paddingBottom: 0 },
-  title: { marginTop: 2 },
-  detail: { marginTop: spacing.xs },
-  quote: {
-    marginTop: spacing.md,
-    padding: spacing.xl,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.white,
-  },
-  quoteEdited: { borderColor: palette.successBorder, backgroundColor: palette.successSurface },
-  actor: { marginTop: spacing.md },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    item: { flexDirection: 'row', gap: spacing.xl },
+    rail: { alignItems: 'center', width: 12 },
+    dot: { width: 11, height: 11, borderRadius: 6, marginTop: 4 },
+    line: { flex: 1, width: 1.5, backgroundColor: palette.skeleton, marginVertical: 2 },
+    content: { flex: 1, paddingBottom: spacing['4xl'] },
+    contentLast: { paddingBottom: 0 },
+    title: { marginTop: 2 },
+    detail: { marginTop: spacing.xs },
+    quote: {
+      marginTop: spacing.md,
+      padding: spacing.xl,
+      borderRadius: radius.sm,
+      borderWidth: 1,
+      borderColor: palette.border,
+      backgroundColor: palette.surface,
+    },
+    quoteEdited: { borderColor: palette.successBorder, backgroundColor: palette.successSurface },
+    actor: { marginTop: spacing.md },
+  })
+);

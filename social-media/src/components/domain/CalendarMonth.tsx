@@ -2,17 +2,17 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { LegendDot, Text } from '@/components/ui';
 import { buildMonthGrid, isSameDay, WEEKDAY_INITIALS } from '@/lib/format';
-import { palette, radius, spacing } from '@/theme';
+import { palette, radius, spacing, themed } from '@/theme';
 import type { PublicationStatus } from '@/types';
 
 export type DayMarker = { date: Date; statuses: PublicationStatus[] };
 
-const markerColor: Partial<Record<PublicationStatus, string>> = {
+const markerColor: Partial<Record<PublicationStatus, string>> = themed(() => ({
   scheduled: palette.info,
   published: palette.successText,
   failed: palette.danger,
   partially_published: palette.danger,
-};
+}));
 
 export type CalendarMonthProps = {
   /** Any date inside the month to display. */
@@ -73,7 +73,7 @@ export function CalendarMonth({ month, selected, onSelect, markers, showLegend =
                   variant="body"
                   weight={isSelected || isToday ? 'bold' : 'medium'}
                   color={
-                    isSelected ? palette.white : inMonth ? palette.ink : palette.inkGhost
+                    isSelected ? palette.onNight : inMonth ? palette.ink : palette.inkGhost
                   }
                 >
                   {String(day.getDate()).padStart(2, '0')}
@@ -108,24 +108,26 @@ export function CalendarMonth({ month, selected, onSelect, markers, showLegend =
   );
 }
 
-const styles = StyleSheet.create({
-  weekdays: { flexDirection: 'row', marginBottom: spacing.md },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  // Seven columns: each cell takes a seventh of the row.
-  cell: { width: `${100 / 7}%`, paddingVertical: 2, alignItems: 'center' },
-  day: {
-    width: '100%',
-    minHeight: 40,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.sm,
-    gap: 3,
-  },
-  dayToday: { backgroundColor: palette.successBg },
-  daySelected: { backgroundColor: palette.night },
-  dots: { flexDirection: 'row', gap: 2, height: 5 },
-  dot: { width: 5, height: 5, borderRadius: 3 },
-  dotOnSelected: { backgroundColor: palette.lime },
-  legend: { flexDirection: 'row', gap: spacing['3xl'], marginTop: spacing['3xl'], flexWrap: 'wrap' },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    weekdays: { flexDirection: 'row', marginBottom: spacing.md },
+    grid: { flexDirection: 'row', flexWrap: 'wrap' },
+    // Seven columns: each cell takes a seventh of the row.
+    cell: { width: `${100 / 7}%`, paddingVertical: 2, alignItems: 'center' },
+    day: {
+      width: '100%',
+      minHeight: 40,
+      borderRadius: radius.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: spacing.sm,
+      gap: 3,
+    },
+    dayToday: { backgroundColor: palette.successBg },
+    daySelected: { backgroundColor: palette.night },
+    dots: { flexDirection: 'row', gap: 2, height: 5 },
+    dot: { width: 5, height: 5, borderRadius: 3 },
+    dotOnSelected: { backgroundColor: palette.lime },
+    legend: { flexDirection: 'row', gap: spacing['3xl'], marginTop: spacing['3xl'], flexWrap: 'wrap' },
+  })
+);

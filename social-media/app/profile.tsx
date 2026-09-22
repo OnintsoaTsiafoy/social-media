@@ -24,7 +24,7 @@ import { useMutation } from '@/hooks/useAsync';
 import { formatDate } from '@/lib/format';
 import { validateDisplayName, validateName } from '@/lib/validation';
 import { useSession } from '@/store/SessionProvider';
-import { palette, spacing } from '@/theme';
+import { palette, spacing, themed } from '@/theme';
 import type { Language } from '@/types';
 
 /**
@@ -167,7 +167,7 @@ export default function ProfileScreen() {
           <Avatar initials={user?.avatarInitials ?? '··'} size={88} ringed />
           {editing ? (
             <View style={styles.avatarEdit}>
-              <Icon name="editProfile" size={14} color={palette.white} />
+              <Icon name="editProfile" size={14} color={palette.onNight} />
             </View>
           ) : null}
         </Pressable>
@@ -289,25 +289,27 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  identity: { alignItems: 'center', gap: spacing['3xl'] },
-  avatarEdit: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: palette.night,
-    borderWidth: 2,
-    borderColor: palette.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  identityText: { alignItems: 'center' },
-  email: { marginTop: spacing.xs },
-  form: { gap: spacing['3xl'] },
-  row: { flexDirection: 'row', gap: spacing.xl },
-  rowItem: { flex: 1 },
-  detailCard: { gap: spacing.xl },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    identity: { alignItems: 'center', gap: spacing['3xl'] },
+    avatarEdit: {
+      position: 'absolute',
+      bottom: -2,
+      right: -2,
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: palette.night,
+      borderWidth: 2,
+      borderColor: palette.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    identityText: { alignItems: 'center' },
+    email: { marginTop: spacing.xs },
+    form: { gap: spacing['3xl'] },
+    row: { flexDirection: 'row', gap: spacing.xl },
+    rowItem: { flex: 1 },
+    detailCard: { gap: spacing.xl },
+  })
+);

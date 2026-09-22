@@ -67,7 +67,7 @@ input::placeholder {
 
 /* Cards -------------------------------------------------------------------- */
 .card {
-  background: var(--white);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 18px;
   min-width: 0;
@@ -122,7 +122,7 @@ input::placeholder {
 .btn--outline {
   padding: 9px 14px;
   border: 1px solid var(--border);
-  background: var(--white);
+  background: var(--surface);
 }
 .btn--outline:hover {
   background: var(--chip);
@@ -130,13 +130,13 @@ input::placeholder {
 }
 /* A select-like trigger: the border reacts instead of the fill. */
 .btn--select:hover {
-  background: var(--white);
+  background: var(--surface);
   border-color: var(--border-strong);
 }
 .btn--primary {
   padding: 9px 16px;
   background: var(--lime);
-  color: var(--night);
+  color: var(--on-lime);
   font-weight: 600;
   box-shadow: 0 6px 16px var(--lime-shadow);
 }
@@ -231,7 +231,7 @@ input::placeholder {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--white);
+  background: var(--surface);
   box-shadow: 0 2px 5px rgba(15, 23, 42, 0.22);
   transition: left 0.25s var(--ease-out);
 }
@@ -288,7 +288,7 @@ input::placeholder {
   padding: 5px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--white);
+  background: var(--surface);
 }
 
 /* Skeleton ---------------------------------------------------------------------- */
@@ -300,7 +300,7 @@ input::placeholder {
 }
 .skeleton--card {
   border: 1px solid var(--border);
-  background: linear-gradient(90deg, var(--white) 8%, var(--chip) 20%, var(--white) 34%);
+  background: linear-gradient(90deg, var(--surface) 8%, var(--chip) 20%, var(--surface) 34%);
   background-size: 600px 100%;
 }
 
@@ -341,7 +341,7 @@ input::placeholder {
   text-align: center;
   border: 1px solid var(--border);
   border-radius: 18px;
-  background: var(--white);
+  background: var(--surface);
 }
 .error-state--inline {
   padding: 32px 20px;
@@ -360,13 +360,13 @@ input::placeholder {
   color: var(--text-subtle);
 }
 
-/* Language switch (FR / EN) -------------------------------------------------------------- */
+/* Language (FR / EN) and theme switches --------------------------------------------------------- */
 .locale-switch {
   display: inline-flex;
   padding: 3px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--white);
+  background: var(--surface);
 }
 .locale-switch__option {
   padding: 5px 10px;
@@ -381,11 +381,16 @@ input::placeholder {
     color 0.2s ease;
 }
 .locale-switch__option:hover {
-  color: var(--night);
+  color: var(--ink);
 }
 .locale-switch__option[aria-pressed="true"] {
   background: var(--night);
   color: var(--lime);
+}
+.theme-switch__option {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 8px;
 }
 
 /* Small pieces shared by several screens ------------------------------------------------- */
@@ -422,7 +427,7 @@ input::placeholder {
   max-height: min(680px, 90vh);
   translate: -50% -50%;
   border-radius: 20px;
-  background: var(--white);
+  background: var(--surface);
   box-shadow: 0 30px 80px rgba(15, 23, 42, 0.3);
   animation: fadeUp 0.3s var(--ease-out) backwards;
   outline: none;
@@ -483,9 +488,9 @@ input::placeholder {
   padding: 10px 12px;
   border: 1px solid var(--border-strong);
   border-radius: 10px;
-  background: var(--white);
+  background: var(--surface);
   font-size: 13.5px;
-  color: var(--night);
+  color: var(--ink);
 }
 .field__input:focus {
   border-color: var(--lime-deep);

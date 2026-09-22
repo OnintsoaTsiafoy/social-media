@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { control, palette, radius, spacing } from '@/theme';
+import { control, palette, radius, spacing, themed } from '@/theme';
 
 import { Card, Divider } from './Card';
 import { BottomSheet } from './Feedback';
@@ -128,33 +128,35 @@ export function SelectField<T extends string>({
   );
 }
 
-const styles = StyleSheet.create({
-  label: { marginBottom: spacing.md },
-  field: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.lg,
-    minHeight: control.inputHeight,
-    paddingHorizontal: spacing['2xl'],
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: radius.md,
-    backgroundColor: palette.white,
-  },
-  fieldError: { borderColor: palette.danger, borderWidth: 1.5 },
-  value: { flex: 1 },
-  pressed: { opacity: 0.7 },
-  disabled: { opacity: 0.5 },
-  helper: { marginTop: spacing.sm },
-  optionScroll: { maxHeight: 380 },
-  option: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xl,
-    paddingHorizontal: spacing['2xl'],
-    paddingVertical: spacing['2xl'],
-    minHeight: control.minTouch,
-  },
-  optionText: { flex: 1 },
-  optionDescription: { marginTop: 2 },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    label: { marginBottom: spacing.md },
+    field: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.lg,
+      minHeight: control.inputHeight,
+      paddingHorizontal: spacing['2xl'],
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: radius.md,
+      backgroundColor: palette.surface,
+    },
+    fieldError: { borderColor: palette.danger, borderWidth: 1.5 },
+    value: { flex: 1 },
+    pressed: { opacity: 0.7 },
+    disabled: { opacity: 0.5 },
+    helper: { marginTop: spacing.sm },
+    optionScroll: { maxHeight: 380 },
+    option: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xl,
+      paddingHorizontal: spacing['2xl'],
+      paddingVertical: spacing['2xl'],
+      minHeight: control.minTouch,
+    },
+    optionText: { flex: 1 },
+    optionDescription: { marginTop: 2 },
+  })
+);

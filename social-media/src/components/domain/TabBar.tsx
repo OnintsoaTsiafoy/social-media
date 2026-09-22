@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, Text, type IconName } from '@/components/ui';
 import { useSession } from '@/store/SessionProvider';
-import { control, palette, radius, shadow, spacing } from '@/theme';
+import { control, palette, radius, shadow, spacing, themed } from '@/theme';
 
 /** Visual height of the bar, excluding the safe-area inset. */
 export const TAB_BAR_HEIGHT = 62;
@@ -106,7 +106,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
         onPress={() => router.push('/publications/new')}
         style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
       >
-        <Icon name="add" size={26} color={palette.night} />
+        <Icon name="add" size={26} color={palette.onLime} />
       </Pressable>
     </View>
   );
@@ -115,59 +115,61 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
 /** Gap between the bottom of the FAB and the top edge of the bar. */
 const FAB_GAP = spacing.lg;
 
-const styles = StyleSheet.create({
-  // The FAB overlays the screen, so the navigator only reserves space for the bar.
-  container: { backgroundColor: 'transparent', overflow: 'visible' },
-  bar: {
-    backgroundColor: palette.white,
-    borderTopWidth: 1,
-    borderTopColor: palette.dividerSoft,
-    paddingTop: spacing.lg,
-  },
-  row: { flexDirection: 'row', alignItems: 'flex-start', height: TAB_BAR_HEIGHT - 12 },
-  tab: {
-    flex: 1,
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: 2,
-  },
-  iconSlot: {
-    width: 42,
-    height: 26,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconSlotActive: { backgroundColor: palette.tabActiveBg },
-  label: { fontSize: 10, lineHeight: 13, letterSpacing: -0.1, textAlign: 'center' },
-  badge: {
-    position: 'absolute',
-    top: -2,
-    right: 0,
-    minWidth: 17,
-    height: 17,
-    paddingHorizontal: 3,
-    borderRadius: radius.pill,
-    backgroundColor: palette.danger,
-    borderWidth: 1.5,
-    borderColor: palette.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeLabel: { fontSize: 9, lineHeight: 11 },
-  fab: {
-    position: 'absolute',
-    right: spacing['4xl'],
-    // Floats above the bar without reserving a blank strip in the navigator.
-    top: -(control.fab + FAB_GAP),
-    width: control.fab,
-    height: control.fab,
-    borderRadius: radius.xl,
-    backgroundColor: palette.lime,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-    ...shadow.fab,
-  },
-  fabPressed: { opacity: 0.9, transform: [{ scale: 0.96 }] },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    // The FAB overlays the screen, so the navigator only reserves space for the bar.
+    container: { backgroundColor: 'transparent', overflow: 'visible' },
+    bar: {
+      backgroundColor: palette.surface,
+      borderTopWidth: 1,
+      borderTopColor: palette.dividerSoft,
+      paddingTop: spacing.lg,
+    },
+    row: { flexDirection: 'row', alignItems: 'flex-start', height: TAB_BAR_HEIGHT - 12 },
+    tab: {
+      flex: 1,
+      alignItems: 'center',
+      gap: spacing.xs,
+      paddingHorizontal: 2,
+    },
+    iconSlot: {
+      width: 42,
+      height: 26,
+      borderRadius: radius.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iconSlotActive: { backgroundColor: palette.tabActiveBg },
+    label: { fontSize: 10, lineHeight: 13, letterSpacing: -0.1, textAlign: 'center' },
+    badge: {
+      position: 'absolute',
+      top: -2,
+      right: 0,
+      minWidth: 17,
+      height: 17,
+      paddingHorizontal: 3,
+      borderRadius: radius.pill,
+      backgroundColor: palette.danger,
+      borderWidth: 1.5,
+      borderColor: palette.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    badgeLabel: { fontSize: 9, lineHeight: 11 },
+    fab: {
+      position: 'absolute',
+      right: spacing['4xl'],
+      // Floats above the bar without reserving a blank strip in the navigator.
+      top: -(control.fab + FAB_GAP),
+      width: control.fab,
+      height: control.fab,
+      borderRadius: radius.xl,
+      backgroundColor: palette.lime,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 10,
+      ...shadow.fab,
+    },
+    fabPressed: { opacity: 0.9, transform: [{ scale: 0.96 }] },
+  })
+);

@@ -44,13 +44,13 @@ export function SupervisionScreen() {
 
               <div className="ai-status" role="status">
                 <svg className="ai-status__spinner" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">
-                  <circle cx="17" cy="17" r="14" fill="none" stroke="#F4F5F6" strokeWidth="3" />
+                  <circle cx="17" cy="17" r="14" fill="none" stroke="var(--chip)" strokeWidth="3" />
                   <circle
                     cx="17"
                     cy="17"
                     r="14"
                     fill="none"
-                    stroke="#C4F04A"
+                    stroke="var(--lime)"
                     strokeWidth="3"
                     strokeLinecap="round"
                     strokeDasharray="26 62"

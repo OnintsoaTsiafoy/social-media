@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-import { palette, radius, spacing } from '@/theme';
+import { palette, radius, spacing, themed } from '@/theme';
 
 import { Text } from './Text';
 
@@ -177,32 +177,34 @@ export function LegendDot({ color, label }: { color: string; label: string }) {
   );
 }
 
-const styles = StyleSheet.create({
-  bars: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.lg },
-  barColumn: { flex: 1, alignItems: 'center', gap: 2 },
-  barStack: { flex: 1, justifyContent: 'flex-end', alignSelf: 'stretch', gap: 2 },
-  barSegment: { minHeight: 3 },
-  barTop: { borderTopLeftRadius: radius.xs, borderTopRightRadius: radius.xs },
-  barBottom: { borderBottomLeftRadius: radius.xs, borderBottomRightRadius: radius.xs },
-  barTotal: { marginTop: -2 },
+const styles = themed(() =>
+  StyleSheet.create({
+    bars: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.lg },
+    barColumn: { flex: 1, alignItems: 'center', gap: 2 },
+    barStack: { flex: 1, justifyContent: 'flex-end', alignSelf: 'stretch', gap: 2 },
+    barSegment: { minHeight: 3 },
+    barTop: { borderTopLeftRadius: radius.xs, borderTopRightRadius: radius.xs },
+    barBottom: { borderBottomLeftRadius: radius.xs, borderBottomRightRadius: radius.xs },
+    barTotal: { marginTop: -2 },
 
-  legend: { flexDirection: 'row', gap: spacing['3xl'], marginTop: spacing['3xl'] },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  legendDot: { width: 9, height: 9, borderRadius: 3 },
+    legend: { flexDirection: 'row', gap: spacing['3xl'], marginTop: spacing['3xl'] },
+    legendItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    legendDot: { width: 9, height: 9, borderRadius: 3 },
 
-  meterBlock: { gap: spacing['3xl'] },
-  totalRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.md },
-  meter: {
-    flexDirection: 'row',
-    height: 12,
-    borderRadius: radius.pill,
-    overflow: 'hidden',
-    backgroundColor: palette.track,
-  },
-  meterLegend: { gap: spacing.md },
+    meterBlock: { gap: spacing['3xl'] },
+    totalRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.md },
+    meter: {
+      flexDirection: 'row',
+      height: 12,
+      borderRadius: radius.pill,
+      overflow: 'hidden',
+      backgroundColor: palette.track,
+    },
+    meterLegend: { gap: spacing.md },
 
-  comparison: { gap: spacing.md },
-  comparisonHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  comparisonTrack: { height: 8, borderRadius: radius.pill, backgroundColor: palette.track, overflow: 'hidden' },
-  comparisonFill: { height: '100%', borderRadius: radius.pill },
-});
+    comparison: { gap: spacing.md },
+    comparisonHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+    comparisonTrack: { height: 8, borderRadius: radius.pill, backgroundColor: palette.track, overflow: 'hidden' },
+    comparisonFill: { height: '100%', borderRadius: radius.pill },
+  })
+);

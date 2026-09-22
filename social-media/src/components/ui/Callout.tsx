@@ -1,7 +1,7 @@
 import { Children } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { palette, radius, spacing } from '@/theme';
+import { palette, radius, spacing, themed } from '@/theme';
 
 import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
@@ -67,13 +67,13 @@ export function Callout({ children, tone = 'neutral', icon, title, style }: Call
   );
 }
 
-const toneColors: Record<CalloutTone, { background: string; border: string; foreground: string }> = {
+const toneColors: Record<CalloutTone, { background: string; border: string; foreground: string }> = themed(() => ({
   info: { background: palette.infoBg, border: palette.infoBorder, foreground: palette.infoText },
   success: { background: palette.successBg, border: palette.successBorder, foreground: palette.successText },
   warning: { background: palette.warningBg, border: palette.warningBorder, foreground: palette.warningText },
   danger: { background: palette.dangerSurface, border: palette.dangerBorder, foreground: palette.dangerText },
   neutral: { background: palette.surfaceMuted, border: palette.surfaceMuted, foreground: palette.inkMuted },
-};
+}));
 
 const styles = StyleSheet.create({
   container: {

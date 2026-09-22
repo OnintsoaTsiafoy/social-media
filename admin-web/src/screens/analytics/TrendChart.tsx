@@ -126,10 +126,10 @@ export function TrendChart({ metric, sentiment, trend }: TrendChartProps) {
           role="img"
           aria-label={first && last ? t("chart.aria", { title, start: dateOf(first.start), end: dateOf(last.end) }) : title}
         >
-          <line x1="0" y1="40" x2="800" y2="40" stroke="#F4F5F6" strokeWidth="1" />
-          <line x1="0" y1="100" x2="800" y2="100" stroke="#F4F5F6" strokeWidth="1" />
-          <line x1="0" y1="160" x2="800" y2="160" stroke="#F4F5F6" strokeWidth="1" />
-          <line x1="0" y1="220" x2="800" y2="220" stroke="#ECEDEF" strokeWidth="1" />
+          <line x1="0" y1="40" x2="800" y2="40" stroke="var(--chip)" strokeWidth="1" />
+          <line x1="0" y1="100" x2="800" y2="100" stroke="var(--chip)" strokeWidth="1" />
+          <line x1="0" y1="160" x2="800" y2="160" stroke="var(--chip)" strokeWidth="1" />
+          <line x1="0" y1="220" x2="800" y2="220" stroke="var(--border)" strokeWidth="1" />
           {dataAvailable && (
             <>
               <polygon className="chart__area" points={toAreaPolygon(layout.current)} />

@@ -53,7 +53,7 @@
   padding: 8px 13px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--white);
+  background: var(--surface);
   font-size: 12.5px;
   font-weight: 500;
   color: var(--text-muted);
@@ -65,7 +65,7 @@
 .sent-filter[aria-pressed="true"] {
   border-color: var(--lime);
   background: var(--tab-active);
-  color: var(--night);
+  color: var(--ink);
 }
 .sent-filter i {
   display: block;
@@ -140,7 +140,7 @@
   height: 240px;
 }
 .chart__area {
-  fill: rgba(196, 240, 74, 0.22);
+  fill: var(--lime-glow);
   animation: fadeIn 0.9s 0.3s ease backwards;
 }
 .chart__prev {
@@ -172,10 +172,10 @@
   left: -5px;
   width: 10px;
   height: 10px;
-  border: 2px solid var(--white);
+  border: 2px solid var(--surface);
   border-radius: 50%;
   background: var(--lime-deep);
-  box-shadow: 0 2px 8px rgba(150, 196, 40, 0.6);
+  box-shadow: 0 2px 8px rgba(59, 168, 42, 0.6);
   animation: popScale 0.18s ease backwards;
 }
 .chart__tip {
@@ -334,10 +334,10 @@
 select.page-filter {
   max-width: 260px;
   border: 1px solid var(--border);
-  background: var(--white);
+  background: var(--surface);
   font-size: 13px;
   font-weight: 500;
-  color: var(--night);
+  color: var(--ink);
   cursor: pointer;
 }
 .chart__plot {
@@ -358,7 +358,7 @@ select.page-filter {
   width: 10px;
   height: 10px;
   margin: -5px 0 0 -5px;
-  border: 2px solid var(--white);
+  border: 2px solid var(--surface);
   border-radius: 50%;
   background: var(--lime-deep);
   box-shadow: 0 2px 6px var(--lime-shadow);

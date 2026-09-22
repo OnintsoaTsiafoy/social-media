@@ -23,7 +23,7 @@ import {
 import { formatFileSize, formatMimeType } from '@/lib/format';
 import { characterLimitFor } from '@/lib/validation';
 import { useComposer } from '@/store/ComposerProvider';
-import { palette, spacing } from '@/theme';
+import { palette, spacing, themed } from '@/theme';
 import type { Brand, SocialAccount, SocialNetwork } from '@/types';
 
 export type ComposerErrors = { text?: string; networks?: string; media?: string };
@@ -220,7 +220,7 @@ export function ComposerForm({
                     style={styles.networkPress}
                   >
                     <View style={[styles.checkbox, selected ? styles.checkboxOn : styles.checkboxOff]}>
-                      {selected ? <Icon name="check" size={13} color={palette.night} /> : null}
+                      {selected ? <Icon name="check" size={13} color={palette.onLime} /> : null}
                     </View>
                     <Text variant="body" weight="semibold" numberOfLines={1} style={styles.networkLabel}>
                       {networkMeta[account.network].label} · {account.username}
@@ -306,32 +306,34 @@ function toneLabel(tone: Brand['tone']): string {
   return labels[tone];
 }
 
-const styles = StyleSheet.create({
-  section: { gap: spacing.xl },
-  brandCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl },
-  brandText: { flex: 1, gap: 2 },
+const styles = themed(() =>
+  StyleSheet.create({
+    section: { gap: spacing.xl },
+    brandCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl },
+    brandText: { flex: 1, gap: 2 },
 
-  mediaCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl },
-  mediaText: { flex: 1, gap: spacing.xs },
-  mediaActions: { gap: spacing.xl, alignItems: 'center' },
-  addMedia: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl },
+    mediaCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl },
+    mediaText: { flex: 1, gap: spacing.xs },
+    mediaActions: { gap: spacing.xl, alignItems: 'center' },
+    addMedia: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl },
 
-  networkList: { gap: spacing.lg },
-  networkRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl, paddingRight: spacing['2xl'] },
-  /** Card padding, minus the trailing edge the row owns. */
-  networkPress: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xl,
-    padding: spacing['2xl'],
-    paddingRight: 0,
-  },
-  networkLabel: { flex: 1 },
-  checkbox: { width: 22, height: 22, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
-  checkboxOn: { backgroundColor: palette.lime },
-  checkboxOff: { borderWidth: 1.5, borderColor: palette.borderStrong },
+    networkList: { gap: spacing.lg },
+    networkRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl, paddingRight: spacing['2xl'] },
+    /** Card padding, minus the trailing edge the row owns. */
+    networkPress: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xl,
+      padding: spacing['2xl'],
+      paddingRight: 0,
+    },
+    networkLabel: { flex: 1 },
+    checkbox: { width: 22, height: 22, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+    checkboxOn: { backgroundColor: palette.lime },
+    checkboxOff: { borderWidth: 1.5, borderColor: palette.borderStrong },
 
-  adaptCard: { gap: spacing.xl },
-  connectButton: { marginTop: spacing.xl },
-});
+    adaptCard: { gap: spacing.xl },
+    connectButton: { marginTop: spacing.xl },
+  })
+);

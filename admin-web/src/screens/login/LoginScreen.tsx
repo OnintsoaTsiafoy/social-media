@@ -4,6 +4,7 @@ import { toUserMessage } from "@/api/errors";
 import { ApiError } from "@/api/transport";
 import { BrandMark } from "@/components/BrandMark";
 import { LocaleSwitch } from "@/components/LocaleSwitch";
+import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { PRODUCT_NAME } from "@/config";
 import { useI18n } from "@/i18n";
 import { cx } from "@/lib/css";
@@ -35,6 +36,7 @@ export function LoginScreen() {
   return (
     <main className="login">
       <div className="login__lang">
+        <ThemeSwitch />
         <LocaleSwitch />
       </div>
       <form className="login__card" onSubmit={submit}>

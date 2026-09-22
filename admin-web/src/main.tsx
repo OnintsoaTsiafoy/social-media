@@ -7,9 +7,12 @@ import "@/styles/ui.css";
 import "@/styles/shell.css";
 
 import App from "@/App";
+import { initTheme } from "@/lib/theme";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing #root element");
+
+initTheme();
 
 createRoot(root).render(
   <StrictMode>

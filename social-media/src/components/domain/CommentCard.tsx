@@ -13,7 +13,7 @@ import {
   Text,
 } from '@/components/ui';
 import { formatTime } from '@/lib/format';
-import { palette, spacing } from '@/theme';
+import { palette, spacing, themed } from '@/theme';
 import type { Comment } from '@/types';
 
 export type CommentCardProps = {
@@ -100,25 +100,27 @@ export function CommentCard({ comment, onPress, onTreat, treating = false }: Com
   );
 }
 
-const styles = StyleSheet.create({
-  pending: { opacity: 0.8 },
-  /** Card padding, minus the bottom edge the footer owns. */
-  content: { padding: spacing['2xl'], paddingBottom: 0 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl },
-  headerText: { flex: 1 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  newDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: palette.lime },
-  meta: { marginTop: 2 },
-  body: { marginTop: spacing.xl },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.xl,
-    marginTop: spacing.xl,
-    paddingHorizontal: spacing['2xl'],
-    paddingBottom: spacing['2xl'],
-  },
-  badges: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  treat: { paddingHorizontal: spacing['4xl'] },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    pending: { opacity: 0.8 },
+    /** Card padding, minus the bottom edge the footer owns. */
+    content: { padding: spacing['2xl'], paddingBottom: 0 },
+    header: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl },
+    headerText: { flex: 1 },
+    nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    newDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: palette.lime },
+    meta: { marginTop: 2 },
+    body: { marginTop: spacing.xl },
+    footer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.xl,
+      marginTop: spacing.xl,
+      paddingHorizontal: spacing['2xl'],
+      paddingBottom: spacing['2xl'],
+    },
+    badges: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+    treat: { paddingHorizontal: spacing['4xl'] },
+  })
+);

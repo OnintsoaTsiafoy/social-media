@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { palette, radius, spacing } from '@/theme';
+import { palette, radius, spacing, themed } from '@/theme';
 
 import { Icon } from './Icon';
 import { Text } from './Text';
@@ -52,36 +52,38 @@ export function Toggle({ value, onValueChange, label, description, disabled = fa
   );
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing['3xl'],
-    minHeight: 44,
-  },
-  pressed: { opacity: 0.7 },
-  disabled: { opacity: 0.45 },
-  labels: { flex: 1 },
-  description: { marginTop: 2 },
-  track: {
-    width: TRACK_WIDTH,
-    height: TRACK_HEIGHT,
-    borderRadius: radius.pill,
-    padding: (TRACK_HEIGHT - KNOB) / 2,
-    justifyContent: 'center',
-  },
-  trackOn: { backgroundColor: palette.lime },
-  trackOff: { backgroundColor: palette.trackAlt },
-  knob: {
-    width: KNOB,
-    height: KNOB,
-    borderRadius: KNOB / 2,
-    backgroundColor: palette.white,
-  },
-  knobOn: { alignSelf: 'flex-end' },
-  knobOff: { alignSelf: 'flex-start' },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing['3xl'],
+      minHeight: 44,
+    },
+    pressed: { opacity: 0.7 },
+    disabled: { opacity: 0.45 },
+    labels: { flex: 1 },
+    description: { marginTop: 2 },
+    track: {
+      width: TRACK_WIDTH,
+      height: TRACK_HEIGHT,
+      borderRadius: radius.pill,
+      padding: (TRACK_HEIGHT - KNOB) / 2,
+      justifyContent: 'center',
+    },
+    trackOn: { backgroundColor: palette.lime },
+    trackOff: { backgroundColor: palette.trackAlt },
+    knob: {
+      width: KNOB,
+      height: KNOB,
+      borderRadius: KNOB / 2,
+      backgroundColor: palette.white,
+    },
+    knobOn: { alignSelf: 'flex-end' },
+    knobOff: { alignSelf: 'flex-start' },
+  })
+);
 
 export type CheckboxProps = {
   value: boolean;
@@ -106,7 +108,7 @@ export function Checkbox({ value, onValueChange, label, children, error, disable
         style={({ pressed }) => [checkboxStyles.row, pressed && !disabled && checkboxStyles.pressed]}
       >
         <View style={[checkboxStyles.box, value ? checkboxStyles.boxOn : checkboxStyles.boxOff, error && !value ? checkboxStyles.boxError : null]}>
-          {value ? <Icon name="check" size={13} color={palette.night} /> : null}
+          {value ? <Icon name="check" size={13} color={palette.onLime} /> : null}
         </View>
         <View style={checkboxStyles.label}>
           {children ?? (
@@ -126,22 +128,24 @@ export function Checkbox({ value, onValueChange, label, children, error, disable
   );
 }
 
-const checkboxStyles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xl, paddingVertical: spacing.sm },
-  pressed: { opacity: 0.7 },
-  box: {
-    width: 22,
-    height: 22,
-    borderRadius: radius.xs,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 1,
-  },
-  boxOn: { backgroundColor: palette.lime },
-  boxOff: { borderWidth: 1.5, borderColor: palette.borderStrong },
-  boxError: { borderColor: palette.danger },
-  // `flexShrink` and not `flex: 1`: a zero flex-basis makes the checkbox
-  // measure as its box alone inside a row, which collapses the label.
-  label: { flexShrink: 1 },
-  error: { marginTop: spacing.xs, marginLeft: 34 },
-});
+const checkboxStyles = themed(() =>
+  StyleSheet.create({
+    row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xl, paddingVertical: spacing.sm },
+    pressed: { opacity: 0.7 },
+    box: {
+      width: 22,
+      height: 22,
+      borderRadius: radius.xs,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 1,
+    },
+    boxOn: { backgroundColor: palette.lime },
+    boxOff: { borderWidth: 1.5, borderColor: palette.borderStrong },
+    boxError: { borderColor: palette.danger },
+    // `flexShrink` and not `flex: 1`: a zero flex-basis makes the checkbox
+    // measure as its box alone inside a row, which collapses the label.
+    label: { flexShrink: 1 },
+    error: { marginTop: spacing.xs, marginLeft: 34 },
+  })
+);

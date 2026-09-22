@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
-import { palette, radius, spacing } from '@/theme';
+import { palette, radius, spacing, themed } from '@/theme';
 
 import { Button } from './Button';
 import { Card } from './Card';
@@ -206,56 +206,58 @@ export function ListFooterLoader({ visible }: { visible: boolean }) {
   );
 }
 
-const styles = StyleSheet.create({
-  skeleton: { backgroundColor: palette.skeleton },
-  skeletonStretch: { alignSelf: 'stretch' },
-  skeletonRow: { flexDirection: 'row', gap: spacing.xl, alignItems: 'center' },
-  skeletonLines: { flex: 1, gap: spacing.md },
-  skeletonList: { gap: spacing.lg },
+const styles = themed(() =>
+  StyleSheet.create({
+    skeleton: { backgroundColor: palette.skeleton },
+    skeletonStretch: { alignSelf: 'stretch' },
+    skeletonRow: { flexDirection: 'row', gap: spacing.xl, alignItems: 'center' },
+    skeletonLines: { flex: 1, gap: spacing.md },
+    skeletonList: { gap: spacing.lg },
 
-  centred: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing['7xl'],
-    paddingHorizontal: spacing['4xl'],
-    gap: spacing.lg,
-  },
-  centredCompact: { paddingVertical: spacing['4xl'] },
-  emptyIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: radius.lg,
-    backgroundColor: palette.surfaceChip,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xs,
-  },
-  errorIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: radius.lg,
-    backgroundColor: palette.dangerBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xs,
-  },
-  emptyMessage: { maxWidth: 300 },
-  stateAction: { marginTop: spacing.md, alignSelf: 'center', paddingHorizontal: spacing['4xl'] },
+    centred: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: spacing['7xl'],
+      paddingHorizontal: spacing['4xl'],
+      gap: spacing.lg,
+    },
+    centredCompact: { paddingVertical: spacing['4xl'] },
+    emptyIcon: {
+      width: 52,
+      height: 52,
+      borderRadius: radius.lg,
+      backgroundColor: palette.surfaceChip,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.xs,
+    },
+    errorIcon: {
+      width: 52,
+      height: 52,
+      borderRadius: radius.lg,
+      backgroundColor: palette.dangerBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.xs,
+    },
+    emptyMessage: { maxWidth: 300 },
+    stateAction: { marginTop: spacing.md, alignSelf: 'center', paddingHorizontal: spacing['4xl'] },
 
-  compactError: { flexDirection: 'row', gap: spacing.lg, alignItems: 'flex-start' },
-  compactErrorText: { flex: 1 },
+    compactError: { flexDirection: 'row', gap: spacing.lg, alignItems: 'flex-start' },
+    compactErrorText: { flex: 1 },
 
-  offline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing['3xl'],
-    paddingVertical: spacing.xl,
-    backgroundColor: palette.warningBg,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.warningBorder,
-  },
-  offlineText: { flex: 1 },
+    offline: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingHorizontal: spacing['3xl'],
+      paddingVertical: spacing.xl,
+      backgroundColor: palette.warningBg,
+      borderBottomWidth: 1,
+      borderBottomColor: palette.warningBorder,
+    },
+    offlineText: { flex: 1 },
 
-  footerLoader: { paddingVertical: spacing['4xl'], alignItems: 'center' },
-});
+    footerLoader: { paddingVertical: spacing['4xl'], alignItems: 'center' },
+  })
+);

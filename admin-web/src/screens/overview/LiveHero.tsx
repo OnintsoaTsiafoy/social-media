@@ -32,7 +32,7 @@ export function LiveHero({ live, pages }: LiveHeroProps) {
             cy="145"
             r="144"
             fill="none"
-            stroke="#C4F04A"
+            stroke="var(--lime)"
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeDasharray="26 64"

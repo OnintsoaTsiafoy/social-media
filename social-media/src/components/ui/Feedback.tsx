@@ -11,7 +11,7 @@ import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, SlideInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { palette, radius, shadow, spacing } from '@/theme';
+import { palette, radius, shadow, spacing, themed } from '@/theme';
 
 import { Button } from './Button';
 import { Icon, type IconName } from './Icon';
@@ -157,11 +157,11 @@ export function useFeedback(): FeedbackValue {
   return context;
 }
 
-const toastTones: Record<ToastTone, { container: object; color: string; icon: IconName }> = {
-  success: { container: { backgroundColor: palette.night }, color: palette.lime, icon: 'checkCircle' },
-  error: { container: { backgroundColor: palette.dangerText }, color: palette.white, icon: 'priority' },
-  info: { container: { backgroundColor: palette.night }, color: palette.white, icon: 'info' },
-};
+const toastTones: Record<ToastTone, { container: object; color: string; icon: IconName }> = themed(() => ({
+  success: { container: { backgroundColor: palette.night }, color: palette.onNightAccent, icon: 'checkCircle' },
+  error: { container: { backgroundColor: palette.dangerFill }, color: palette.white, icon: 'priority' },
+  info: { container: { backgroundColor: palette.night }, color: palette.onNight, icon: 'info' },
+}));
 
 // ---------------------------------------------------------------------------
 // Bottom sheet
@@ -210,70 +210,72 @@ export function BottomSheet({ visible, onClose, title, headerAction, children, f
   );
 }
 
-const styles = StyleSheet.create({
-  toastHost: {
-    position: 'absolute',
-    left: spacing['4xl'],
-    right: spacing['4xl'],
-    gap: spacing.md,
-  },
-  toast: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xl,
-    paddingHorizontal: spacing['3xl'],
-    paddingVertical: spacing['2xl'],
-    borderRadius: radius.md,
-    ...shadow.card,
-  },
-  toastText: { flex: 1 },
+const styles = themed(() =>
+  StyleSheet.create({
+    toastHost: {
+      position: 'absolute',
+      left: spacing['4xl'],
+      right: spacing['4xl'],
+      gap: spacing.md,
+    },
+    toast: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xl,
+      paddingHorizontal: spacing['3xl'],
+      paddingVertical: spacing['2xl'],
+      borderRadius: radius.md,
+      ...shadow.card,
+    },
+    toastText: { flex: 1 },
 
-  dialogBackdrop: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing['4xl'],
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
-  },
-  backdropPress: { ...StyleSheet.absoluteFillObject },
-  dialog: {
-    width: '100%',
-    maxWidth: 400,
-    backgroundColor: palette.white,
-    borderRadius: radius.xl,
-    padding: spacing['5xl'],
-    ...shadow.card,
-  },
-  dialogMessage: { marginTop: spacing.md },
-  dialogActions: { flexDirection: 'row', gap: spacing.xl, marginTop: spacing['5xl'] },
-  dialogButton: { flex: 1 },
+    dialogBackdrop: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: spacing['4xl'],
+      backgroundColor: palette.backdrop,
+    },
+    backdropPress: { ...StyleSheet.absoluteFillObject },
+    dialog: {
+      width: '100%',
+      maxWidth: 400,
+      backgroundColor: palette.surface,
+      borderRadius: radius.xl,
+      padding: spacing['5xl'],
+      ...shadow.card,
+    },
+    dialogMessage: { marginTop: spacing.md },
+    dialogActions: { flexDirection: 'row', gap: spacing.xl, marginTop: spacing['5xl'] },
+    dialogButton: { flex: 1 },
 
-  sheetRoot: { flex: 1, justifyContent: 'flex-end' },
-  sheetBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15, 23, 42, 0.4)' },
-  sheet: {
-    backgroundColor: palette.white,
-    borderTopLeftRadius: radius['2xl'],
-    borderTopRightRadius: radius['2xl'],
-    paddingHorizontal: spacing['4xl'],
-    paddingTop: spacing['2xl'],
-    maxHeight: '90%',
-    ...shadow.sheet,
-  },
-  grabber: {
-    width: 44,
-    height: 4,
-    borderRadius: radius.pill,
-    backgroundColor: palette.trackAlt,
-    alignSelf: 'center',
-    marginBottom: spacing['3xl'],
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.xl,
-    marginBottom: spacing['3xl'],
-  },
-  sheetTitle: { flex: 1 },
-  sheetFooter: { marginTop: spacing['4xl'] },
-});
+    sheetRoot: { flex: 1, justifyContent: 'flex-end' },
+    sheetBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.backdrop },
+    sheet: {
+      backgroundColor: palette.surface,
+      borderTopLeftRadius: radius['2xl'],
+      borderTopRightRadius: radius['2xl'],
+      paddingHorizontal: spacing['4xl'],
+      paddingTop: spacing['2xl'],
+      maxHeight: '90%',
+      ...shadow.sheet,
+    },
+    grabber: {
+      width: 44,
+      height: 4,
+      borderRadius: radius.pill,
+      backgroundColor: palette.trackAlt,
+      alignSelf: 'center',
+      marginBottom: spacing['3xl'],
+    },
+    sheetHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.xl,
+      marginBottom: spacing['3xl'],
+    },
+    sheetTitle: { flex: 1 },
+    sheetFooter: { marginTop: spacing['4xl'] },
+  })
+);

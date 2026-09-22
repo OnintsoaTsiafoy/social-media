@@ -15,7 +15,7 @@ import {
 import { auth } from '@/data/api';
 import { useMutation } from '@/hooks/useAsync';
 import { checkPassword, passwordStrength, validateConfirmation, validatePassword } from '@/lib/validation';
-import { palette, radius, spacing } from '@/theme';
+import { palette, radius, spacing, themed } from '@/theme';
 
 /**
  * ÉCRAN 05 - Réinitialisation du mot de passe (`/reset-password`)
@@ -152,18 +152,20 @@ function Requirement({ met, label, optional = false }: { met: boolean; label: st
   );
 }
 
-const styles = StyleSheet.create({
-  subtitle: { marginTop: spacing.md, maxWidth: 340 },
-  form: { gap: spacing['3xl'] },
-  strength: { flexDirection: 'row', gap: spacing.sm },
-  strengthSegment: {
-    flex: 1,
-    height: 5,
-    borderRadius: radius.pill,
-    backgroundColor: palette.track,
-  },
-  strengthSegmentFilled: { backgroundColor: palette.lime },
-  checklist: { gap: spacing.md },
-  requirement: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  backLink: { paddingVertical: spacing.md },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    subtitle: { marginTop: spacing.md, maxWidth: 340 },
+    form: { gap: spacing['3xl'] },
+    strength: { flexDirection: 'row', gap: spacing.sm },
+    strengthSegment: {
+      flex: 1,
+      height: 5,
+      borderRadius: radius.pill,
+      backgroundColor: palette.track,
+    },
+    strengthSegmentFilled: { backgroundColor: palette.lime },
+    checklist: { gap: spacing.md },
+    requirement: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    backLink: { paddingVertical: spacing.md },
+  })
+);

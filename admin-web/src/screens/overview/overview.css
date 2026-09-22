@@ -17,7 +17,7 @@
   width: 340px;
   height: 340px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(196, 240, 74, 0.22), rgba(196, 240, 74, 0) 68%);
+  background: radial-gradient(circle, var(--lime-glow), rgba(76, 212, 54, 0) 68%);
   animation: glowBreathe 7s ease-in-out infinite;
   pointer-events: none;
 }
@@ -37,7 +37,7 @@
 .orbit__ring--outer { width: 290px; height: 290px; border: 1px solid var(--on-dark-fill); animation: orbit 44s linear infinite; }
 .orbit__ring--dashed { width: 210px; height: 210px; border: 1px dashed var(--on-dark-line); animation: orbitRev 30s linear infinite; }
 .orbit__ring--inner { width: 130px; height: 130px; border: 1px solid var(--on-dark-line); }
-.orbit__ring--halo { width: 130px; height: 130px; border: 1px solid rgba(196, 240, 74, 0.55); animation: haloPulse 3.4s ease-out infinite; }
+.orbit__ring--halo { width: 130px; height: 130px; border: 1px solid rgba(76, 212, 54, 0.55); animation: haloPulse 3.4s ease-out infinite; }
 .orbit__dash {
   position: absolute;
   transform: rotate(-90deg);
@@ -75,9 +75,9 @@
   justify-content: center;
   width: 126px;
   height: 126px;
-  border: 1px solid rgba(196, 240, 74, 0.35);
+  border: 1px solid rgba(76, 212, 54, 0.35);
   border-radius: 50%;
-  background: radial-gradient(circle at 34% 28%, rgba(196, 240, 74, 0.34), rgba(15, 23, 42, 0.9) 72%);
+  background: radial-gradient(circle at 34% 28%, rgba(76, 212, 54, 0.34), rgba(0, 10, 20, 0.9) 72%);
   animation: floaty 6s ease-in-out infinite;
 }
 .orbit__rate {
@@ -146,9 +146,9 @@
   font-weight: 600;
   transition: all 0.25s var(--ease-out);
 }
-.pill--all { padding: 8px 14px; --pill-bg: var(--lime); --pill-fg: var(--night); --pill-glow: 0 8px 22px var(--lime-shadow); }
-.pill--fb { --pill-bg: var(--white); --pill-fg: var(--fb-text); --pill-glow: 0 8px 22px rgba(59, 89, 152, 0.45); }
-.pill--ig { --pill-bg: var(--white); --pill-fg: var(--ig-text); --pill-glow: 0 8px 22px rgba(193, 53, 132, 0.4); }
+.pill--all { padding: 8px 14px; --pill-bg: var(--lime); --pill-fg: var(--on-lime); --pill-glow: 0 8px 22px var(--lime-shadow); }
+.pill--fb { --pill-bg: var(--surface); --pill-fg: var(--fb-text); --pill-glow: 0 8px 22px rgba(59, 89, 152, 0.45); }
+.pill--ig { --pill-bg: var(--surface); --pill-fg: var(--ig-text); --pill-glow: 0 8px 22px rgba(193, 53, 132, 0.4); }
 .pill:hover {
   transform: translateY(-2px);
 }
@@ -226,7 +226,7 @@
   padding: 16px 17px;
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: var(--white);
+  background: var(--surface);
   animation: fadeUp 0.5s ease backwards;
   transition:
     transform 0.25s ease,
@@ -412,7 +412,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: var(--white);
+  background: var(--surface);
 }
 .donut__value {
   font-size: 21px;

@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { autoGridCell, palette, radius, spacing } from '@/theme';
+import { autoGridCell, palette, radius, spacing, themed } from '@/theme';
 
 import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
@@ -97,22 +97,24 @@ export function MetricCard({
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: radius.lg,
-    backgroundColor: palette.white,
-    padding: spacing['2xl'],
-    gap: spacing.xxs,
-  },
-  cardDanger: { borderColor: palette.dangerBorder, backgroundColor: palette.dangerSurface },
-  pressed: { opacity: 0.75 },
-  value: { marginTop: spacing.sm },
-  /** "Non disponible" needs to fit, so it renders smaller than a number. */
-  valueUnavailable: { fontSize: 15, lineHeight: 20, marginTop: spacing.lg },
-  delta: { marginTop: spacing.xxs },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    card: {
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: radius.lg,
+      backgroundColor: palette.surface,
+      padding: spacing['2xl'],
+      gap: spacing.xxs,
+    },
+    cardDanger: { borderColor: palette.dangerBorder, backgroundColor: palette.dangerSurface },
+    pressed: { opacity: 0.75 },
+    value: { marginTop: spacing.sm },
+    /** "Non disponible" needs to fit, so it renders smaller than a number. */
+    valueUnavailable: { fontSize: 15, lineHeight: 20, marginTop: spacing.lg },
+    delta: { marginTop: spacing.xxs },
+  })
+);
 
 /** Wrapping container for a row of metric cards. */
 export function MetricGrid({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {

@@ -1,6 +1,6 @@
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { palette, radius, spacing } from '@/theme';
+import { palette, radius, spacing, themed } from '@/theme';
 import type {
   AccountStatus,
   Intent,
@@ -37,14 +37,14 @@ export function Badge({ label, tone = 'neutral', icon, style }: BadgeProps) {
   );
 }
 
-const toneColors: Record<BadgeTone, { background: string; foreground: string }> = {
+const toneColors: Record<BadgeTone, { background: string; foreground: string }> = themed(() => ({
   neutral: { background: palette.surfaceChip, foreground: palette.inkMuted },
   danger: { background: palette.dangerBg, foreground: palette.dangerText },
   warning: { background: palette.warningBg, foreground: palette.warningText },
   success: { background: palette.successBg, foreground: palette.successText },
   info: { background: palette.infoBg, foreground: palette.infoText },
-  accent: { background: palette.lime, foreground: palette.night },
-};
+  accent: { background: palette.lime, foreground: palette.onLime },
+}));
 
 const styles = StyleSheet.create({
   badge: {
@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
 // Domain mappings - a single place that decides how a value is worded and toned.
 // ---------------------------------------------------------------------------
 
-export const publicationStatusMeta: Record<PublicationStatus, { label: string; tone: BadgeTone; color: string }> = {
+export const publicationStatusMeta: Record<PublicationStatus, { label: string; tone: BadgeTone; color: string }> = themed(() => ({
   draft: { label: 'Brouillon', tone: 'neutral', color: palette.inkDisabled },
   pending_approval: { label: 'En attente d’approbation', tone: 'warning', color: palette.warning },
   approved: { label: 'Approuvée', tone: 'success', color: palette.lime },
@@ -73,13 +73,13 @@ export const publicationStatusMeta: Record<PublicationStatus, { label: string; t
   partially_published: { label: 'Partiellement publiée', tone: 'danger', color: palette.danger },
   failed: { label: 'Échouée', tone: 'danger', color: palette.danger },
   cancelled: { label: 'Annulée', tone: 'neutral', color: palette.inkDisabled },
-};
+}));
 
-export const priorityMeta: Record<Priority, { label: string; tone: BadgeTone; color: string }> = {
+export const priorityMeta: Record<Priority, { label: string; tone: BadgeTone; color: string }> = themed(() => ({
   low: { label: 'Faible', tone: 'neutral', color: palette.lime },
   medium: { label: 'Moyenne', tone: 'warning', color: palette.warning },
   high: { label: 'Élevée', tone: 'danger', color: palette.danger },
-};
+}));
 
 export const sentimentMeta: Record<Sentiment, { label: string; tone: BadgeTone }> = {
   positive: { label: 'Positif', tone: 'success' },
@@ -110,10 +110,10 @@ export const targetStatusMeta: Record<TargetStatus, { label: string; tone: Badge
   failed: { label: 'Échec', tone: 'danger' },
 };
 
-export const networkMeta: Record<SocialNetwork, { label: string; background: string; foreground: string }> = {
+export const networkMeta: Record<SocialNetwork, { label: string; background: string; foreground: string }> = themed(() => ({
   facebook: { label: 'Facebook', background: palette.facebookBg, foreground: palette.facebookFg },
   instagram: { label: 'Instagram', background: palette.instagramBg, foreground: palette.instagramFg },
-};
+}));
 
 /** Square network avatar - `f` for Facebook, a camera ring for Instagram. */
 export function NetworkBadge({ network, size = 42 }: { network: SocialNetwork; size?: number }) {

@@ -1,6 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { control, palette, radius } from '@/theme';
+import { control, palette, radius, themed } from '@/theme';
 
 import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
@@ -32,7 +32,7 @@ export function IconButton({
   style,
 }: IconButtonProps) {
   const isDisabled = disabled || loading;
-  const iconColor = variant === 'accent' ? palette.night : palette.inkBody;
+  const iconColor = variant === 'accent' ? palette.onLime : palette.inkBody;
 
   return (
     <Pressable
@@ -66,25 +66,27 @@ export function IconButton({
   );
 }
 
-const styles = StyleSheet.create({
-  base: { alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
-  outline: { borderWidth: 1, borderColor: palette.border, backgroundColor: palette.white },
-  accent: { backgroundColor: palette.lime },
-  pressed: { opacity: 0.7 },
-  disabled: { opacity: 0.4 },
-  badge: {
-    position: 'absolute',
-    top: -5,
-    right: -5,
-    minWidth: 19,
-    height: 19,
-    paddingHorizontal: 4,
-    borderRadius: radius.pill,
-    backgroundColor: palette.danger,
-    borderWidth: 2,
-    borderColor: palette.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeLabel: { fontSize: 10, lineHeight: 13 },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    base: { alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
+    outline: { borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    accent: { backgroundColor: palette.lime },
+    pressed: { opacity: 0.7 },
+    disabled: { opacity: 0.4 },
+    badge: {
+      position: 'absolute',
+      top: -5,
+      right: -5,
+      minWidth: 19,
+      height: 19,
+      paddingHorizontal: 4,
+      borderRadius: radius.pill,
+      backgroundColor: palette.danger,
+      borderWidth: 2,
+      borderColor: palette.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    badgeLabel: { fontSize: 10, lineHeight: 13 },
+  })
+);

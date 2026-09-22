@@ -44,7 +44,7 @@
   padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--white);
+  background: var(--surface);
   transition: border-color 0.2s ease;
 }
 .user-search:hover,
@@ -160,5 +160,5 @@
 }
 .user-row:hover .user-row__more {
   background: var(--chip);
-  color: var(--night);
+  color: var(--ink);
 }

@@ -34,20 +34,20 @@ export function AutonomyPanel({ settings, distribution, performance, onThreshold
         <div className="ring" aria-hidden="true">
           <div className="ring__glow" />
           <svg width="146" height="146" viewBox="0 0 146 146">
-            <circle cx="73" cy="73" r="62" fill="none" stroke="#F4F5F6" strokeWidth="11" />
+            <circle cx="73" cy="73" r="62" fill="none" stroke="var(--chip)" strokeWidth="11" />
             <circle
               className="ring__progress"
               cx="73"
               cy="73"
               r="62"
               fill="none"
-              stroke="#C4F04A"
+              stroke="var(--lime)"
               strokeWidth="11"
               strokeLinecap="round"
               strokeDasharray={RING_LENGTH}
               strokeDashoffset={RING_LENGTH - (threshold / 100) * RING_LENGTH}
             />
-            <circle cx="73" cy="73" r="50" fill="none" stroke="#ECEDEF" strokeWidth="1" strokeDasharray="3 7" />
+            <circle cx="73" cy="73" r="50" fill="none" stroke="var(--border)" strokeWidth="1" strokeDasharray="3 7" />
           </svg>
           <div className="ring__value">
             <div className="ring__number">

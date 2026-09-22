@@ -9,7 +9,6 @@ import {
 import * as Notifications from 'expo-notifications';
 import { Stack, useRouter, type Href } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -26,6 +25,7 @@ import {
 } from '@/lib/pushNotifications';
 import { ComposerProvider } from '@/store/ComposerProvider';
 import { SessionProvider, useSession } from '@/store/SessionProvider';
+import { ThemeProvider } from '@/store/ThemeProvider';
 import { palette } from '@/theme';
 
 /**
@@ -119,34 +119,35 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <SessionProvider>
-          <FeedbackProvider>
-            <ComposerProvider>
-              <PushNotificationsBridge />
-              <StatusBar style="dark" />
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: palette.white },
-                  animation: 'slide_from_right',
-                }}
-              >
-                <Stack.Screen name="index" options={{ animation: 'none' }} />
-                <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
-                <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+          <PushNotificationsBridge />
+          <ThemeProvider>
+            <FeedbackProvider>
+              <ComposerProvider>
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: palette.background },
+                    animation: 'slide_from_right',
+                  }}
+                >
+                  <Stack.Screen name="index" options={{ animation: 'none' }} />
+                  <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
+                  <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
 
-                {/* Bottom-sheet style flows presented over the current screen. */}
-                <Stack.Screen
-                  name="media-picker"
-                  options={{ presentation: 'transparentModal', animation: 'none' }}
-                />
-                <Stack.Screen
-                  name="hashtags"
-                  options={{ presentation: 'transparentModal', animation: 'none' }}
-                />
-                <Stack.Screen name="comments/[id]/response" options={{ presentation: 'modal' }} />
-              </Stack>
-            </ComposerProvider>
-          </FeedbackProvider>
+                  {/* Bottom-sheet style flows presented over the current screen. */}
+                  <Stack.Screen
+                    name="media-picker"
+                    options={{ presentation: 'transparentModal', animation: 'none' }}
+                  />
+                  <Stack.Screen
+                    name="hashtags"
+                    options={{ presentation: 'transparentModal', animation: 'none' }}
+                  />
+                  <Stack.Screen name="comments/[id]/response" options={{ presentation: 'modal' }} />
+                </Stack>
+              </ComposerProvider>
+            </FeedbackProvider>
+          </ThemeProvider>
         </SessionProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

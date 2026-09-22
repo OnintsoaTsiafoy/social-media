@@ -10,7 +10,7 @@
   padding: 18px;
   border: 1px solid var(--border);
   border-radius: 18px;
-  background: var(--white);
+  background: var(--surface);
   animation: fadeUp 0.45s ease backwards;
   transition:
     transform 0.25s ease,
@@ -83,7 +83,7 @@
   height: 26px;
   /* The mock-up overlaps by 8px, which hides the second initial of the avatar underneath. */
   margin-right: -6px;
-  border: 2px solid var(--white);
+  border: 2px solid var(--surface);
   border-radius: 50%;
   background: var(--chip);
   font-size: 10px;
@@ -142,7 +142,7 @@
 .pg-add:hover {
   border-color: var(--lime);
   background: var(--tab-active);
-  color: var(--night);
+  color: var(--ink);
 }
 .pg-add__plus {
   display: flex;

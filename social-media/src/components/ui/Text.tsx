@@ -1,6 +1,6 @@
 import { StyleSheet, Text as RNText, type TextProps as RNTextProps } from 'react-native';
 
-import { fontFamily, fontScaleCap, fontSize, lineHeight, palette, type FontWeight } from '@/theme';
+import { fontFamily, fontScaleCap, fontSize, lineHeight, palette, themed, type FontWeight } from '@/theme';
 
 export type TextVariant =
   | 'display'
@@ -49,29 +49,31 @@ export function Text({ variant = 'body', weight, color, center, style, ...rest }
   );
 }
 
-const styles = StyleSheet.create({
-  base: { color: palette.ink },
-  center: { textAlign: 'center' },
+const styles = themed(() =>
+  StyleSheet.create({
+    base: { color: palette.ink },
+    center: { textAlign: 'center' },
 
-  displayLg: { fontSize: fontSize.displayLg, lineHeight: lineHeight.displayLg },
-  display: { fontSize: fontSize.display, lineHeight: lineHeight.display },
-  title1: { fontSize: fontSize.title1, lineHeight: lineHeight.title1 },
-  title2: { fontSize: fontSize.title2, lineHeight: lineHeight.title2 },
-  title3: { fontSize: fontSize.title3, lineHeight: lineHeight.title3 },
-  callout: { fontSize: fontSize.callout, lineHeight: lineHeight.callout },
-  bodyLg: { fontSize: fontSize.bodyLg, lineHeight: lineHeight.bodyLg },
-  body: { fontSize: fontSize.body, lineHeight: lineHeight.body },
-  footnote: { fontSize: fontSize.footnote, lineHeight: lineHeight.footnote },
-  caption: { fontSize: fontSize.caption, lineHeight: lineHeight.caption },
-  micro: { fontSize: fontSize.micro, lineHeight: lineHeight.micro },
-  eyebrow: {
-    fontSize: fontSize.micro,
-    lineHeight: lineHeight.micro,
-    letterSpacing: 0.7,
-    textTransform: 'uppercase',
-    color: palette.inkFaint,
-  },
-});
+    displayLg: { fontSize: fontSize.displayLg, lineHeight: lineHeight.displayLg },
+    display: { fontSize: fontSize.display, lineHeight: lineHeight.display },
+    title1: { fontSize: fontSize.title1, lineHeight: lineHeight.title1 },
+    title2: { fontSize: fontSize.title2, lineHeight: lineHeight.title2 },
+    title3: { fontSize: fontSize.title3, lineHeight: lineHeight.title3 },
+    callout: { fontSize: fontSize.callout, lineHeight: lineHeight.callout },
+    bodyLg: { fontSize: fontSize.bodyLg, lineHeight: lineHeight.bodyLg },
+    body: { fontSize: fontSize.body, lineHeight: lineHeight.body },
+    footnote: { fontSize: fontSize.footnote, lineHeight: lineHeight.footnote },
+    caption: { fontSize: fontSize.caption, lineHeight: lineHeight.caption },
+    micro: { fontSize: fontSize.micro, lineHeight: lineHeight.micro },
+    eyebrow: {
+      fontSize: fontSize.micro,
+      lineHeight: lineHeight.micro,
+      letterSpacing: 0.7,
+      textTransform: 'uppercase',
+      color: palette.inkFaint,
+    },
+  })
+);
 
 const presets: Record<TextVariant, { style: object; weight: FontWeight; scaleCap: number }> = {
   displayLg: { style: styles.displayLg, weight: 'extrabold', scaleCap: fontScaleCap.dense },

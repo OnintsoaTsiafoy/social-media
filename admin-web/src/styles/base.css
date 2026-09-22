@@ -8,7 +8,7 @@ body {
   margin: 0;
   background: var(--bg);
   font-family: var(--font-sans);
-  color: var(--night);
+  color: var(--ink);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -24,7 +24,7 @@ a {
   text-decoration: none;
 }
 a:hover {
-  color: var(--night);
+  color: var(--ink);
 }
 
 input,
@@ -33,6 +33,11 @@ select,
 textarea {
   font: inherit;
   outline: none;
+}
+/* Sans fond explicite, un champ prend le gris du navigateur en thème sombre. */
+:where(input:not([type="checkbox"], [type="radio"], [type="range"]), select, textarea) {
+  background-color: var(--surface);
+  color: var(--ink);
 }
 
 button {
@@ -90,7 +95,7 @@ button {
 @keyframes slideInRight { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
 @keyframes popIn { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
 @keyframes drawLine { to { stroke-dashoffset: 0; } }
-@keyframes pulseDot { 0%, 100% { box-shadow: 0 0 0 0 rgba(150, 196, 40, 0.55); } 70% { box-shadow: 0 0 0 7px rgba(150, 196, 40, 0); } }
+@keyframes pulseDot { 0%, 100% { box-shadow: 0 0 0 0 rgba(59, 168, 42, 0.55); } 70% { box-shadow: 0 0 0 7px rgba(59, 168, 42, 0); } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes toastIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @keyframes orbit { to { transform: rotate(360deg); } }
@@ -105,7 +110,7 @@ button {
 @keyframes shimmer { 0% { background-position: -380px 0; } 100% { background-position: 380px 0; } }
 @keyframes growX { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes bounceDot { 0%, 80%, 100% { transform: translateY(0); opacity: 0.45; } 40% { transform: translateY(-4px); opacity: 1; } }
-@keyframes stepGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(150, 196, 40, 0.45); } 60% { box-shadow: 0 0 0 9px rgba(150, 196, 40, 0); } }
+@keyframes stepGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(59, 168, 42, 0.45); } 60% { box-shadow: 0 0 0 9px rgba(59, 168, 42, 0); } }
 @keyframes popScale { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 /* The console is animation-heavy (orbits, glows, shimmer); honour the OS setting. */

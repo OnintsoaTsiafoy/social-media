@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { BellIcon, SearchIcon } from "@/components/icons";
 import { LocaleSwitch } from "@/components/LocaleSwitch";
+import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { useI18n } from "@/i18n";
 import { useAdmin } from "@/state/AdminContext";
 import { hrefFor } from "@/state/useRoute";
@@ -63,6 +64,7 @@ export function Topbar() {
           />
           <kbd aria-hidden="true">⌘K</kbd>
         </form>
+        <ThemeSwitch />
         <LocaleSwitch />
         <button
           type="button"

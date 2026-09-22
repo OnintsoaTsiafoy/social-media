@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { control, palette, radius, spacing } from '@/theme';
+import { control, palette, radius, spacing, themed } from '@/theme';
 
 import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
@@ -33,8 +33,8 @@ export function Chip({
 }: ChipProps) {
   const foreground = selected
     ? variant === 'filter'
-      ? palette.white
-      : palette.night
+      ? palette.onNight
+      : palette.onLime
     : variant === 'tag'
       ? palette.inkBody
       : palette.inkBody;
@@ -81,25 +81,27 @@ function variantStyle(variant: NonNullable<ChipProps['variant']>, selected: bool
   return selected ? styles.filterSelected : styles.unselected;
 }
 
-const styles = StyleSheet.create({
-  base: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    minHeight: control.chipHeight,
-    paddingHorizontal: spacing['2xl'],
-    paddingVertical: spacing.md,
-    borderRadius: radius.pill,
-  },
-  unselected: { borderWidth: 1, borderColor: palette.border, backgroundColor: palette.white },
-  filterSelected: { backgroundColor: palette.night },
-  choiceSelected: { backgroundColor: palette.lime },
-  tag: { backgroundColor: palette.surfaceChip },
-  tagSelected: { backgroundColor: palette.lime },
-  dashed: { borderWidth: 1, borderStyle: 'dashed', borderColor: palette.borderStrong },
-  pressed: { opacity: 0.75 },
-  disabled: { opacity: 0.45 },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    base: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      minHeight: control.chipHeight,
+      paddingHorizontal: spacing['2xl'],
+      paddingVertical: spacing.md,
+      borderRadius: radius.pill,
+    },
+    unselected: { borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+    filterSelected: { backgroundColor: palette.night },
+    choiceSelected: { backgroundColor: palette.lime },
+    tag: { backgroundColor: palette.surfaceChip },
+    tagSelected: { backgroundColor: palette.lime },
+    dashed: { borderWidth: 1, borderStyle: 'dashed', borderColor: palette.borderStrong },
+    pressed: { opacity: 0.75 },
+    disabled: { opacity: 0.45 },
+  })
+);
 
 /**
  * Horizontally scrolling row of filter chips. Scrolls rather than wrapping so

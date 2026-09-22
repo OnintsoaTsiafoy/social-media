@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View, type StyleProp, type ViewProps, type ViewStyle } from 'react-native';
 
-import { palette, radius, spacing } from '@/theme';
+import { palette, radius, spacing, themed } from '@/theme';
 
 export type CardTone = 'default' | 'danger' | 'warning' | 'success' | 'info' | 'muted' | 'dashed';
 
@@ -88,24 +88,26 @@ export function CardPressArea({ onPress, accessibilityLabel, style, children }: 
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.white,
-  },
-  padded: { padding: spacing['2xl'] },
-  pressed: { opacity: 0.75 },
+const styles = themed(() =>
+  StyleSheet.create({
+    base: {
+      borderRadius: radius.xl,
+      borderWidth: 1,
+      borderColor: palette.border,
+      backgroundColor: palette.surface,
+    },
+    padded: { padding: spacing['2xl'] },
+    pressed: { opacity: 0.75 },
 
-  default: {},
-  danger: { borderColor: palette.dangerBorder, backgroundColor: palette.dangerSurfaceSoft },
-  warning: { borderColor: palette.warningBorder, backgroundColor: palette.warningSurface },
-  success: { borderColor: palette.successBorder, backgroundColor: palette.successSurface },
-  info: { borderColor: palette.infoBorder, backgroundColor: palette.infoBg },
-  muted: { borderColor: 'transparent', backgroundColor: palette.surfaceMuted },
-  dashed: { borderStyle: 'dashed', borderColor: palette.borderStrong, backgroundColor: palette.white },
-});
+    default: {},
+    danger: { borderColor: palette.dangerBorder, backgroundColor: palette.dangerSurfaceSoft },
+    warning: { borderColor: palette.warningBorder, backgroundColor: palette.warningSurface },
+    success: { borderColor: palette.successBorder, backgroundColor: palette.successSurface },
+    info: { borderColor: palette.infoBorder, backgroundColor: palette.infoBg },
+    muted: { borderColor: 'transparent', backgroundColor: palette.surfaceMuted },
+    dashed: { borderStyle: 'dashed', borderColor: palette.borderStrong, backgroundColor: palette.surface },
+  })
+);
 
 const tones: Record<CardTone, ViewStyle> = {
   default: styles.default,
@@ -122,6 +124,8 @@ export function Divider({ style }: { style?: StyleProp<ViewStyle> }) {
   return <View style={[dividerStyles.line, style]} />;
 }
 
-const dividerStyles = StyleSheet.create({
-  line: { height: 1, backgroundColor: palette.divider },
-});
+const dividerStyles = themed(() =>
+  StyleSheet.create({
+    line: { height: 1, backgroundColor: palette.divider },
+  })
+);

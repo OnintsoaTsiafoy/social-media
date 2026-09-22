@@ -11,6 +11,8 @@
   position: absolute;
   top: 20px;
   right: 24px;
+  display: flex;
+  gap: 8px;
 }
 .login__card {
   display: flex;
@@ -21,7 +23,7 @@
   padding: 32px;
   border: 1px solid var(--border);
   border-radius: 20px;
-  background: var(--white);
+  background: var(--surface);
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
   animation: fadeUp 0.5s ease backwards;
 }
@@ -50,9 +52,9 @@
   padding: 11px 13px;
   border: 1px solid var(--border-strong);
   border-radius: 10px;
-  background: var(--white);
+  background: var(--surface);
   font-size: 14px;
-  color: var(--night);
+  color: var(--ink);
 }
 .login__field input:focus {
   border-color: var(--lime-deep);

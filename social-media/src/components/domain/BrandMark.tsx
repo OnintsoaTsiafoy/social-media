@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-import { palette } from '@/theme';
+import { palette, themed } from '@/theme';
 
 /** The Hootly mark: night square with a lime dot. */
 export function BrandMark({ size = 42 }: { size?: number }) {
@@ -14,6 +14,8 @@ export function BrandMark({ size = 42 }: { size?: number }) {
   );
 }
 
-const styles = StyleSheet.create({
-  mark: { backgroundColor: palette.night, alignItems: 'center', justifyContent: 'center' },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    mark: { backgroundColor: palette.night, alignItems: 'center', justifyContent: 'center' },
+  })
+);

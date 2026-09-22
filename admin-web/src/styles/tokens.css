@@ -1,13 +1,28 @@
-/* Palette from the design's colour note ("code couleur"). */
+/*
+ * Palette BICI (bici.mg) : accent vert #4CD436, nuit #000A14.
+ * Deux jeux de valeurs pour les mêmes noms : clair (défaut) et sombre. Le
+ * sombre s'applique avec `data-theme="dark"` sur <html>, ou quand le système
+ * est en sombre et qu'aucun thème n'est forcé (`data-theme` absent).
+ *
+ * Rôles : `--bg` fond de page, `--surface` cartes et champs, `--ink` texte
+ * principal, `--night` aplat sombre (héros, bouton sombre, info-bulle) qui
+ * porte du texte `--white` ou `--lime`, `--on-lime` texte posé sur l'accent.
+ */
 :root {
+  color-scheme: light;
+
   /* Brand */
-  --night: #0f172a;
-  --lime: #c4f04a;
-  --lime-deep: #96c428;
-  --lime-shadow: rgba(150, 196, 40, 0.42);
+  --night: #000a14;
+  --lime: #4cd436;
+  --lime-deep: #3ba82a;
+  --lime-shadow: rgba(76, 212, 54, 0.4);
+  --lime-glow: rgba(76, 212, 54, 0.22);
+  --on-lime: #020700;
+  --ink: #000a14;
 
   /* Neutrals */
   --white: #ffffff;
+  --surface: #ffffff;
   --bg: #f8f9fa;
   --chip: #f4f5f6;
   --border: #ecedef;
@@ -19,6 +34,7 @@
   --text-faint: #9aa1ad;
   --disabled: #b3b9c4;
   --ghost: #c3c8d1;
+  --glass: rgba(255, 255, 255, 0.74);
 
   /* States */
   --danger: #f9736b;
@@ -27,8 +43,8 @@
   --warning: #f6c453;
   --warning-text: #8a5b12;
   --warning-bg: #fff8ec;
-  --success-text: #4d6414;
-  --success-bg: #f6fbe9;
+  --success-text: #237a15;
+  --success-bg: #eefbeb;
   --info: #6fd0e8;
   --info-text: #1c6f85;
   --info-bg: #eef8fb;
@@ -40,17 +56,58 @@
   --ig-text: #c13584;
 
   /* Other */
-  --tab-active: #f4fae4;
+  --tab-active: #e9f9e5;
   --on-dark: rgba(255, 255, 255, 0.74);
   --on-dark-muted: rgba(255, 255, 255, 0.62);
   --on-dark-fill: rgba(255, 255, 255, 0.08);
   --on-dark-fill-hover: rgba(255, 255, 255, 0.16);
   --on-dark-line: rgba(255, 255, 255, 0.12);
-  --backdrop: rgba(15, 23, 42, 0.45);
+  --backdrop: rgba(0, 10, 20, 0.45);
 
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --font-sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
   --font-mono: "IBM Plex Mono", monospace;
+}
+
+/* Thème sombre : le rendu du site BICI (fond noir, cartes bleu nuit, texte blanc). */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --night: #1a2533;
+  --lime-shadow: rgba(76, 212, 54, 0.3);
+  --lime-glow: rgba(76, 212, 54, 0.18);
+  --ink: #ffffff;
+
+  --surface: #0a1019;
+  --bg: #020509;
+  --chip: #141d29;
+  --border: #1c2530;
+  --border-strong: #28323e;
+  --text-body: #c4c8ce;
+  --text-muted: #98a2b3;
+  --text-subtle: #8a94a6;
+  --placeholder: #6b7688;
+  --text-faint: #7d8799;
+  --disabled: #5a6475;
+  --ghost: #3e4757;
+  --glass: rgba(2, 5, 9, 0.74);
+
+  --danger-text: #ff9a92;
+  --danger-bg: #2a1416;
+  --warning-text: #f6c453;
+  --warning-bg: #261e0c;
+  --success-text: #6fe35c;
+  --success-bg: #0f2410;
+  --info-text: #7fd8ee;
+  --info-bg: #0c2129;
+
+  --fb-bg: #141e33;
+  --fb-text: #8fa8e0;
+  --ig-bg: #2a1422;
+  --ig-text: #f07ab8;
+
+  --tab-active: #12301a;
+  --backdrop: rgba(0, 0, 0, 0.6);
 }
 
 /*

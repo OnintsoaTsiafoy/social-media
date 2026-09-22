@@ -67,8 +67,8 @@ export function SettingsIcon() {
 export function SearchIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <circle cx="7" cy="7" r="4.8" stroke="#A2A8B3" strokeWidth="1.5" />
-      <path d="M10.6 10.6 14 14" stroke="#A2A8B3" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="7" cy="7" r="4.8" stroke="var(--placeholder)" strokeWidth="1.5" />
+      <path d="M10.6 10.6 14 14" stroke="var(--placeholder)" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }
@@ -76,8 +76,8 @@ export function SearchIcon() {
 export function BellIcon() {
   return (
     <Icon16>
-      <path d="M4 6.6a4 4 0 0 1 8 0c0 3 1 4 1 4H3s1-1 1-4Z" stroke="#3F4653" strokeWidth="1.4" strokeLinejoin="round" />
-      <path d="M6.6 13a1.6 1.6 0 0 0 2.8 0" stroke="#3F4653" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M4 6.6a4 4 0 0 1 8 0c0 3 1 4 1 4H3s1-1 1-4Z" stroke="var(--text-body)" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M6.6 13a1.6 1.6 0 0 0 2.8 0" stroke="var(--text-body)" strokeWidth="1.4" strokeLinecap="round" />
     </Icon16>
   );
 }
@@ -85,7 +85,7 @@ export function BellIcon() {
 export function ChevronDownIcon() {
   return (
     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-      <path d="m2 4 3 3 3-3" stroke="#6B7280" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="m2 4 3 3 3-3" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }

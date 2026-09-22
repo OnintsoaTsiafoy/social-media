@@ -21,7 +21,7 @@ import { formatFileSize, formatMimeType } from '@/lib/format';
 import { MEDIA_CONSTRAINTS, validateMedia } from '@/lib/validation';
 import { useComposer } from '@/store/ComposerProvider';
 import { useSession } from '@/store/SessionProvider';
-import { palette, spacing } from '@/theme';
+import { palette, spacing, themed } from '@/theme';
 import type { MediaAsset } from '@/types';
 
 type Source = { key: 'gallery' | 'camera' | 'files'; label: string; icon: IconName };
@@ -225,20 +225,22 @@ export default function MediaPickerScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  sources: { flexDirection: 'row', gap: spacing.lg, marginBottom: spacing['3xl'] },
-  source: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 16,
-    padding: spacing['2xl'],
-    gap: spacing.md,
-  },
-  sourcePressed: { opacity: 0.7, backgroundColor: palette.surfaceMuted },
-  previewCard: { gap: spacing.xl },
-  constraints: { gap: spacing.md },
-  settingsLink: { marginTop: spacing.lg },
-  footerRow: { flexDirection: 'row', gap: spacing.lg },
-  footerButton: { flex: 1 },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    sources: { flexDirection: 'row', gap: spacing.lg, marginBottom: spacing['3xl'] },
+    source: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: 16,
+      padding: spacing['2xl'],
+      gap: spacing.md,
+    },
+    sourcePressed: { opacity: 0.7, backgroundColor: palette.surfaceMuted },
+    previewCard: { gap: spacing.xl },
+    constraints: { gap: spacing.md },
+    settingsLink: { marginTop: spacing.lg },
+    footerRow: { flexDirection: 'row', gap: spacing.lg },
+    footerButton: { flex: 1 },
+  })
+);

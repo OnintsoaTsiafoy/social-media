@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { palette, radius, spacing } from '@/theme';
+import { palette, radius, spacing, themed } from '@/theme';
 
 import { Text } from './Text';
 
@@ -145,42 +145,44 @@ export function ProgressBar({
   );
 }
 
-const styles = StyleSheet.create({
-  avatar: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    backgroundColor: palette.skeleton,
-    borderColor: palette.lime,
-  },
-  thumbnail: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    backgroundColor: palette.skeleton,
-  },
-  preview: {
-    borderRadius: radius.xl,
-    overflow: 'hidden',
-    backgroundColor: palette.skeleton,
-    justifyContent: 'flex-end',
-    padding: spacing.xl,
-  },
-  fill: { width: '100%', height: '100%' },
-  fileTag: {
-    alignSelf: 'flex-start',
-    backgroundColor: palette.white,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.xs,
-    maxWidth: '100%',
-  },
-  progressLabel: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: spacing.sm,
-  },
-  track: { backgroundColor: palette.track, overflow: 'hidden' },
-  fillBar: { height: '100%' },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    avatar: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+      backgroundColor: palette.skeleton,
+      borderColor: palette.lime,
+    },
+    thumbnail: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+      backgroundColor: palette.skeleton,
+    },
+    preview: {
+      borderRadius: radius.xl,
+      overflow: 'hidden',
+      backgroundColor: palette.skeleton,
+      justifyContent: 'flex-end',
+      padding: spacing.xl,
+    },
+    fill: { width: '100%', height: '100%' },
+    fileTag: {
+      alignSelf: 'flex-start',
+      backgroundColor: palette.surface,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+      borderRadius: radius.xs,
+      maxWidth: '100%',
+    },
+    progressLabel: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+      marginBottom: spacing.sm,
+    },
+    track: { backgroundColor: palette.track, overflow: 'hidden' },
+    fillBar: { height: '100%' },
+  })
+);

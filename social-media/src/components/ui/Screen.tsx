@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { palette, spacing, useResponsive } from '@/theme';
+import { palette, spacing, themed, useResponsive } from '@/theme';
 
 import { OfflineBanner } from './States';
 
@@ -150,22 +150,24 @@ export function useBottomContentInset(extra: number = spacing['6xl']): number {
   return (tabBarHeight ?? insets.bottom) + extra;
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: palette.white },
-  rootDark: { backgroundColor: palette.night },
-  flex: { flex: 1 },
-  headerSlot: { zIndex: 2 },
-  column: { width: '100%' },
-  /** Vertical rhythm between the sections a screen passes as children. */
-  stack: { gap: spacing['3xl'] },
-  scrollContent: { flexGrow: 1 },
-  centredContent: { justifyContent: 'center' },
-  footer: {
-    borderTopWidth: 1,
-    borderTopColor: palette.dividerSoft,
-    backgroundColor: palette.white,
-    paddingTop: spacing['3xl'],
-    alignItems: 'stretch',
-  },
-  footerDark: { backgroundColor: palette.night, borderTopColor: 'rgba(255,255,255,0.12)' },
-});
+const styles = themed(() =>
+  StyleSheet.create({
+    root: { flex: 1, backgroundColor: palette.background },
+    rootDark: { backgroundColor: palette.brandNight },
+    flex: { flex: 1 },
+    headerSlot: { zIndex: 2 },
+    column: { width: '100%' },
+    /** Vertical rhythm between the sections a screen passes as children. */
+    stack: { gap: spacing['3xl'] },
+    scrollContent: { flexGrow: 1 },
+    centredContent: { justifyContent: 'center' },
+    footer: {
+      borderTopWidth: 1,
+      borderTopColor: palette.dividerSoft,
+      backgroundColor: palette.background,
+      paddingTop: spacing['3xl'],
+      alignItems: 'stretch',
+    },
+    footerDark: { backgroundColor: palette.brandNight, borderTopColor: 'rgba(255,255,255,0.12)' },
+  })
+);

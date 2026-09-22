@@ -8,6 +8,7 @@ import {
   Divider,
   ListRow,
   Screen,
+  SegmentedControl,
   Text,
   useFeedback,
 } from '@/components/ui';
@@ -15,7 +16,14 @@ import { accountsApi } from '@/data/api';
 import { useAsync } from '@/hooks/useAsync';
 import { LANGUAGE_OPTIONS, TIMEZONE_OPTIONS } from '@/data/options';
 import { useSession } from '@/store/SessionProvider';
-import { palette, spacing } from '@/theme';
+import { useTheme } from '@/store/ThemeProvider';
+import { palette, spacing, type ThemePreference } from '@/theme';
+
+const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
+  { value: 'system', label: 'Système' },
+  { value: 'light', label: 'Clair' },
+  { value: 'dark', label: 'Sombre' },
+];
 
 /**
  * ÉCRAN 26 - Paramètres généraux (`/settings`)
@@ -27,6 +35,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { user, brand, signOut } = useSession();
   const { confirm, toast } = useFeedback();
+  const { preference, setPreference } = useTheme();
 
   const accounts = useAsync(() => accountsApi.list(brand?.id ?? '', brand?.name ?? ''), []);
 
@@ -79,6 +88,19 @@ export default function SettingsScreen() {
           }
         />
       </Group>
+
+      <View style={styles.group}>
+        <Text variant="eyebrow">Apparence</Text>
+        <SegmentedControl
+          label="Thème de l’application"
+          value={preference}
+          options={THEME_OPTIONS}
+          onChange={setPreference}
+        />
+        <Text variant="footnote" color={palette.inkMuted}>
+          « Système » suit le mode clair ou sombre du téléphone.
+        </Text>
+      </View>
 
       <Group label="Préférences">
         <ListRow label="Notifications" onPress={() => router.push('/settings/notifications')} />
